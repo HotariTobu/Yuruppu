@@ -169,3 +169,10 @@ func (m *mockDependency) Method(arg Type) (Type, error) {
 - Prefer table-driven tests for similar cases
 - Add comments linking tests to spec requirements (AC-XXX)
 - Do NOT write implementation code, only tests
+
+## Test Integrity
+
+- **NEVER delete or modify existing tests** to make them pass
+- If a test fails, fix the implementation, not the test
+- Exception: Test is genuinely incorrect (document reason in commit)
+- New functionality must have corresponding new tests

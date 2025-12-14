@@ -41,6 +41,7 @@ End the current coding session with progress update and structured commit.
 5. **Create structured commit**
    - Stage all relevant changes
    - Create commit with Conventional Commits subject (max 72 chars)
+   - Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
    - Include structured body:
 
    ```
@@ -93,3 +94,13 @@ End the current coding session with progress update and structured commit.
 - If tests are failing, do NOT mark requirements as passed
 - Always include "Next session should start with..." in notes
 - Leave the codebase in a state where the next session can start immediately
+
+## Preventing Premature Completion
+
+A requirement can only be marked as `passes: true` when:
+
+1. `make preflight` passes
+2. Manual verification completed (when applicable)
+3. You have actually verified the behavior, not assumed it works
+
+**"Probably works" = `passes: false`**

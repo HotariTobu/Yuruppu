@@ -16,6 +16,13 @@ Create a pull request after development on a branch is complete.
 | Documentation | `docs/*` | `docs:` | No | [docs.md](templates/docs.md) |
 | Refactoring | `refactor/*` | `refactor:` | Yes | [refactor.md](templates/refactor.md) |
 
+## Guidelines
+
+1. **Link the specification** - Every PR must reference its specification
+2. **One feature per PR** - Keep PRs focused and small
+3. **All tests must pass** - Ensure CI is green
+4. **Request a review** - Wait for approval before merging
+
 ## Workflow
 
 1. **Analyze**: Get branch name, commits (`main..HEAD`), and diff to understand changes
