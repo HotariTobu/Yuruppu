@@ -81,15 +81,7 @@ Generate LLM documentation before implementation using the `llms-generator` agen
 Generate llms.txt from https://example.com/docs
 ```
 
-### 6. Check Code
-
-Run linting and formatting checks:
-
-```bash
-make check
-```
-
-### 7. Create a Pull Request
+### 6. Create a Pull Request
 
 - Link to the related specification
 - Ensure all tests pass
