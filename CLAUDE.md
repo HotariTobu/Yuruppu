@@ -33,21 +33,15 @@ This repository follows **Spec-Driven Development**.
 
 ## Development Workflow
 
-### 1. Create a Branch
+### 1. Create a Specification
 
-```bash
-git checkout -b feature/<feature-name>
-```
-
-### 2. Create a Specification
-
-Before writing any code, create a specification in `docs/specs/`:
+Create a specification in `docs/specs/`:
 
 ```
 /spec-new <feature-name>
 ```
 
-### 3. Review the Specification
+### 2. Review the Specification
 
 Ensure the specification is complete and correct:
 
@@ -55,7 +49,7 @@ Ensure the specification is complete and correct:
 Review docs/specs/<spec-name>/spec.md using spec-reviewer
 ```
 
-### 4. Tech Selection (if needed)
+### 3. Tech Selection (if needed)
 
 Write an ADR (`docs/adr/`) when:
 - Adding or replacing a library/framework
@@ -64,7 +58,7 @@ Write an ADR (`docs/adr/`) when:
 
 Use the `tech-stack-adr` skill to guide technology selection and create an ADR.
 
-### 5. Implement (Session Workflow)
+### 4. Implement (Session Workflow)
 
 Each session focuses on **one requirement**. Repeat until all requirements are complete.
 
@@ -81,7 +75,7 @@ Generate LLM documentation before implementation using the `llms-generator` agen
 Generate llms.txt from https://example.com/docs
 ```
 
-### 6. Create a Pull Request
+### 5. Create a Pull Request
 
 - Link to the related specification
 - Ensure all tests pass
