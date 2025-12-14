@@ -33,53 +33,11 @@ This repository follows **Spec-Driven Development**.
 
 ## Development Workflow
 
-### 1. Create a Specification
-
-Create a specification in `docs/specs/`:
-
 ```
-/spec-new <feature-name>
+/spec-new → /design → [ /session-start → /session-end ]* → PR
 ```
 
-### 2. Review the Specification
-
-Ensure the specification is complete and correct:
-
-```
-Review docs/specs/<spec-name>/spec.md using spec-reviewer
-```
-
-### 3. Tech Selection (if needed)
-
-Write an ADR (`docs/adr/`) when:
-- Adding or replacing a library/framework
-- Choosing between multiple implementation approaches
-- Adopting a new pattern or convention
-
-Use the `tech-stack-adr` skill to guide technology selection and create an ADR.
-
-### 4. Implement (Session Workflow)
-
-Each session focuses on **one requirement**. Repeat until all requirements are complete.
-
-```
-/session-start <spec-name>
-# ... implement and test one requirement ...
-/session-end
-```
-
-**First session** (or when introducing new libraries/tools):
-
-Generate LLM documentation before implementation using the `llms-generator` agent:
-```
-Generate llms.txt from https://example.com/docs
-```
-
-### 5. Create a Pull Request
-
-- Link to the related specification
-- Ensure all tests pass
-- Request a review
+`*` = Repeat until all requirements pass. Each session focuses on **one requirement**.
 
 ## Branch Naming
 

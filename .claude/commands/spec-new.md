@@ -1,7 +1,7 @@
 ---
 description: Create a new specification with progress.json
 argument-hint: <name>
-allowed-tools: Bash(git *), Read, Write, Glob, TodoWrite, AskUserQuestion, WebSearch
+allowed-tools: Bash(git *), Read, Write, Glob, TodoWrite, AskUserQuestion, WebSearch, Task
 ---
 
 # Create a New Specification
@@ -34,7 +34,7 @@ Feature name: $ARGUMENTS
 5. After spec.md is complete, generate progress.json:
    ```json
    {
-     "status": "pending",
+     "phase": "spec",
      "lastUpdated": "<today>",
      "requirements": [
        { "id": "FR-001", "passes": false },
@@ -47,7 +47,13 @@ Feature name: $ARGUMENTS
    - Extract all requirement IDs from spec.md (FR-*, NFR-*, TR-*)
    - Set all `passes` to `false`
 
-6. Create initial commit:
+6. **Run spec-reviewer to validate the specification**:
+   - Launch spec-reviewer agent with the spec name
+   - Review the output with the user
+   - If "Needs revision": work with user to fix issues, then re-run spec-reviewer
+   - Repeat until spec-reviewer returns "Ready for implementation"
+
+7. Create initial commit:
    ```bash
    git add docs/specs/<spec-name>/
    git commit -m "docs(<spec-name>): add specification"
