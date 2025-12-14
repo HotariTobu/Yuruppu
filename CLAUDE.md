@@ -81,19 +81,6 @@ Generate LLM documentation before implementation using the `llms-generator` agen
 Generate llms.txt from https://example.com/docs
 ```
 
-**Every session** (TDD):
-
-1. Write tests based on spec requirements
-2. Run tests (should fail):
-   ```bash
-   make test
-   ```
-3. Implement to make tests pass
-4. Run tests again (should pass):
-   ```bash
-   make test
-   ```
-
 ### 6. Check Code
 
 Run linting and formatting checks:

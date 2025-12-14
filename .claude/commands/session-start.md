@@ -52,6 +52,10 @@ Start a coding session with progress review and planning.
    - Provide focused plan for this session
    - Keep scope to ONE requirement (split if too large)
 
+8. **TDD Implementation (after user approval)**
+   - Use `go-test-generator` agent to generate tests and verify red phase
+   - Use `go-implementer` agent to implement code and verify green phase
+
 ## Output Format
 
 ```
