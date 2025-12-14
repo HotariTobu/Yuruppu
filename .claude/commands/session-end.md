@@ -1,6 +1,6 @@
 ---
 description: End session with progress update and structured commit
-allowed-tools: Bash(git *), Bash(make preflight), Read, Edit, Write, Glob, TodoWrite
+allowed-tools: Bash(git *), Bash(make preflight), Read, Edit, Write, Glob, TodoWrite, Task
 ---
 
 # End Session
@@ -20,6 +20,8 @@ End the current coding session with progress update and structured commit.
    git status
    git diff --staged
    ```
+   Select relevant `reviewer-*` agents based on their descriptions and run in parallel.
+   Fix critical issues before proceeding.
 
 3. **Update progress.json**
    - If `progress.json` doesn't exist, stop and prompt user to run `/spec-new` first
