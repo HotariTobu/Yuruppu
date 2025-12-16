@@ -17,20 +17,30 @@ This is the foundational feature for the Yuruppu LINE bot. It establishes the ba
 - [ ] FR-001: Receive text messages from LINE webhook
 - [ ] FR-002: Reply with the same message prefixed with "Yuruppu: "
 - [ ] FR-003: Handle LINE webhook signature verification
+- [ ] FR-004: Ignore non-text messages (images, stickers, audio, video, location)
+- [ ] FR-005: Load LINE channel secret and access token from environment variables `LINE_CHANNEL_SECRET` and `LINE_CHANNEL_ACCESS_TOKEN`
 
 ### Non-Functional Requirements
 
 - [ ] NFR-001: Respond within 1 second to avoid LINE timeout
-- [ ] NFR-002: Log all incoming messages for debugging
+- [ ] NFR-002: Log all incoming messages at INFO level including: timestamp, user ID, message type, and message text (for text messages)
+- [ ] NFR-003: Handle concurrent webhook requests safely
 
 ## API Design
 
 ### Functions/Methods
 
 ```go
+// NewBot creates a new LINE bot client with the given credentials.
+// channelSecret is the LINE channel secret for signature verification.
+// channelAccessToken is the LINE channel access token for API calls.
+// Returns the bot client or an error if initialization fails.
+func NewBot(channelSecret, channelAccessToken string) (*linebot.Client, error)
+
 // HandleWebhook processes incoming LINE webhook requests.
 // w is the HTTP response writer.
 // r is the HTTP request containing the webhook payload.
+// Returns HTTP 200 on success, 400 on invalid payload, 401 on invalid signature.
 func HandleWebhook(w http.ResponseWriter, r *http.Request)
 
 // HandleTextMessage processes a text message event and sends an echo reply.
@@ -55,20 +65,38 @@ func FormatEchoMessage(message string) string
 ## Usage Examples
 
 ```go
-// Example webhook handler setup
+// Initialize the bot
+bot, err := NewBot(os.Getenv("LINE_CHANNEL_SECRET"), os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Register webhook handler
 http.HandleFunc("/webhook", HandleWebhook)
 
-// Example message formatting
+// Start server
+log.Fatal(http.ListenAndServe(":8080", nil))
+```
+
+```go
+// Message formatting example
 formatted := FormatEchoMessage("Hello")
 // Result: "Yuruppu: Hello"
+
+formatted := FormatEchoMessage("  ")
+// Result: "Yuruppu:   "
 ```
 
 ## Error Handling
 
-| Error Type | Condition | Message |
-|------------|-----------|---------|
-| SignatureError | Invalid webhook signature | "Invalid signature" |
-| ReplyError | Failed to send reply to LINE | "Failed to send reply: ..." |
+| Error Type | Condition | HTTP Status | Message |
+|------------|-----------|-------------|---------|
+| ConfigError | Missing or empty environment variables | N/A (startup) | "Missing required environment variable: ..." |
+| SignatureError | Invalid webhook signature | 401 | "Invalid signature" |
+| PayloadError | Malformed webhook payload | 400 | "Invalid payload" |
+| ReplyError | Failed to send reply to LINE | 200 (logged) | "Failed to send reply: ..." |
+
+Note: ReplyError returns HTTP 200 to prevent LINE from retrying, but the error is logged.
 
 ## Acceptance Criteria
 
@@ -80,29 +108,77 @@ formatted := FormatEchoMessage("Hello")
   - Bot receives the message via webhook
   - Bot replies with "Yuruppu: Hello"
 
-### AC-002: Signature verification [Linked to FR-003]
+### AC-002: Invalid signature rejection [Linked to FR-003]
 
 - **Given**: LINE bot webhook endpoint is exposed
 - **When**: Request with invalid signature is received
 - **Then**:
-  - Request is rejected
+  - Request is rejected with HTTP 401
   - No reply is sent
 
-### AC-003: Empty message handling [Linked to FR-002]
+### AC-003: Valid signature acceptance [Linked to FR-003]
+
+- **Given**: LINE bot webhook endpoint is exposed
+- **When**: Request with valid signature is received
+- **Then**:
+  - Request is accepted with HTTP 200
+  - Message is processed
+
+### AC-004: Non-text message handling [Linked to FR-004]
 
 - **Given**: LINE bot is running
-- **When**: User sends an empty text message ""
+- **When**: User sends a non-text message (image, sticker, etc.)
 - **Then**:
-  - Bot replies with "Yuruppu: "
+  - Bot does not reply
+  - No error is raised
+
+### AC-005: Whitespace-only message handling [Linked to FR-002]
+
+- **Given**: LINE bot is running
+- **When**: User sends a whitespace-only text message "   "
+- **Then**:
+  - Bot replies with "Yuruppu:    "
+
+### AC-006: Long message handling [Linked to FR-002]
+
+- **Given**: LINE bot is running
+- **When**: User sends a text message with 5000 characters
+- **Then**:
+  - Bot replies with the full message prefixed with "Yuruppu: "
+
+### AC-007: Response time [Linked to NFR-001]
+
+- **Given**: LINE bot is running under normal load
+- **When**: User sends a text message
+- **Then**:
+  - Bot replies within 1 second (measured from webhook receipt to LINE API call completion)
+
+### AC-008: Environment configuration [Linked to FR-005]
+
+- **Given**: `LINE_CHANNEL_SECRET` and `LINE_CHANNEL_ACCESS_TOKEN` are set
+- **When**: Bot starts
+- **Then**:
+  - Bot initializes successfully
+
+### AC-009: Missing configuration [Linked to FR-005]
+
+- **Given**: `LINE_CHANNEL_SECRET` or `LINE_CHANNEL_ACCESS_TOKEN` is not set
+- **When**: Bot attempts to start
+- **Then**:
+  - Bot fails to start with ConfigError
+  - Error message indicates which variable is missing
 
 ## Implementation Notes
 
-- Use the official LINE Messaging API SDK for Go
-- Channel secret and access token should be configured via environment variables
+- Use the official LINE Messaging API SDK for Go (`github.com/line/line-bot-sdk-go/v8`)
+- Minimum Go version: 1.21
+- Channel secret and access token must be configured via environment variables
 - Webhook URL needs to be registered in LINE Developer Console
+- The handler is safe for concurrent use
 
 ## Change History
 
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2025-12-15 | 1.0 | Initial version | - |
+| 2025-12-16 | 1.1 | Added FR-004, FR-005, NFR-003; completed error handling; added AC-003 to AC-009; improved API design with NewBot and HTTP status codes | - |
