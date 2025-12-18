@@ -1,5 +1,5 @@
 {
-  "phase": "spec",
+  "phase": "designed",
   "lastUpdated": "2025-12-18",
   "requirements": [
     { "id": "FR-001", "passes": false },
@@ -11,5 +11,5 @@
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": ""
+  "notes": "Design decisions: Use ko for container builds (ADR 20251218-container-build), Cloud Build for CI/CD (ADR 20251218-cicd)"
 }
