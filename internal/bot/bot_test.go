@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1986,4 +1987,415 @@ func generateMultipleEventsBody(count int) string {
 		}`, i, i, i)
 	}
 	return fmt.Sprintf(`{"destination": "xxxxxxxxxx", "events": [%s]}`, strings.Join(events, ","))
+}
+
+// TestHandleWebhook_ConcurrentRequests tests that concurrent webhook requests are handled safely.
+// NFR-003: Handle concurrent webhook requests safely.
+// This test verifies no data races occur when multiple goroutines call HandleWebhook.
+func TestHandleWebhook_ConcurrentRequests(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize thread-safe mock sender
+	mock := &concurrentMockSender{}
+	bot.SetDefaultMessageSender(mock)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
+	// Setup: Initialize thread-safe mock logger
+	mockLog := &concurrentMockLogger{}
+	bot.SetLogger(mockLog)
+
+	t.Run("concurrent requests complete without race conditions", func(t *testing.T) {
+		mock.reset()
+		mockLog.reset()
+
+		// Given: Number of concurrent requests
+		const numRequests = 100
+		var wg sync.WaitGroup
+		wg.Add(numRequests)
+
+		// When: Send concurrent requests
+		for i := 0; i < numRequests; i++ {
+			go func(i int) {
+				defer wg.Done()
+
+				// Create unique request body for each goroutine
+				body := fmt.Sprintf(`{
+					"destination": "xxxxxxxxxx",
+					"events": [
+						{
+							"type": "message",
+							"message": {
+								"type": "text",
+								"id": "%d",
+								"text": "Concurrent message %d"
+							},
+							"timestamp": 1609459200000,
+							"source": {
+								"type": "user",
+								"userId": "U%010d"
+							},
+							"replyToken": "test-reply-token-%d",
+							"mode": "active"
+						}
+					]
+				}`, i, i, i, i)
+
+				req := createRequestWithValidSignature(t, channelSecret, body)
+				rec := httptest.NewRecorder()
+
+				bot.HandleWebhook(rec, req)
+
+				// Verify response
+				assert.Equal(t, http.StatusOK, rec.Code,
+					"concurrent request %d should return 200", i)
+			}(i)
+		}
+
+		// Wait for all requests to complete
+		wg.Wait()
+
+		// Then: All requests should have been processed
+		assert.Equal(t, numRequests, mock.callCount(),
+			"all %d requests should have sent replies", numRequests)
+		assert.Equal(t, numRequests, mockLog.infoCallCount(),
+			"all %d requests should have been logged", numRequests)
+	})
+
+	t.Run("concurrent requests with mixed message types complete safely", func(t *testing.T) {
+		mock.reset()
+		mockLog.reset()
+
+		// Given: Number of concurrent requests
+		const numRequests = 50
+		var wg sync.WaitGroup
+		wg.Add(numRequests)
+
+		// When: Send concurrent requests with mixed message types
+		for i := 0; i < numRequests; i++ {
+			go func(i int) {
+				defer wg.Done()
+
+				var body string
+				if i%2 == 0 {
+					// Text message
+					body = fmt.Sprintf(`{
+						"events": [
+							{
+								"type": "message",
+								"message": {
+									"type": "text",
+									"id": "%d",
+									"text": "Text message %d"
+								},
+								"timestamp": 1609459200000,
+								"source": {
+									"type": "user",
+									"userId": "U%010d"
+								},
+								"replyToken": "test-reply-token-%d",
+								"mode": "active"
+							}
+						]
+					}`, i, i, i, i)
+				} else {
+					// Image message (no reply expected)
+					body = fmt.Sprintf(`{
+						"events": [
+							{
+								"type": "message",
+								"message": {
+									"type": "image",
+									"id": "%d",
+									"contentProvider": {
+										"type": "line"
+									}
+								},
+								"timestamp": 1609459200000,
+								"source": {
+									"type": "user",
+									"userId": "U%010d"
+								},
+								"replyToken": "test-reply-token-%d",
+								"mode": "active"
+							}
+						]
+					}`, i, i, i)
+				}
+
+				req := createRequestWithValidSignature(t, channelSecret, body)
+				rec := httptest.NewRecorder()
+
+				bot.HandleWebhook(rec, req)
+
+				assert.Equal(t, http.StatusOK, rec.Code,
+					"concurrent request %d should return 200", i)
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Then: Only text messages should have sent replies (half of total)
+		assert.Equal(t, numRequests/2, mock.callCount(),
+			"only text messages should trigger replies")
+		// Then: All messages should have been logged
+		assert.Equal(t, numRequests, mockLog.infoCallCount(),
+			"all messages should be logged")
+	})
+
+	t.Run("concurrent requests with errors complete safely", func(t *testing.T) {
+		mock.reset()
+		mockLog.reset()
+
+		// Given: Mock sender returns errors for some requests
+		mock.failEveryN = 3 // Fail every 3rd request
+
+		const numRequests = 30
+		var wg sync.WaitGroup
+		wg.Add(numRequests)
+
+		// When: Send concurrent requests
+		for i := 0; i < numRequests; i++ {
+			go func(i int) {
+				defer wg.Done()
+
+				body := fmt.Sprintf(`{
+					"events": [
+						{
+							"type": "message",
+							"message": {
+								"type": "text",
+								"id": "%d",
+								"text": "Message %d"
+							},
+							"timestamp": 1609459200000,
+							"source": {
+								"type": "user",
+								"userId": "U%010d"
+							},
+							"replyToken": "test-reply-token-%d",
+							"mode": "active"
+						}
+					]
+				}`, i, i, i, i)
+
+				req := createRequestWithValidSignature(t, channelSecret, body)
+				rec := httptest.NewRecorder()
+
+				bot.HandleWebhook(rec, req)
+
+				// All requests should return 200 even if reply fails
+				assert.Equal(t, http.StatusOK, rec.Code,
+					"concurrent request %d should return 200 even on error", i)
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Then: All requests should have attempted to send replies
+		assert.Equal(t, numRequests, mock.callCount(),
+			"all requests should have attempted to send replies")
+
+		// Cleanup
+		mock.failEveryN = 0
+	})
+}
+
+// TestHandleWebhook_ConcurrentSetters tests that concurrent setter calls are safe.
+// NFR-003: Handle concurrent webhook requests safely.
+// This tests the thread-safety of SetDefaultBot, SetLogger, SetDefaultMessageSender.
+func TestHandleWebhook_ConcurrentSetters(t *testing.T) {
+	t.Run("concurrent SetDefaultBot calls are safe", func(t *testing.T) {
+		const numGoroutines = 50
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				defer wg.Done()
+				testBot, _ := bot.NewBot("secret", "token")
+				bot.SetDefaultBot(testBot)
+			}()
+		}
+
+		wg.Wait()
+		// If we reach here without race detector errors, the test passes
+	})
+
+	t.Run("concurrent SetLogger calls are safe", func(t *testing.T) {
+		const numGoroutines = 50
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				defer wg.Done()
+				bot.SetLogger(&mockLogger{})
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	t.Run("concurrent SetDefaultMessageSender calls are safe", func(t *testing.T) {
+		const numGoroutines = 50
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				defer wg.Done()
+				bot.SetDefaultMessageSender(&mockSender{})
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	t.Run("concurrent read and write operations are safe", func(t *testing.T) {
+		// Setup
+		channelSecret := "test-channel-secret"
+		testBot, _ := bot.NewBot(channelSecret, "test-access-token")
+		bot.SetDefaultBot(testBot)
+		bot.SetDefaultMessageSender(&concurrentMockSender{})
+		bot.SetLogger(&concurrentMockLogger{})
+
+		const numGoroutines = 100
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func(i int) {
+				defer wg.Done()
+
+				if i%3 == 0 {
+					// Writer: set new bot
+					newBot, _ := bot.NewBot(channelSecret, "test-access-token")
+					bot.SetDefaultBot(newBot)
+				} else if i%3 == 1 {
+					// Writer: set new logger
+					bot.SetLogger(&concurrentMockLogger{})
+				} else {
+					// Reader: handle webhook request
+					body := `{"events": []}`
+					req := createRequestWithValidSignature(t, channelSecret, body)
+					rec := httptest.NewRecorder()
+					bot.HandleWebhook(rec, req)
+				}
+			}(i)
+		}
+
+		wg.Wait()
+	})
+}
+
+// concurrentMockSender is a thread-safe mock implementation of MessageSender.
+type concurrentMockSender struct {
+	mu         sync.Mutex
+	calls      []*messaging_api.ReplyMessageRequest
+	failEveryN int
+	callNum    int
+}
+
+func (m *concurrentMockSender) ReplyMessage(req *messaging_api.ReplyMessageRequest) (*messaging_api.ReplyMessageResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, req)
+	m.callNum++
+	if m.failEveryN > 0 && m.callNum%m.failEveryN == 0 {
+		return nil, fmt.Errorf("simulated error for request %d", m.callNum)
+	}
+	return &messaging_api.ReplyMessageResponse{}, nil
+}
+
+func (m *concurrentMockSender) reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = nil
+	m.callNum = 0
+}
+
+func (m *concurrentMockSender) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+// concurrentMockLogger is a thread-safe mock logger for testing.
+type concurrentMockLogger struct {
+	mu               sync.Mutex
+	infoLogCallCount int
+}
+
+func (m *concurrentMockLogger) Info(format string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.infoLogCallCount++
+}
+
+func (m *concurrentMockLogger) Debug(format string, args ...interface{}) {}
+func (m *concurrentMockLogger) Warn(format string, args ...interface{})  {}
+func (m *concurrentMockLogger) Error(format string, args ...interface{}) {}
+
+func (m *concurrentMockLogger) reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.infoLogCallCount = 0
+}
+
+func (m *concurrentMockLogger) infoCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.infoLogCallCount
+}
+
+// BenchmarkHandleWebhook_Parallel benchmarks concurrent request handling.
+// NFR-003: Handle concurrent webhook requests safely.
+func BenchmarkHandleWebhook_Parallel(b *testing.B) {
+	// Setup
+	channelSecret := "test-channel-secret"
+	testBot, err := bot.NewBot(channelSecret, "test-access-token")
+	if err != nil {
+		b.Fatalf("failed to create bot: %v", err)
+	}
+	bot.SetDefaultBot(testBot)
+	bot.SetDefaultMessageSender(&concurrentMockSender{})
+	bot.SetLogger(&concurrentMockLogger{})
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"message": {
+					"type": "text",
+					"id": "12345",
+					"text": "Hello World"
+				},
+				"timestamp": 1609459200000,
+				"source": {
+					"type": "user",
+					"userId": "U1234567890abcdef"
+				},
+				"replyToken": "test-reply-token",
+				"mode": "active"
+			}
+		]
+	}`
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			req := createBenchmarkRequest(channelSecret, body)
+			rec := httptest.NewRecorder()
+			bot.HandleWebhook(rec, req)
+		}
+	})
 }
