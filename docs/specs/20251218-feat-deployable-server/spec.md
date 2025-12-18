@@ -32,6 +32,7 @@ main.goを作成し、HTTPサーバーを起動してCloud Runにデプロイ可
 - [ ] FR-005: インフラコードを作成する
   - コンテナイメージをビルドできること（ADR 20251218-container-build）
   - CI/CDで自動デプロイできること（ADR 20251218-cicd）
+  - GCPリソースをOpenTofuで管理できること（ADR 20251219-iac-tool）
 
 ### Non-Functional Requirements
 
@@ -163,7 +164,7 @@ go run .
 ### AC-009: 手動デプロイ [FR-005, NFR-002]
 
 - **Given**: コンテナイメージがビルド済み
-- **When**: READMEの手順に従ってデプロイする
+- **When**: 手動でデプロイする
 - **Then**: Cloud Runでアプリケーションが動作する
 
 ### AC-010: 自動デプロイ [FR-005]
@@ -171,6 +172,12 @@ go run .
 - **Given**: CI/CDが設定済み
 - **When**: mainブランチにpushする
 - **Then**: Cloud Runサービスが自動的に更新される
+
+### AC-011: OpenTofuでインフラ構築 [FR-005]
+
+- **Given**: OpenTofu設定ファイルが存在する
+- **When**: `tofu apply`を実行する
+- **Then**: 必要なGCPリソースが作成される
 
 ## Implementation Notes
 
@@ -180,6 +187,7 @@ go run .
 - 20251217-logging.md
 - 20251218-container-build.md
 - 20251218-cicd.md
+- 20251219-iac-tool.md
 
 ## Change History
 
@@ -187,3 +195,4 @@ go run .
 |------|---------|---------|--------|
 | 2025-12-18 | 1.0 | Initial version | - |
 | 2025-12-18 | 1.1 | Update FR-005 to use ko instead of Dockerfile, add Cloud Build CI/CD | - |
+| 2025-12-19 | 1.2 | Add OpenTofu for GCP resource management | - |
