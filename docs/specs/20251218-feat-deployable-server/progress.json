@@ -1,6 +1,6 @@
 {
   "phase": "designed",
-  "lastUpdated": "2025-12-18",
+  "lastUpdated": "2025-12-19",
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
@@ -11,5 +11,5 @@
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "Design decisions: Use ko for container builds (ADR 20251218-container-build), Cloud Build for CI/CD (ADR 20251218-cicd)"
+  "notes": "Design decisions: Use ko for container builds (ADR 20251218-container-build), Cloud Build for CI/CD (ADR 20251218-cicd), OpenTofu for IaC (ADR 20251219-iac-tool)"
 }
