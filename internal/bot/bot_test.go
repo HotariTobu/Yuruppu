@@ -910,3 +910,705 @@ func (m *mockMessageEvent) GetReplyToken() string {
 func (m *mockMessageEvent) GetText() string {
 	return m.text
 }
+
+// TestHandleWebhook_LoggingTextMessages tests that text messages are logged with required fields.
+// NFR-002: Log all incoming messages at INFO level including:
+// timestamp, user ID, message type, and message text (for text messages)
+func TestHandleWebhook_LoggingTextMessages(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	tests := []struct {
+		name             string
+		webhookBody      string
+		expectedUserID   string
+		expectedMsgType  string
+		expectedMsgText  string
+		expectedLogLevel string
+	}{
+		{
+			name: "text message logs timestamp, user ID, message type, and text",
+			webhookBody: `{
+				"destination": "xxxxxxxxxx",
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "Hello World"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "U1234567890abcdef"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "U1234567890abcdef",
+			expectedMsgType:  "text",
+			expectedMsgText:  "Hello World",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "text message with special characters logs correctly",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "Hello!@#$%^&*()"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "U9876543210fedcba"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "U9876543210fedcba",
+			expectedMsgType:  "text",
+			expectedMsgText:  "Hello!@#$%^&*()",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "text message with unicode and emojis logs correctly",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "こんにちは 🌍"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Uabcdef1234567890"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Uabcdef1234567890",
+			expectedMsgType:  "text",
+			expectedMsgText:  "こんにちは 🌍",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "whitespace-only text message logs correctly",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "   "
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Uwhitespace123456"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Uwhitespace123456",
+			expectedMsgType:  "text",
+			expectedMsgText:  "   ",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "long text message logs correctly",
+			webhookBody: fmt.Sprintf(`{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "%s"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Ulongmessage12345"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`, strings.Repeat("a", 5000)),
+			expectedUserID:   "Ulongmessage12345",
+			expectedMsgType:  "text",
+			expectedMsgText:  strings.Repeat("a", 5000),
+			expectedLogLevel: "INFO",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Create mock logger to capture log entries
+			mockLogger := &mockLogger{}
+			bot.SetLogger(mockLogger)
+
+			// Given: Create valid webhook request
+			req := createRequestWithValidSignature(t, channelSecret, tt.webhookBody)
+			rec := httptest.NewRecorder()
+
+			// When: Call webhook handler
+			bot.HandleWebhook(rec, req)
+
+			// Then: Should return 200
+			assert.Equal(t, http.StatusOK, rec.Code,
+				"should return 200 for valid webhook request")
+
+			// Then: Should have logged the message with required fields
+			assert.True(t, mockLogger.infoLogCalled,
+				"should log at INFO level")
+
+			// Then: Log entry should contain timestamp
+			assert.Contains(t, mockLogger.lastLogEntry, "timestamp",
+				"log entry should contain timestamp field")
+			assert.Contains(t, mockLogger.lastLogEntry, "1609459200000",
+				"log entry should contain actual timestamp value")
+
+			// Then: Log entry should contain user ID
+			assert.Contains(t, mockLogger.lastLogEntry, "userId",
+				"log entry should contain userId field")
+			assert.Contains(t, mockLogger.lastLogEntry, tt.expectedUserID,
+				"log entry should contain actual user ID")
+
+			// Then: Log entry should contain message type
+			assert.Contains(t, mockLogger.lastLogEntry, "messageType",
+				"log entry should contain messageType field")
+			assert.Contains(t, mockLogger.lastLogEntry, tt.expectedMsgType,
+				"log entry should contain actual message type")
+
+			// Then: Log entry should contain message text
+			assert.Contains(t, mockLogger.lastLogEntry, "text",
+				"log entry should contain text field for text messages")
+			assert.Contains(t, mockLogger.lastLogEntry, tt.expectedMsgText,
+				"log entry should contain actual message text")
+		})
+	}
+}
+
+// TestHandleWebhook_LoggingNonTextMessages tests that non-text messages are logged without text field.
+// NFR-002: Log all incoming messages at INFO level including:
+// timestamp, user ID, message type (but NOT message text for non-text messages)
+func TestHandleWebhook_LoggingNonTextMessages(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	tests := []struct {
+		name             string
+		webhookBody      string
+		expectedUserID   string
+		expectedMsgType  string
+		shouldNotContain string
+		expectedLogLevel string
+	}{
+		{
+			name: "image message logs without text field",
+			webhookBody: `{
+				"destination": "xxxxxxxxxx",
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "image",
+							"id": "12345",
+							"contentProvider": {
+								"type": "line"
+							}
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Uimage123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Uimage123456789",
+			expectedMsgType:  "image",
+			shouldNotContain: "\"text\":",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "sticker message logs without text field",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "sticker",
+							"id": "12345",
+							"packageId": "1",
+							"stickerId": "1"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Usticker123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Usticker123456789",
+			expectedMsgType:  "sticker",
+			shouldNotContain: "\"text\":",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "video message logs without text field",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "video",
+							"id": "12345",
+							"duration": 5000,
+							"contentProvider": {
+								"type": "line"
+							}
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Uvideo123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Uvideo123456789",
+			expectedMsgType:  "video",
+			shouldNotContain: "\"text\":",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "audio message logs without text field",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "audio",
+							"id": "12345",
+							"duration": 3000,
+							"contentProvider": {
+								"type": "line"
+							}
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Uaudio123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Uaudio123456789",
+			expectedMsgType:  "audio",
+			shouldNotContain: "\"text\":",
+			expectedLogLevel: "INFO",
+		},
+		{
+			name: "location message logs without text field",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "location",
+							"id": "12345",
+							"title": "My Location",
+							"address": "Tokyo",
+							"latitude": 35.6762,
+							"longitude": 139.6503
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Ulocation123456"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+			expectedUserID:   "Ulocation123456",
+			expectedMsgType:  "location",
+			shouldNotContain: "\"text\":",
+			expectedLogLevel: "INFO",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Create mock logger to capture log entries
+			mockLogger := &mockLogger{}
+			bot.SetLogger(mockLogger)
+
+			// Given: Create valid webhook request
+			req := createRequestWithValidSignature(t, channelSecret, tt.webhookBody)
+			rec := httptest.NewRecorder()
+
+			// When: Call webhook handler
+			bot.HandleWebhook(rec, req)
+
+			// Then: Should return 200
+			assert.Equal(t, http.StatusOK, rec.Code,
+				"should return 200 for valid webhook request")
+
+			// Then: Should have logged the message
+			assert.True(t, mockLogger.infoLogCalled,
+				"should log at INFO level")
+
+			// Then: Log entry should contain timestamp
+			assert.Contains(t, mockLogger.lastLogEntry, "timestamp",
+				"log entry should contain timestamp field")
+			assert.Contains(t, mockLogger.lastLogEntry, "1609459200000",
+				"log entry should contain actual timestamp value")
+
+			// Then: Log entry should contain user ID
+			assert.Contains(t, mockLogger.lastLogEntry, "userId",
+				"log entry should contain userId field")
+			assert.Contains(t, mockLogger.lastLogEntry, tt.expectedUserID,
+				"log entry should contain actual user ID")
+
+			// Then: Log entry should contain message type
+			assert.Contains(t, mockLogger.lastLogEntry, "messageType",
+				"log entry should contain messageType field")
+			assert.Contains(t, mockLogger.lastLogEntry, tt.expectedMsgType,
+				"log entry should contain actual message type")
+
+			// Then: Log entry should NOT contain text field
+			assert.NotContains(t, mockLogger.lastLogEntry, tt.shouldNotContain,
+				"log entry should NOT contain text field for non-text messages")
+		})
+	}
+}
+
+// TestHandleWebhook_LoggingMultipleMessages tests that multiple messages in one webhook are all logged.
+// NFR-002: All incoming messages should be logged
+func TestHandleWebhook_LoggingMultipleMessages(t *testing.T) {
+	t.Run("multiple messages in single webhook are all logged", func(t *testing.T) {
+		// Setup: Create a valid channel secret
+		channelSecret := "test-channel-secret"
+		channelAccessToken := "test-access-token"
+
+		// Setup: Initialize bot for handler
+		testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+		require.NoError(t, err)
+		bot.SetDefaultBot(testBot)
+
+		// Given: Create mock logger to capture log entries
+		mockLogger := &mockLogger{}
+		bot.SetLogger(mockLogger)
+
+		// Given: Create webhook request with multiple events
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "First message"
+					},
+					"timestamp": 1609459200000,
+					"source": {
+						"type": "user",
+						"userId": "Ufirst123456789"
+					},
+					"replyToken": "test-reply-token-1",
+					"mode": "active"
+				},
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12346",
+						"text": "Second message"
+					},
+					"timestamp": 1609459201000,
+					"source": {
+						"type": "user",
+						"userId": "Usecond123456789"
+					},
+					"replyToken": "test-reply-token-2",
+					"mode": "active"
+				},
+				{
+					"type": "message",
+					"message": {
+						"type": "image",
+						"id": "12347",
+						"contentProvider": {
+							"type": "line"
+						}
+					},
+					"timestamp": 1609459202000,
+					"source": {
+						"type": "user",
+						"userId": "Uthird123456789"
+					},
+					"replyToken": "test-reply-token-3",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code,
+			"should return 200 for valid webhook request")
+
+		// Then: Should have logged all messages (3 log calls)
+		assert.Equal(t, 3, mockLogger.infoLogCallCount,
+			"should log each message in the webhook")
+
+		// Then: All log entries should be captured
+		assert.Len(t, mockLogger.allLogEntries, 3,
+			"should have 3 log entries for 3 messages")
+
+		// Then: First message should be logged
+		assert.Contains(t, mockLogger.allLogEntries[0], "Ufirst123456789",
+			"first log entry should contain first user ID")
+		assert.Contains(t, mockLogger.allLogEntries[0], "First message",
+			"first log entry should contain first message text")
+
+		// Then: Second message should be logged
+		assert.Contains(t, mockLogger.allLogEntries[1], "Usecond123456789",
+			"second log entry should contain second user ID")
+		assert.Contains(t, mockLogger.allLogEntries[1], "Second message",
+			"second log entry should contain second message text")
+
+		// Then: Third message (image) should be logged
+		assert.Contains(t, mockLogger.allLogEntries[2], "Uthird123456789",
+			"third log entry should contain third user ID")
+		assert.Contains(t, mockLogger.allLogEntries[2], "image",
+			"third log entry should contain message type")
+		assert.NotContains(t, mockLogger.allLogEntries[2], "\"text\":",
+			"third log entry (image) should not contain text field")
+	})
+}
+
+// TestHandleWebhook_LoggingFormat tests the logging format.
+// NFR-002: Logs should be structured and include all required fields
+func TestHandleWebhook_LoggingFormat(t *testing.T) {
+	t.Run("log format includes all required fields in structured format", func(t *testing.T) {
+		// Setup: Create a valid channel secret
+		channelSecret := "test-channel-secret"
+		channelAccessToken := "test-access-token"
+
+		// Setup: Initialize bot for handler
+		testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+		require.NoError(t, err)
+		bot.SetDefaultBot(testBot)
+
+		// Given: Create mock logger
+		mockLogger := &mockLogger{}
+		bot.SetLogger(mockLogger)
+
+		// Given: Create valid webhook request
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Test message"
+					},
+					"timestamp": 1609459200000,
+					"source": {
+						"type": "user",
+						"userId": "Utest123456789"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Log should be structured with key-value pairs
+		logEntry := mockLogger.lastLogEntry
+
+		// Then: Should contain all required fields
+		requiredFields := []string{"timestamp", "userId", "messageType", "text"}
+		for _, field := range requiredFields {
+			assert.Contains(t, logEntry, field,
+				"log entry should contain %s field", field)
+		}
+
+		// Then: Should be parseable (suggests structured format like JSON)
+		// The log should be in a format like: "field=value" or JSON
+		assert.Regexp(t, `timestamp[=:]`, logEntry,
+			"log should use structured format with field names")
+	})
+}
+
+// TestHandleWebhook_LoggingLevel tests that logs are at INFO level.
+// NFR-002: Log at INFO level
+func TestHandleWebhook_LoggingLevel(t *testing.T) {
+	tests := []struct {
+		name        string
+		webhookBody string
+	}{
+		{
+			name: "text message logs at INFO level",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "text",
+							"id": "12345",
+							"text": "Hello"
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Utest123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+		},
+		{
+			name: "non-text message logs at INFO level",
+			webhookBody: `{
+				"events": [
+					{
+						"type": "message",
+						"message": {
+							"type": "image",
+							"id": "12345",
+							"contentProvider": {
+								"type": "line"
+							}
+						},
+						"timestamp": 1609459200000,
+						"source": {
+							"type": "user",
+							"userId": "Utest123456789"
+						},
+						"replyToken": "test-reply-token",
+						"mode": "active"
+					}
+				]
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			channelSecret := "test-channel-secret"
+			channelAccessToken := "test-access-token"
+			testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+			require.NoError(t, err)
+			bot.SetDefaultBot(testBot)
+
+			// Given: Create mock logger
+			mockLogger := &mockLogger{}
+			bot.SetLogger(mockLogger)
+
+			// Given: Create valid webhook request
+			req := createRequestWithValidSignature(t, channelSecret, tt.webhookBody)
+			rec := httptest.NewRecorder()
+
+			// When: Call webhook handler
+			bot.HandleWebhook(rec, req)
+
+			// Then: Should log at INFO level, not DEBUG, WARN, or ERROR
+			assert.True(t, mockLogger.infoLogCalled,
+				"should call Info logging method")
+			assert.False(t, mockLogger.debugLogCalled,
+				"should not call Debug logging method")
+			assert.False(t, mockLogger.warnLogCalled,
+				"should not call Warn logging method")
+			assert.False(t, mockLogger.errorLogCalled,
+				"should not call Error logging method")
+		})
+	}
+}
+
+// mockLogger is a mock logger implementation for testing logging behavior.
+type mockLogger struct {
+	infoLogCalled    bool
+	debugLogCalled   bool
+	warnLogCalled    bool
+	errorLogCalled   bool
+	infoLogCallCount int
+	lastLogEntry     string
+	allLogEntries    []string
+}
+
+func (m *mockLogger) Info(format string, args ...interface{}) {
+	m.infoLogCalled = true
+	m.infoLogCallCount++
+	m.lastLogEntry = fmt.Sprintf(format, args...)
+	m.allLogEntries = append(m.allLogEntries, m.lastLogEntry)
+}
+
+func (m *mockLogger) Debug(format string, args ...interface{}) {
+	m.debugLogCalled = true
+}
+
+func (m *mockLogger) Warn(format string, args ...interface{}) {
+	m.warnLogCalled = true
+}
+
+func (m *mockLogger) Error(format string, args ...interface{}) {
+	m.errorLogCalled = true
+}

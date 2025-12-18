@@ -97,11 +97,38 @@ func (b *Bot) VerifySignature(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSignature)) == 1
 }
 
+// Logger is an interface for logging operations.
+// This allows injecting different logger implementations (e.g., for testing).
+type Logger interface {
+	Info(format string, args ...interface{})
+	Debug(format string, args ...interface{})
+	Warn(format string, args ...interface{})
+	Error(format string, args ...interface{})
+}
+
 // Package-level bot instance for HandleWebhook
 var (
 	defaultBotMu sync.RWMutex
 	defaultBot   *Bot
+	loggerMu     sync.RWMutex
+	logger       Logger
 )
+
+// SetLogger sets the package-level logger instance for HandleWebhook.
+// This function is safe for concurrent use.
+func SetLogger(l Logger) {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+	logger = l
+}
+
+// getLogger returns the package-level logger instance.
+// This function is safe for concurrent use.
+func getLogger() Logger {
+	loggerMu.RLock()
+	defer loggerMu.RUnlock()
+	return logger
+}
 
 // SetDefaultBot sets the package-level bot instance for HandleWebhook.
 // This function is safe for concurrent use.
@@ -225,6 +252,76 @@ func HandleTextMessage(client interface{}, event interface{}) error {
 	return fmt.Errorf("unsupported client type")
 }
 
+// logIncomingMessage logs an incoming message event at INFO level.
+// NFR-002: Log all incoming messages at INFO level including:
+// timestamp, user ID, message type, and message text (for text messages).
+func logIncomingMessage(msgEvent *webhook.MessageEvent) {
+	logger := getLogger()
+	if logger == nil {
+		return
+	}
+
+	// Extract timestamp from event (already in milliseconds)
+	timestamp := msgEvent.Timestamp
+
+	// Extract user ID from source
+	userId := ""
+	if msgEvent.Source != nil {
+		// Try both pointer and non-pointer types
+		if userSource, ok := msgEvent.Source.(*webhook.UserSource); ok {
+			userId = userSource.UserId
+		} else if userSource, ok := msgEvent.Source.(webhook.UserSource); ok {
+			userId = userSource.UserId
+		}
+	}
+
+	// Extract message type and text (if text message)
+	var messageType string
+	var text string
+
+	switch msg := msgEvent.Message.(type) {
+	case *webhook.TextMessageContent:
+		messageType = "text"
+		text = msg.Text
+	case webhook.TextMessageContent:
+		messageType = "text"
+		text = msg.Text
+	case *webhook.ImageMessageContent:
+		messageType = "image"
+	case webhook.ImageMessageContent:
+		messageType = "image"
+	case *webhook.StickerMessageContent:
+		messageType = "sticker"
+	case webhook.StickerMessageContent:
+		messageType = "sticker"
+	case *webhook.VideoMessageContent:
+		messageType = "video"
+	case webhook.VideoMessageContent:
+		messageType = "video"
+	case *webhook.AudioMessageContent:
+		messageType = "audio"
+	case webhook.AudioMessageContent:
+		messageType = "audio"
+	case *webhook.LocationMessageContent:
+		messageType = "location"
+	case webhook.LocationMessageContent:
+		messageType = "location"
+	default:
+		messageType = "unknown"
+	}
+
+	// Log with structured format
+	if messageType == "text" {
+		// For text messages, include the text field
+		logger.Info("timestamp=%d userId=%s messageType=%s text=%s",
+			timestamp, userId, messageType, text)
+	} else {
+		// For non-text messages, omit the text field
+		logger.Info("timestamp=%d userId=%s messageType=%s",
+			timestamp, userId, messageType)
+	}
+}
+
 // HandleWebhook processes incoming LINE webhook requests.
 // w is the HTTP response writer.
 // r is the HTTP request containing the webhook payload.
@@ -255,13 +352,36 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Process each event
 	for _, event := range cb.Events {
 		// Handle message events only
-		if msgEvent, ok := event.(*webhook.MessageEvent); ok {
+		// Try both pointer and non-pointer types
+		var msgEvent *webhook.MessageEvent
+		if me, ok := event.(*webhook.MessageEvent); ok {
+			msgEvent = me
+		} else if me, ok := event.(webhook.MessageEvent); ok {
+			msgEvent = &me
+		}
+
+		if msgEvent != nil {
+			// Log incoming message (NFR-002)
+			logIncomingMessage(msgEvent)
+
 			// Only handle text messages (FR-004: ignore non-text messages)
+			// Try both pointer and non-pointer types
+			var text string
+			var isTextMessage bool
+
 			if textMsg, ok := msgEvent.Message.(*webhook.TextMessageContent); ok {
+				text = textMsg.Text
+				isTextMessage = true
+			} else if textMsg, ok := msgEvent.Message.(webhook.TextMessageContent); ok {
+				text = textMsg.Text
+				isTextMessage = true
+			}
+
+			if isTextMessage {
 				// Create real message event wrapper
 				realEvent := &realMessageEvent{
 					replyToken: msgEvent.ReplyToken,
-					text:       textMsg.Text,
+					text:       text,
 				}
 
 				// Create real client wrapper
