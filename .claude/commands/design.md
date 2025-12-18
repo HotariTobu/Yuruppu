@@ -26,13 +26,18 @@ Spec name: $ARGUMENTS
    - Architecture pattern decisions
    - Technology choices
 
-   If no ADRs needed, skip to step 5.
+   If no ADRs needed, skip to step 6.
 
 4. **Create ADRs** (use tech-stack-adr skill for each):
    - Run the skill for each identified decision
    - Follow the ADR workflow to completion
 
-5. **Update progress.json**:
+5. **Generate llms.txt** (use llms-generator agent):
+   - For each adopted technology with official documentation, generate llms.txt
+   - Store in `docs/llms-txt/<technology-name>/`
+   - Skip if documentation is already present or not applicable (e.g., standard library, CLI tools)
+
+6. **Update progress.json**:
    ```json
    {
      "phase": "designed",
@@ -40,9 +45,9 @@ Spec name: $ARGUMENTS
    }
    ```
 
-6. **Commit changes**:
+7. **Commit changes**:
    ```bash
-   git add docs/adr/ docs/specs/<spec-name>/progress.json
+   git add docs/adr/ docs/llms-txt/ docs/specs/<spec-name>/progress.json
    git commit -m "docs(<spec-name>): complete design phase"
    ```
 
@@ -57,6 +62,10 @@ Spec name: $ARGUMENTS
 
 ### ADRs Created
 - ADR-XXX: [Title] → [Decision]
+- (or "None required")
+
+### llms.txt Generated
+- docs/llms-txt/<technology>/
 - (or "None required")
 
 ### Ready for Implementation
