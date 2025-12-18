@@ -14,17 +14,17 @@ This is the foundational feature for the Yuruppu LINE bot. It establishes the ba
 
 ### Functional Requirements
 
-- [ ] FR-001: Receive text messages from LINE webhook
-- [ ] FR-002: Reply with the same message prefixed with "Yuruppu: "
-- [ ] FR-003: Handle LINE webhook signature verification
-- [ ] FR-004: Ignore non-text messages (images, stickers, audio, video, location)
-- [ ] FR-005: Load LINE channel secret and access token from environment variables `LINE_CHANNEL_SECRET` and `LINE_CHANNEL_ACCESS_TOKEN`
+- [x] FR-001: Receive text messages from LINE webhook
+- [x] FR-002: Reply with the same message prefixed with "Yuruppu: "
+- [x] FR-003: Handle LINE webhook signature verification
+- [x] FR-004: Ignore non-text messages (images, stickers, audio, video, location)
+- [x] FR-005: Load LINE channel secret and access token from environment variables `LINE_CHANNEL_SECRET` and `LINE_CHANNEL_ACCESS_TOKEN`
 
 ### Non-Functional Requirements
 
-- [ ] NFR-001: Respond within 1 second to avoid LINE timeout
-- [ ] NFR-002: Log all incoming messages at INFO level including: timestamp, user ID, message type, and message text (for text messages)
-- [ ] NFR-003: Handle concurrent webhook requests safely
+- [x] NFR-001: Respond within 1 second to avoid LINE timeout
+- [x] NFR-002: Log all incoming messages at INFO level including: timestamp, user ID, message type, and message text (for text messages)
+- [x] NFR-003: Handle concurrent webhook requests safely
 
 ## API Design
 
