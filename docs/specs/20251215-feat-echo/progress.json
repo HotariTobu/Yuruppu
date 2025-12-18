@@ -2,15 +2,15 @@
   "phase": "in_progress",
   "lastUpdated": "2025-12-18",
   "requirements": [
-    { "id": "FR-001", "passes": false },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-001", "passes": true },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
-    { "id": "FR-004", "passes": false },
+    { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false },
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-003, FR-005 complete. Next session: FR-001/FR-002 (receive text messages and reply with echo). Bot.VerifySignature is ready for use in webhook handler."
+  "notes": "FR-001 to FR-005 complete. HandleWebhook, HandleTextMessage, FormatEchoMessage implemented. Non-text messages are ignored (FR-004). Next session: NFR requirements (logging, response time, concurrency)."
 }
