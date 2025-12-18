@@ -6,11 +6,15 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
+	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
 // ConfigError represents an error related to missing or invalid configuration.
@@ -91,4 +95,187 @@ func (b *Bot) VerifySignature(r *http.Request) bool {
 
 	// Compare signatures using constant-time comparison
 	return subtle.ConstantTimeCompare([]byte(signature), []byte(expectedSignature)) == 1
+}
+
+// Package-level bot instance for HandleWebhook
+var (
+	defaultBotMu sync.RWMutex
+	defaultBot   *Bot
+)
+
+// SetDefaultBot sets the package-level bot instance for HandleWebhook.
+// This function is safe for concurrent use.
+func SetDefaultBot(b *Bot) {
+	defaultBotMu.Lock()
+	defer defaultBotMu.Unlock()
+	defaultBot = b
+}
+
+// getDefaultBot returns the package-level bot instance.
+// This function is safe for concurrent use.
+func getDefaultBot() *Bot {
+	defaultBotMu.RLock()
+	defer defaultBotMu.RUnlock()
+	return defaultBot
+}
+
+// LineBotClient is an interface for LINE bot client operations.
+// This allows mocking in tests while using the real client in production.
+type LineBotClient interface {
+	Reply(replyToken, message string) error
+}
+
+// MessageEvent is an interface for LINE message events.
+// This allows mocking in tests while using the real event in production.
+type MessageEvent interface {
+	GetType() string
+	GetReplyToken() string
+}
+
+// realLineBotClient wraps the real LINE bot client to implement LineBotClient interface.
+type realLineBotClient struct {
+	bot *Bot
+}
+
+func (r *realLineBotClient) Reply(replyToken, message string) error {
+	// Create text message
+	textMessage := messaging_api.TextMessage{
+		Text: message,
+	}
+
+	// Create reply request
+	request := messaging_api.ReplyMessageRequest{
+		ReplyToken: replyToken,
+		Messages: []messaging_api.MessageInterface{
+			textMessage,
+		},
+	}
+
+	// Send reply
+	_, err := r.bot.client.ReplyMessage(&request)
+	return err
+}
+
+// realMessageEvent wraps the LINE SDK webhook event to implement MessageEvent interface.
+type realMessageEvent struct {
+	replyToken string
+	text       string
+}
+
+func (r *realMessageEvent) GetType() string {
+	return "text"
+}
+
+func (r *realMessageEvent) GetReplyToken() string {
+	return r.replyToken
+}
+
+func (r *realMessageEvent) GetText() string {
+	return r.text
+}
+
+// FormatEchoMessage formats a message with the Yuruppu prefix.
+// message is the original user message.
+// Returns the formatted echo message.
+func FormatEchoMessage(message string) string {
+	return "Yuruppu: " + message
+}
+
+// TextMessageEvent extends MessageEvent to provide access to text content.
+type TextMessageEvent interface {
+	MessageEvent
+	GetText() string
+}
+
+// HandleTextMessage processes a text message event and sends an echo reply.
+// client is the LINE bot client (can be mock or real).
+// event is the message event from LINE (can be mock or real).
+// Returns any error encountered during reply.
+func HandleTextMessage(client interface{}, event interface{}) error {
+	// Extract message text and reply token from event
+	var text string
+	var replyToken string
+
+	// Try to get text and reply token from event
+	if textEvent, ok := event.(TextMessageEvent); ok {
+		text = textEvent.GetText()
+		replyToken = textEvent.GetReplyToken()
+	} else if msgEvent, ok := event.(MessageEvent); ok {
+		// If it's only a MessageEvent, get reply token
+		replyToken = msgEvent.GetReplyToken()
+		// Try to get text from realMessageEvent
+		if realEvent, ok := event.(*realMessageEvent); ok {
+			text = realEvent.text
+		}
+	}
+
+	// Format the echo message
+	formattedMessage := FormatEchoMessage(text)
+
+	// Define interface for reply method
+	type replyMethod interface {
+		Reply(replyToken, message string) error
+	}
+
+	// Send reply using the client interface
+	if lineBotClient, ok := client.(replyMethod); ok {
+		return lineBotClient.Reply(replyToken, formattedMessage)
+	}
+
+	return fmt.Errorf("unsupported client type")
+}
+
+// HandleWebhook processes incoming LINE webhook requests.
+// w is the HTTP response writer.
+// r is the HTTP request containing the webhook payload.
+// Returns HTTP 200 on success, 400 on invalid payload, 401 on invalid signature.
+func HandleWebhook(w http.ResponseWriter, r *http.Request) {
+	// Use default bot if not set (for testing)
+	bot := getDefaultBot()
+	if bot == nil {
+		// Try to create a bot from environment for production use
+		// For now, fail with 401 if no bot is configured
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify signature
+	if !bot.VerifySignature(r) {
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse webhook request using LINE SDK
+	cb, err := webhook.ParseRequest(bot.channelSecret, r)
+	if err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	// Process each event
+	for _, event := range cb.Events {
+		// Handle message events only
+		if msgEvent, ok := event.(*webhook.MessageEvent); ok {
+			// Only handle text messages (FR-004: ignore non-text messages)
+			if textMsg, ok := msgEvent.Message.(*webhook.TextMessageContent); ok {
+				// Create real message event wrapper
+				realEvent := &realMessageEvent{
+					replyToken: msgEvent.ReplyToken,
+					text:       textMsg.Text,
+				}
+
+				// Create real client wrapper
+				realClient := &realLineBotClient{bot: bot}
+
+				// Handle the text message
+				if err := HandleTextMessage(realClient, realEvent); err != nil {
+					// Log error but return 200 to prevent LINE from retrying
+					log.Printf("Failed to send reply: %v", err)
+				}
+			}
+		}
+	}
+
+	// Return 200 OK
+	w.WriteHeader(http.StatusOK)
 }

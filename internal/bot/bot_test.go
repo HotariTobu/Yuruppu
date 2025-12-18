@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -415,4 +416,497 @@ func computeSignature(channelSecret, body string) string {
 	mac := hmac.New(sha256.New, []byte(channelSecret))
 	mac.Write([]byte(body))
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// TestFormatEchoMessage tests the message formatting function.
+// AC-001: User sends "Hello" -> bot replies "Yuruppu: Hello"
+// AC-005: Whitespace-only message handling ("   " -> "Yuruppu:    ")
+// AC-006: Long message handling (5000 chars)
+func TestFormatEchoMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+		want    string
+	}{
+		{
+			// AC-001: Basic echo with prefix
+			name:    "simple message is prefixed with Yuruppu",
+			message: "Hello",
+			want:    "Yuruppu: Hello",
+		},
+		{
+			name:    "message with Japanese characters",
+			message: "こんにちは",
+			want:    "Yuruppu: こんにちは",
+		},
+		{
+			name:    "message with emojis",
+			message: "Hello 🌍",
+			want:    "Yuruppu: Hello 🌍",
+		},
+		{
+			name:    "empty message is prefixed",
+			message: "",
+			want:    "Yuruppu: ",
+		},
+		{
+			// AC-005: Whitespace-only message handling
+			name:    "whitespace-only message preserves whitespace",
+			message: "   ",
+			want:    "Yuruppu:    ",
+		},
+		{
+			name:    "message with leading whitespace",
+			message: "  Hello",
+			want:    "Yuruppu:   Hello",
+		},
+		{
+			name:    "message with trailing whitespace",
+			message: "Hello  ",
+			want:    "Yuruppu: Hello  ",
+		},
+		{
+			name:    "message with newlines",
+			message: "Hello\nWorld",
+			want:    "Yuruppu: Hello\nWorld",
+		},
+		{
+			// AC-006: Long message handling
+			name:    "long message with 5000 characters",
+			message: strings.Repeat("a", 5000),
+			want:    "Yuruppu: " + strings.Repeat("a", 5000),
+		},
+		{
+			name:    "message with special characters",
+			message: "Hello!@#$%^&*()_+-=[]{}|;:,.<>?",
+			want:    "Yuruppu: Hello!@#$%^&*()_+-=[]{}|;:,.<>?",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			got := bot.FormatEchoMessage(tt.message)
+
+			// Then
+			assert.Equal(t, tt.want, got,
+				"formatted message should have 'Yuruppu: ' prefix")
+		})
+	}
+}
+
+// TestHandleWebhook tests the HTTP webhook handler.
+// FR-001: Receive text messages from LINE webhook
+func TestHandleWebhook(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	// Note: HandleWebhook needs access to bot instance
+	// This test assumes a global bot or dependency injection pattern
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+	t.Run("returns 401 when signature is invalid", func(t *testing.T) {
+		// AC-002: Given LINE bot webhook endpoint is exposed,
+		// when request with invalid signature is received,
+		// then request is rejected with HTTP 401, no reply is sent
+
+		// Given: Create request with invalid signature
+		body := `{"events":[{"type":"message","message":{"type":"text","text":"Hello"}}]}`
+		req := createRequestWithSignature(t, body, "invalid-signature")
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 401
+		assert.Equal(t, http.StatusUnauthorized, rec.Code,
+			"should return 401 for invalid signature")
+	})
+
+	t.Run("returns 400 when payload is malformed", func(t *testing.T) {
+		// Given: Create request with valid signature but invalid JSON
+		body := `{"events":[invalid json]}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 400
+		assert.Equal(t, http.StatusBadRequest, rec.Code,
+			"should return 400 for malformed payload")
+	})
+
+	t.Run("returns 200 and processes text message event", func(t *testing.T) {
+		// AC-001: Given LINE bot is running and connected,
+		// when user sends a text message "Hello",
+		// then bot receives the message via webhook and replies with "Yuruppu: Hello"
+
+		// Given: Create valid webhook request with text message
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code,
+			"should return 200 for valid webhook request")
+		// Note: Actual reply is tested in HandleTextMessage tests
+	})
+
+	t.Run("returns 200 and ignores non-text message", func(t *testing.T) {
+		// AC-004: Given LINE bot is running,
+		// when user sends a non-text message (image, sticker, etc.),
+		// then bot does not reply, no error is raised
+
+		// Given: Create webhook request with image message
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "image",
+						"id": "12345",
+						"contentProvider": {
+							"type": "line"
+						}
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200 without error
+		assert.Equal(t, http.StatusOK, rec.Code,
+			"should return 200 for non-text message")
+	})
+
+	t.Run("returns 200 with empty events", func(t *testing.T) {
+		// Given: Create webhook request with no events
+		body := `{"events":[]}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code,
+			"should return 200 for empty events")
+	})
+
+	t.Run("returns 200 even if reply fails", func(t *testing.T) {
+		// Error handling requirement: ReplyError returns HTTP 200
+		// to prevent LINE from retrying, but error is logged
+
+		// Given: Create valid webhook request
+		// (In real implementation, this would test a scenario where reply fails)
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"replyToken": "invalid-reply-token",
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"timestamp": 1234567890,
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200 even on reply failure
+		assert.Equal(t, http.StatusOK, rec.Code,
+			"should return 200 even if reply fails")
+	})
+}
+
+// TestHandleTextMessage tests text message event processing.
+// FR-002: Reply with the same message prefixed with "Yuruppu: "
+func TestHandleTextMessage(t *testing.T) {
+	// Note: These tests require mocking the LINE bot client
+	// since we can't make real API calls in unit tests
+
+	t.Run("sends reply with formatted echo message", func(t *testing.T) {
+		// AC-001: Given LINE bot is running and connected,
+		// when user sends a text message "Hello",
+		// then bot replies with "Yuruppu: Hello"
+
+		// Given: Create mock bot client
+		mockBot := &mockLineBotClient{}
+
+		// Given: Create text message event
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        "Hello",
+			replyToken:  "test-reply-token",
+		}
+
+		// Given: Mock expects reply with formatted message
+		mockBot.ExpectReply("test-reply-token", "Yuruppu: Hello")
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should succeed without error
+		require.NoError(t, err, "should successfully send reply")
+
+		// Then: Should have called reply with correct message
+		mockBot.AssertExpectations(t)
+	})
+
+	t.Run("handles whitespace-only message", func(t *testing.T) {
+		// AC-005: Given LINE bot is running,
+		// when user sends a whitespace-only text message "   ",
+		// then bot replies with "Yuruppu:    "
+
+		// Given: Create mock bot client
+		mockBot := &mockLineBotClient{}
+
+		// Given: Create text message event with whitespace
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        "   ",
+			replyToken:  "test-reply-token",
+		}
+
+		// Given: Mock expects reply with formatted whitespace
+		mockBot.ExpectReply("test-reply-token", "Yuruppu:    ")
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should succeed without error
+		require.NoError(t, err, "should handle whitespace message")
+		mockBot.AssertExpectations(t)
+	})
+
+	t.Run("handles long message with 5000 characters", func(t *testing.T) {
+		// AC-006: Given LINE bot is running,
+		// when user sends a text message with 5000 characters,
+		// then bot replies with the full message prefixed with "Yuruppu: "
+
+		// Given: Create mock bot client
+		mockBot := &mockLineBotClient{}
+
+		// Given: Create long text message
+		longText := strings.Repeat("a", 5000)
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        longText,
+			replyToken:  "test-reply-token",
+		}
+
+		// Given: Mock expects reply with full long message
+		expectedReply := "Yuruppu: " + longText
+		mockBot.ExpectReply("test-reply-token", expectedReply)
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should succeed without error
+		require.NoError(t, err, "should handle long message")
+		mockBot.AssertExpectations(t)
+	})
+
+	t.Run("handles message with special characters", func(t *testing.T) {
+		// Given: Create mock bot client
+		mockBot := &mockLineBotClient{}
+
+		// Given: Create text message with special characters
+		specialText := "Hello!@#$%^&*()_+-=[]{}|;:,.<>?"
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        specialText,
+			replyToken:  "test-reply-token",
+		}
+
+		// Given: Mock expects reply with special characters
+		mockBot.ExpectReply("test-reply-token", "Yuruppu: "+specialText)
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should succeed without error
+		require.NoError(t, err, "should handle special characters")
+		mockBot.AssertExpectations(t)
+	})
+
+	t.Run("handles message with emojis and unicode", func(t *testing.T) {
+		// Given: Create mock bot client
+		mockBot := &mockLineBotClient{}
+
+		// Given: Create text message with emojis and unicode
+		unicodeText := "こんにちは 世界 🌍"
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        unicodeText,
+			replyToken:  "test-reply-token",
+		}
+
+		// Given: Mock expects reply with unicode preserved
+		mockBot.ExpectReply("test-reply-token", "Yuruppu: "+unicodeText)
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should succeed without error
+		require.NoError(t, err, "should handle unicode and emojis")
+		mockBot.AssertExpectations(t)
+	})
+
+	t.Run("returns error when reply fails", func(t *testing.T) {
+		// Error handling: ReplyError is returned when API call fails
+
+		// Given: Create mock bot client that fails
+		mockBot := &mockLineBotClient{}
+		mockBot.SetReplyError("API error: rate limit exceeded")
+
+		// Given: Create text message event
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        "Hello",
+			replyToken:  "test-reply-token",
+		}
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should return error
+		require.Error(t, err, "should return error when reply fails")
+		assert.Contains(t, err.Error(), "rate limit",
+			"error should contain API error message")
+	})
+
+	t.Run("returns error when reply token is invalid", func(t *testing.T) {
+		// Given: Create mock bot client that fails for invalid token
+		mockBot := &mockLineBotClient{}
+		mockBot.SetReplyError("invalid reply token")
+
+		// Given: Create text message event with invalid token
+		event := &mockMessageEvent{
+			messageType: "text",
+			text:        "Hello",
+			replyToken:  "invalid-token",
+		}
+
+		// When: Handle text message
+		err := bot.HandleTextMessage(mockBot, event)
+
+		// Then: Should return error
+		require.Error(t, err, "should return error for invalid reply token")
+	})
+}
+
+// Mock implementations for testing
+
+// mockLineBotClient is a mock LINE bot client for testing.
+type mockLineBotClient struct {
+	expectedReplyToken   string
+	expectedReplyMessage string
+	replyError           string
+	replyCalled          bool
+}
+
+func (m *mockLineBotClient) ExpectReply(replyToken, message string) {
+	m.expectedReplyToken = replyToken
+	m.expectedReplyMessage = message
+}
+
+func (m *mockLineBotClient) SetReplyError(errMsg string) {
+	m.replyError = errMsg
+}
+
+func (m *mockLineBotClient) Reply(replyToken, message string) error {
+	m.replyCalled = true
+
+	// Check if reply error is set
+	if m.replyError != "" {
+		return fmt.Errorf("%s", m.replyError)
+	}
+
+	// Verify expectations if set
+	if m.expectedReplyToken != "" {
+		if replyToken != m.expectedReplyToken {
+			return assert.AnError
+		}
+	}
+	if m.expectedReplyMessage != "" {
+		if message != m.expectedReplyMessage {
+			return assert.AnError
+		}
+	}
+
+	return nil
+}
+
+func (m *mockLineBotClient) AssertExpectations(t *testing.T) {
+	t.Helper()
+	assert.True(t, m.replyCalled, "expected Reply to be called")
+}
+
+// mockMessageEvent is a mock LINE message event for testing.
+type mockMessageEvent struct {
+	messageType string
+	text        string
+	replyToken  string
+}
+
+func (m *mockMessageEvent) GetType() string {
+	return "message"
+}
+
+func (m *mockMessageEvent) GetReplyToken() string {
+	return m.replyToken
+}
+
+func (m *mockMessageEvent) GetText() string {
+	return m.text
 }
