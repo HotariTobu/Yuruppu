@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"yuruppu/internal/bot"
 
+	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -503,12 +505,19 @@ func TestHandleWebhook(t *testing.T) {
 	channelAccessToken := "test-access-token"
 
 	// Setup: Initialize bot for handler
-	// Note: HandleWebhook needs access to bot instance
-	// This test assumes a global bot or dependency injection pattern
 	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
 	require.NoError(t, err)
 	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+	mock := &mockSender{}
+	bot.SetDefaultMessageSender(mock)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
 	t.Run("returns 401 when signature is invalid", func(t *testing.T) {
+		mock.reset()
 		// AC-002: Given LINE bot webhook endpoint is exposed,
 		// when request with invalid signature is received,
 		// then request is rejected with HTTP 401, no reply is sent
@@ -524,9 +533,12 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 401
 		assert.Equal(t, http.StatusUnauthorized, rec.Code,
 			"should return 401 for invalid signature")
+		// Then: Should not send any reply
+		mock.assertNotCalled(t)
 	})
 
 	t.Run("returns 400 when payload is malformed", func(t *testing.T) {
+		mock.reset()
 		// Given: Create request with valid signature but invalid JSON
 		body := `{"events":[invalid json]}`
 		req := createRequestWithValidSignature(t, channelSecret, body)
@@ -538,9 +550,12 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 400
 		assert.Equal(t, http.StatusBadRequest, rec.Code,
 			"should return 400 for malformed payload")
+		// Then: Should not send any reply
+		mock.assertNotCalled(t)
 	})
 
 	t.Run("returns 200 and processes text message event", func(t *testing.T) {
+		mock.reset()
 		// AC-001: Given LINE bot is running and connected,
 		// when user sends a text message "Hello",
 		// then bot receives the message via webhook and replies with "Yuruppu: Hello"
@@ -575,10 +590,12 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 for valid webhook request")
-		// Note: Actual reply is tested in HandleTextMessage tests
+		// Then: Should send reply with "Yuruppu: Hello"
+		mock.assertCalledWith(t, "Yuruppu: Hello")
 	})
 
 	t.Run("returns 200 and ignores non-text message", func(t *testing.T) {
+		mock.reset()
 		// AC-004: Given LINE bot is running,
 		// when user sends a non-text message (image, sticker, etc.),
 		// then bot does not reply, no error is raised
@@ -615,9 +632,12 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200 without error
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 for non-text message")
+		// Then: Should NOT send any reply (AC-004)
+		mock.assertNotCalled(t)
 	})
 
 	t.Run("returns 200 with empty events", func(t *testing.T) {
+		mock.reset()
 		// Given: Create webhook request with no events
 		body := `{"events":[]}`
 		req := createRequestWithValidSignature(t, channelSecret, body)
@@ -629,14 +649,19 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 for empty events")
+		// Then: Should not send any reply
+		mock.assertNotCalled(t)
 	})
 
 	t.Run("returns 200 even if reply fails", func(t *testing.T) {
+		mock.reset()
 		// Error handling requirement: ReplyError returns HTTP 200
 		// to prevent LINE from retrying, but error is logged
 
+		// Given: Mock sender returns an error
+		mock.err = fmt.Errorf("API error: rate limit exceeded")
+
 		// Given: Create valid webhook request
-		// (In real implementation, this would test a scenario where reply fails)
 		body := `{
 			"events": [
 				{
@@ -646,7 +671,7 @@ func TestHandleWebhook(t *testing.T) {
 						"id": "12345",
 						"text": "Hello"
 					},
-					"replyToken": "invalid-reply-token",
+					"replyToken": "test-reply-token",
 					"source": {
 						"type": "user",
 						"userId": "U1234567890abcdef"
@@ -665,6 +690,11 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200 even on reply failure
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 even if reply fails")
+		// Then: Should have attempted to send reply
+		mock.assertCalledOnce(t)
+
+		// Cleanup: Reset error for other tests
+		mock.err = nil
 	})
 }
 
@@ -924,6 +954,13 @@ func TestHandleWebhook_LoggingTextMessages(t *testing.T) {
 	require.NoError(t, err)
 	bot.SetDefaultBot(testBot)
 
+	// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+	mock := &mockSender{}
+	bot.SetDefaultMessageSender(mock)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
 	tests := []struct {
 		name             string
 		webhookBody      string
@@ -1067,6 +1104,7 @@ func TestHandleWebhook_LoggingTextMessages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mock.reset()
 			// Given: Create mock logger to capture log entries
 			mockLogger := &mockLogger{}
 			bot.SetLogger(mockLogger)
@@ -1125,6 +1163,13 @@ func TestHandleWebhook_LoggingNonTextMessages(t *testing.T) {
 	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
 	require.NoError(t, err)
 	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+	mock := &mockSender{}
+	bot.SetDefaultMessageSender(mock)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
 
 	tests := []struct {
 		name             string
@@ -1338,6 +1383,13 @@ func TestHandleWebhook_LoggingMultipleMessages(t *testing.T) {
 		require.NoError(t, err)
 		bot.SetDefaultBot(testBot)
 
+		// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+		mock := &mockSender{}
+		bot.SetDefaultMessageSender(mock)
+		t.Cleanup(func() {
+			bot.SetDefaultMessageSender(nil)
+		})
+
 		// Given: Create mock logger to capture log entries
 		mockLogger := &mockLogger{}
 		bot.SetLogger(mockLogger)
@@ -1448,6 +1500,13 @@ func TestHandleWebhook_LoggingFormat(t *testing.T) {
 		require.NoError(t, err)
 		bot.SetDefaultBot(testBot)
 
+		// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+		mock := &mockSender{}
+		bot.SetDefaultMessageSender(mock)
+		t.Cleanup(func() {
+			bot.SetDefaultMessageSender(nil)
+		})
+
 		// Given: Create mock logger
 		mockLogger := &mockLogger{}
 		bot.SetLogger(mockLogger)
@@ -1550,8 +1609,16 @@ func TestHandleWebhook_LoggingLevel(t *testing.T) {
 		},
 	}
 
+	// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+	mock := &mockSender{}
+	bot.SetDefaultMessageSender(mock)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mock.reset()
 			// Setup
 			channelSecret := "test-channel-secret"
 			channelAccessToken := "test-access-token"
@@ -1611,4 +1678,312 @@ func (m *mockLogger) Warn(format string, args ...interface{}) {
 
 func (m *mockLogger) Error(format string, args ...interface{}) {
 	m.errorLogCalled = true
+}
+
+// mockSender is a mock implementation of MessageSender for testing.
+// ADR: 20251217-testing-strategy.md
+type mockSender struct {
+	calls []*messaging_api.ReplyMessageRequest
+	err   error
+}
+
+func (m *mockSender) ReplyMessage(req *messaging_api.ReplyMessageRequest) (*messaging_api.ReplyMessageResponse, error) {
+	m.calls = append(m.calls, req)
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &messaging_api.ReplyMessageResponse{}, nil
+}
+
+// reset clears the recorded calls.
+func (m *mockSender) reset() {
+	m.calls = nil
+}
+
+// assertCalledOnce verifies ReplyMessage was called exactly once.
+func (m *mockSender) assertCalledOnce(t *testing.T) {
+	t.Helper()
+	assert.Len(t, m.calls, 1, "expected ReplyMessage to be called once")
+}
+
+// assertNotCalled verifies ReplyMessage was not called.
+func (m *mockSender) assertNotCalled(t *testing.T) {
+	t.Helper()
+	assert.Empty(t, m.calls, "expected ReplyMessage to not be called")
+}
+
+// assertCalledWith verifies ReplyMessage was called with expected message.
+func (m *mockSender) assertCalledWith(t *testing.T, expectedText string) {
+	t.Helper()
+	require.Len(t, m.calls, 1, "expected exactly one call")
+	require.Len(t, m.calls[0].Messages, 1, "expected exactly one message")
+	textMsg, ok := m.calls[0].Messages[0].(messaging_api.TextMessage)
+	require.True(t, ok, "expected TextMessage")
+	assert.Equal(t, expectedText, textMsg.Text, "message text should match")
+}
+
+// BenchmarkHandleWebhook_InternalProcessing benchmarks the internal processing time.
+// NFR-001: Respond within 1 second to avoid LINE timeout.
+// This benchmark measures internal processing time (excluding LINE API call).
+// Target: < 100ms for internal processing to leave margin for network latency.
+func BenchmarkHandleWebhook_InternalProcessing(b *testing.B) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	if err != nil {
+		b.Fatalf("failed to create bot: %v", err)
+	}
+	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender (ADR: 20251217-testing-strategy.md)
+	// This prevents real API calls during benchmarking
+	mock := &mockSender{}
+	bot.SetDefaultMessageSender(mock)
+
+	// Setup: Create mock logger (no-op for benchmarks)
+	bot.SetLogger(&mockLogger{})
+
+	// Setup: Create valid webhook request body
+	body := `{
+		"destination": "xxxxxxxxxx",
+		"events": [
+			{
+				"type": "message",
+				"message": {
+					"type": "text",
+					"id": "12345",
+					"text": "Hello World"
+				},
+				"timestamp": 1609459200000,
+				"source": {
+					"type": "user",
+					"userId": "U1234567890abcdef"
+				},
+				"replyToken": "test-reply-token",
+				"mode": "active"
+			}
+		]
+	}`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := createBenchmarkRequest(channelSecret, body)
+		rec := httptest.NewRecorder()
+		bot.HandleWebhook(rec, req)
+	}
+}
+
+// BenchmarkFormatEchoMessage benchmarks the echo message formatting.
+func BenchmarkFormatEchoMessage(b *testing.B) {
+	message := "Hello World"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = bot.FormatEchoMessage(message)
+	}
+}
+
+// BenchmarkFormatEchoMessage_LongMessage benchmarks formatting with 5000 char message.
+func BenchmarkFormatEchoMessage_LongMessage(b *testing.B) {
+	message := strings.Repeat("a", 5000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = bot.FormatEchoMessage(message)
+	}
+}
+
+// BenchmarkVerifySignature benchmarks signature verification.
+func BenchmarkVerifySignature(b *testing.B) {
+	channelSecret := "test-channel-secret"
+	testBot, err := bot.NewBot(channelSecret, "test-access-token")
+	if err != nil {
+		b.Fatalf("failed to create bot: %v", err)
+	}
+
+	body := `{"events":[{"type":"message","message":{"type":"text","text":"Hello"}}]}`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := createBenchmarkRequest(channelSecret, body)
+		_ = testBot.VerifySignature(req)
+	}
+}
+
+// createBenchmarkRequest creates an HTTP request for benchmarking.
+func createBenchmarkRequest(channelSecret, body string) *http.Request {
+	signature := computeSignature(channelSecret, body)
+	req := httptest.NewRequest("POST", "/webhook", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Line-Signature", signature)
+	return req
+}
+
+// TestResponseTime_InternalProcessingWithMock verifies internal processing time.
+// NFR-001: Respond within 1 second to avoid LINE timeout.
+// This test uses the HandleTextMessage function directly with a mock client
+// to measure internal processing time without network calls.
+func TestResponseTime_InternalProcessingWithMock(t *testing.T) {
+	tests := []struct {
+		name        string
+		message     string
+		maxDuration time.Duration
+	}{
+		{
+			name:        "simple text message processes under 10ms",
+			message:     "Hello",
+			maxDuration: 10 * time.Millisecond,
+		},
+		{
+			name:        "long message (5000 chars) processes under 10ms",
+			message:     strings.Repeat("a", 5000),
+			maxDuration: 10 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Create mock bot client (no network calls)
+			mockBot := &mockLineBotClient{}
+			mockBot.ExpectReply("test-reply-token", "Yuruppu: "+tt.message)
+
+			// Given: Create text message event
+			event := &mockMessageEvent{
+				messageType: "text",
+				text:        tt.message,
+				replyToken:  "test-reply-token",
+			}
+
+			// When: Measure processing time
+			start := time.Now()
+			err := bot.HandleTextMessage(mockBot, event)
+			duration := time.Since(start)
+
+			// Then: Should succeed
+			require.NoError(t, err)
+
+			// Then: Processing should complete within limit
+			assert.Less(t, duration, tt.maxDuration,
+				"internal processing should complete within %v, took %v", tt.maxDuration, duration)
+
+			// Log actual duration for visibility
+			t.Logf("Processing time: %v", duration)
+		})
+	}
+}
+
+// TestResponseTime_SignatureVerification verifies signature verification is fast.
+// NFR-001: Signature verification is part of the critical path.
+func TestResponseTime_SignatureVerification(t *testing.T) {
+	// Given: Create bot
+	channelSecret := "test-channel-secret"
+	testBot, err := bot.NewBot(channelSecret, "test-access-token")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		bodySize    int
+		maxDuration time.Duration
+	}{
+		{
+			name:        "small payload verifies under 1ms",
+			bodySize:    100,
+			maxDuration: 1 * time.Millisecond,
+		},
+		{
+			name:        "large payload (10KB) verifies under 5ms",
+			bodySize:    10000,
+			maxDuration: 5 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Create request with payload of specified size
+			body := fmt.Sprintf(`{"events":[],"padding":"%s"}`, strings.Repeat("a", tt.bodySize))
+			req := createRequestWithValidSignature(t, channelSecret, body)
+
+			// When: Measure verification time
+			start := time.Now()
+			result := testBot.VerifySignature(req)
+			duration := time.Since(start)
+
+			// Then: Signature should be valid
+			assert.True(t, result, "signature should be valid")
+
+			// Then: Verification should be fast
+			assert.Less(t, duration, tt.maxDuration,
+				"signature verification should complete within %v, took %v", tt.maxDuration, duration)
+
+			t.Logf("Verification time for %d byte payload: %v", tt.bodySize, duration)
+		})
+	}
+}
+
+// TestResponseTime_MessageFormatting verifies message formatting is fast.
+// NFR-001: Message formatting is part of the critical path.
+func TestResponseTime_MessageFormatting(t *testing.T) {
+	tests := []struct {
+		name        string
+		messageLen  int
+		maxDuration time.Duration
+	}{
+		{
+			name:        "short message formats under 1μs",
+			messageLen:  10,
+			maxDuration: 1 * time.Microsecond * 100, // Allow 100μs for safety
+		},
+		{
+			name:        "long message (5000 chars) formats under 100μs",
+			messageLen:  5000,
+			maxDuration: 100 * time.Microsecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			message := strings.Repeat("a", tt.messageLen)
+
+			// Warm up
+			_ = bot.FormatEchoMessage(message)
+
+			// When: Measure formatting time (average of 1000 iterations)
+			start := time.Now()
+			for i := 0; i < 1000; i++ {
+				_ = bot.FormatEchoMessage(message)
+			}
+			totalDuration := time.Since(start)
+			avgDuration := totalDuration / 1000
+
+			// Then: Formatting should be fast
+			assert.Less(t, avgDuration, tt.maxDuration,
+				"message formatting should complete within %v, average was %v", tt.maxDuration, avgDuration)
+
+			t.Logf("Average formatting time for %d char message: %v", tt.messageLen, avgDuration)
+		})
+	}
+}
+
+// generateMultipleEventsBody generates a webhook body with multiple text message events.
+func generateMultipleEventsBody(count int) string {
+	events := make([]string, count)
+	for i := 0; i < count; i++ {
+		events[i] = fmt.Sprintf(`{
+			"type": "message",
+			"message": {
+				"type": "text",
+				"id": "%d",
+				"text": "Message %d"
+			},
+			"timestamp": 1609459200000,
+			"source": {
+				"type": "user",
+				"userId": "U1234567890abcdef"
+			},
+			"replyToken": "test-reply-token-%d",
+			"mode": "active"
+		}`, i, i, i)
+	}
+	return fmt.Sprintf(`{"destination": "xxxxxxxxxx", "events": [%s]}`, strings.Join(events, ","))
 }

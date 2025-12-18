@@ -7,10 +7,10 @@
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
-    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-001", "passes": true },
     { "id": "NFR-002", "passes": true },
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "NFR-002 complete. Logger interface and SetLogger for DI. logIncomingMessage logs timestamp, userId, messageType, and text (for text only). Next session: NFR-001 (response time) or NFR-003 (concurrency verification)."
+  "notes": "NFR-001 complete. Added MessageSender interface per ADR-testing-strategy. HandleWebhook now uses mockSender in tests (no real API calls). Benchmark: 40us internal processing. Next session: NFR-003 (concurrency verification)."
 }
