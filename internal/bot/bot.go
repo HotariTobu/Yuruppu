@@ -152,6 +152,35 @@ type LineBotClient interface {
 	Reply(replyToken, message string) error
 }
 
+// MessageSender is an interface for LINE message sending.
+// This allows mocking in tests while using the real client in production.
+// ADR: 20251217-testing-strategy.md
+type MessageSender interface {
+	ReplyMessage(req *messaging_api.ReplyMessageRequest) (*messaging_api.ReplyMessageResponse, error)
+}
+
+// Package-level message sender for HandleWebhook
+var (
+	messageSenderMu sync.RWMutex
+	messageSender   MessageSender
+)
+
+// SetDefaultMessageSender sets the package-level message sender for HandleWebhook.
+// This function is safe for concurrent use.
+func SetDefaultMessageSender(s MessageSender) {
+	messageSenderMu.Lock()
+	defer messageSenderMu.Unlock()
+	messageSender = s
+}
+
+// getDefaultMessageSender returns the package-level message sender.
+// This function is safe for concurrent use.
+func getDefaultMessageSender() MessageSender {
+	messageSenderMu.RLock()
+	defer messageSenderMu.RUnlock()
+	return messageSender
+}
+
 // MessageEvent is an interface for LINE message events.
 // This allows mocking in tests while using the real event in production.
 type MessageEvent interface {
@@ -378,17 +407,28 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if isTextMessage {
-				// Create real message event wrapper
-				realEvent := &realMessageEvent{
-					replyToken: msgEvent.ReplyToken,
-					text:       text,
+				// Get message sender (use injected mock in tests, real client in production)
+				sender := getDefaultMessageSender()
+				if sender == nil {
+					// Fallback to real client if no sender is set
+					sender = bot.client
 				}
 
-				// Create real client wrapper
-				realClient := &realLineBotClient{bot: bot}
+				// Format the echo message
+				formattedMessage := FormatEchoMessage(text)
 
-				// Handle the text message
-				if err := HandleTextMessage(realClient, realEvent); err != nil {
+				// Create reply request
+				request := &messaging_api.ReplyMessageRequest{
+					ReplyToken: msgEvent.ReplyToken,
+					Messages: []messaging_api.MessageInterface{
+						messaging_api.TextMessage{
+							Text: formattedMessage,
+						},
+					},
+				}
+
+				// Send reply using MessageSender interface
+				if _, err := sender.ReplyMessage(request); err != nil {
 					// Log error but return 200 to prevent LINE from retrying
 					log.Printf("Failed to send reply: %v", err)
 				}
