@@ -165,6 +165,7 @@ The user will provide:
 - **Readability** → reviewer-readability
 - **Test coverage** → reviewer-testing
 - **Dependency version management** → reviewer-dependencies (focus on security advisories only)
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

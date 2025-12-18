@@ -162,6 +162,7 @@ Search for documentation in:
 - **Performance of library usage** → reviewer-performance
 - **Library version management** → reviewer-dependencies
 - **Code readability** → reviewer-readability
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

@@ -193,6 +193,7 @@ describe('[Feature]', () => {
 - **Test performance impact on CI** → reviewer-dx
 - **Test architecture patterns** → reviewer-architecture
 - **Test code readability** → reviewer-readability (focus on test effectiveness only)
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

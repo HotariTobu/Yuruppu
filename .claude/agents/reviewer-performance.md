@@ -161,6 +161,7 @@ The user will provide:
 - **Naming and readability** → reviewer-readability
 - **Test performance** → reviewer-testing
 - **Build/CI performance** → reviewer-dx
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

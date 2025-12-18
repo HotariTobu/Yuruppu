@@ -182,6 +182,7 @@ The user will provide:
 - **Performance optimization** → reviewer-performance (focus on structural concerns only)
 - **Naming and code style** → reviewer-readability
 - **Test architecture** → reviewer-testing
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

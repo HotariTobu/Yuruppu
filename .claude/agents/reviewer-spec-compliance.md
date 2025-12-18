@@ -119,6 +119,7 @@ The user will provide:
 - **Code structure and design patterns** → reviewer-architecture
 - **Naming and readability** → reviewer-readability
 - **Test quality** → reviewer-testing
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

@@ -249,6 +249,7 @@ The user will provide:
 - **Dependency management** → reviewer-dependencies (focus on developer setup only)
 - **Architecture documentation** → reviewer-architecture
 - **Runtime performance** → reviewer-performance (focus on build/dev performance only)
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

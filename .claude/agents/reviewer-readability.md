@@ -176,6 +176,7 @@ The user will provide:
 - **Module structure and dependencies** → reviewer-architecture (focus on local readability only)
 - **Test readability** → reviewer-testing
 - **README/CONTRIBUTING docs** → reviewer-dx
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

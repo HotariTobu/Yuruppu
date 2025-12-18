@@ -227,6 +227,7 @@ The user will provide:
 - **Performance of dependencies** → reviewer-performance
 - **Architecture decisions** → reviewer-architecture
 - **Developer setup experience** → reviewer-dx (focus on operational concerns only)
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 

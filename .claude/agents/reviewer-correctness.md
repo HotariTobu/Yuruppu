@@ -147,6 +147,7 @@ Priority tests to add:
 - **Code structure and architecture** → reviewer-architecture
 - **Naming and readability** → reviewer-readability
 - **Library API correctness** → reviewer-library-usage
+- **ADR compliance** → reviewer-adr-compliance
 
 ## Behavioral Guidelines
 
