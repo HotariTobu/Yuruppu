@@ -8,9 +8,9 @@
     { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
     { "id": "NFR-001", "passes": false },
-    { "id": "NFR-002", "passes": false },
+    { "id": "NFR-002", "passes": true },
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-001 to FR-005 complete. HandleWebhook, HandleTextMessage, FormatEchoMessage implemented. Non-text messages are ignored (FR-004). Next session: NFR requirements (logging, response time, concurrency)."
+  "notes": "NFR-002 complete. Logger interface and SetLogger for DI. logIncomingMessage logs timestamp, userId, messageType, and text (for text only). Next session: NFR-001 (response time) or NFR-003 (concurrency verification)."
 }
