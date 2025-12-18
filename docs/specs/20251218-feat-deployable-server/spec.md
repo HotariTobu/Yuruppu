@@ -30,9 +30,8 @@ main.goを作成し、HTTPサーバーを起動してCloud Runにデプロイ可
   - `bot.SetLogger()`でロガーを設定する
 
 - [ ] FR-005: インフラコードを作成する
-  - Dockerfileを作成する（必須）
-  - `docker build`でコンテナイメージをビルドできること
-  - CI/CD構成（Cloud Build、GitHub Actionsなど）は`/design`ステップで決定
+  - コンテナイメージをビルドできること（ADR 20251218-container-build）
+  - CI/CDで自動デプロイできること（ADR 20251218-cicd）
 
 ### Non-Functional Requirements
 
@@ -42,7 +41,6 @@ main.goを作成し、HTTPサーバーを起動してCloud Runにデプロイ可
 
 - [ ] NFR-002: 手動デプロイが可能であること
   - ドキュメント化されたコマンドでデプロイできること
-  - `docker build`と`gcloud run deploy`でデプロイ可能
 
 ## API Design
 
@@ -78,26 +76,7 @@ func main() {
 # Run locally
 export LINE_CHANNEL_SECRET="your-secret"
 export LINE_CHANNEL_ACCESS_TOKEN="your-token"
-export PORT="8080"
-go run main.go
-
-# Build and run
-go build -o yuruppu
-./yuruppu
-
-# Docker build and run
-docker build -t yuruppu .
-docker run -e LINE_CHANNEL_SECRET="your-secret" \
-           -e LINE_CHANNEL_ACCESS_TOKEN="your-token" \
-           -e PORT=8080 \
-           -p 8080:8080 \
-           yuruppu
-
-# Deploy to Cloud Run
-gcloud run deploy yuruppu \
-  --source . \
-  --region asia-northeast1 \
-  --set-env-vars LINE_CHANNEL_SECRET=...,LINE_CHANNEL_ACCESS_TOKEN=...
+go run .
 ```
 
 ## Error Handling
@@ -175,31 +154,36 @@ gcloud run deploy yuruppu \
   - `bot.SetLogger()`が呼び出される
   - Webhookハンドラーがこれらの設定を使用できる
 
-### AC-008: Dockerイメージビルド [FR-005]
+### AC-008: コンテナイメージビルド [FR-005]
 
-- **Given**: Dockerfileが存在する
-- **When**: `docker build -t yuruppu .`を実行する
-- **Then**:
-  - イメージが正常にビルドされる
-  - イメージにアプリケーションバイナリが含まれる
+- **Given**: ビルド環境が整っている
+- **When**: コンテナイメージをビルドする
+- **Then**: イメージが正常にビルドされる
 
-### AC-009: コンテナ実行 [FR-005, NFR-001]
+### AC-009: 手動デプロイ [FR-005, NFR-002]
 
-- **Given**: Dockerイメージがビルド済み
-- **When**: `docker run -e LINE_CHANNEL_SECRET=... -e LINE_CHANNEL_ACCESS_TOKEN=... -e PORT=8080 yuruppu`を実行する
-- **Then**:
-  - コンテナが起動する
-  - アプリケーションが`PORT`環境変数で指定されたポートでリッスンする
+- **Given**: コンテナイメージがビルド済み
+- **When**: READMEの手順に従ってデプロイする
+- **Then**: Cloud Runでアプリケーションが動作する
+
+### AC-010: 自動デプロイ [FR-005]
+
+- **Given**: CI/CDが設定済み
+- **When**: mainブランチにpushする
+- **Then**: Cloud Runサービスが自動的に更新される
 
 ## Implementation Notes
 
-- ADR 20251217-project-structure.md に従い、`main.go`はルートディレクトリに配置
-- ADR 20251217-configuration.md に従い、`os.Getenv()`を直接使用
-- ADR 20251217-logging.md に従い、標準ライブラリの`log`または`log/slog`を使用
-- `internal/bot`パッケージの既存機能を活用し、main.goは薄いエントリーポイントとする
+関連ADR:
+- 20251217-project-structure.md
+- 20251217-configuration.md
+- 20251217-logging.md
+- 20251218-container-build.md
+- 20251218-cicd.md
 
 ## Change History
 
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2025-12-18 | 1.0 | Initial version | - |
+| 2025-12-18 | 1.1 | Update FR-005 to use ko instead of Dockerfile, add Cloud Build CI/CD | - |
