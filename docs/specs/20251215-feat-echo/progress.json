@@ -4,7 +4,7 @@
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
-    { "id": "FR-003", "passes": false },
+    { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
     { "id": "FR-005", "passes": true },
     { "id": "NFR-001", "passes": false },
@@ -12,5 +12,5 @@
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-005 complete. Next session: FR-003 (webhook signature verification) - uses channelSecret stored in Bot struct."
+  "notes": "FR-003, FR-005 complete. Next session: FR-001/FR-002 (receive text messages and reply with echo). Bot.VerifySignature is ready for use in webhook handler."
 }
