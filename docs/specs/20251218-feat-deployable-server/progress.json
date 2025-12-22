@@ -3,7 +3,7 @@
   "lastUpdated": "2025-12-22",
   "requirements": [
     { "id": "FR-001", "passes": true },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": false },
     { "id": "FR-004", "passes": false },
     { "id": "FR-005", "passes": false },
@@ -11,5 +11,5 @@
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-001 complete: Created main.go with loadConfig() and Config struct. Next: FR-002 (Bot init) -> FR-004 (package-level settings) -> FR-003 (HTTP server)"
+  "notes": "FR-002 complete: Added initBot() function that calls bot.NewBot(). Next: FR-004 (package-level settings) -> FR-003 (HTTP server) -> FR-005 (infrastructure)"
 }

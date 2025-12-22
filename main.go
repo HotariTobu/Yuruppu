@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"strings"
+
+	"yuruppu/internal/bot"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -36,9 +38,26 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
+// initBot initializes a Bot instance using the provided configuration.
+// Returns the Bot instance or an error if initialization fails.
+func initBot(config *Config) (*bot.Bot, error) {
+	if config == nil {
+		return nil, errors.New("config is required")
+	}
+
+	return bot.NewBot(config.ChannelSecret, config.ChannelAccessToken)
+}
+
 func main() {
 	// Load configuration
-	_, err := loadConfig()
+	config, err := loadConfig()
+	if err != nil {
+		// Error handling will be expanded in later requirements
+		panic(err)
+	}
+
+	// Initialize bot
+	_, err = initBot(config)
 	if err != nil {
 		// Error handling will be expanded in later requirements
 		panic(err)

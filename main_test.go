@@ -312,3 +312,114 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 		})
 	}
 }
+
+// TestInitBot_Success tests successful Bot initialization.
+// AC-003: Given valid credentials are set,
+// when application starts,
+// then bot.NewBot() is called and Bot instance is created successfully.
+func TestInitBot_Success(t *testing.T) {
+	tests := []struct {
+		name               string
+		channelSecret      string
+		channelAccessToken string
+	}{
+		{
+			name:               "valid credentials initialize bot successfully",
+			channelSecret:      "test-channel-secret",
+			channelAccessToken: "test-access-token",
+		},
+		{
+			name:               "long credentials initialize bot successfully",
+			channelSecret:      "very-long-channel-secret-0123456789",
+			channelAccessToken: "very-long-access-token-0123456789",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Valid configuration
+			config := &Config{
+				ChannelSecret:      tt.channelSecret,
+				ChannelAccessToken: tt.channelAccessToken,
+			}
+
+			// When: Initialize bot
+			b, err := initBot(config)
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "initBot should not return error with valid credentials")
+
+			// Then: Bot instance should not be nil
+			assert.NotNil(t, b, "bot instance should not be nil")
+		})
+	}
+}
+
+// TestInitBot_NilConfig tests error when config is nil.
+// FR-002: Bot initialization should handle edge cases gracefully.
+func TestInitBot_NilConfig(t *testing.T) {
+	// When: Initialize bot with nil config
+	b, err := initBot(nil)
+
+	// Then: Should return error
+	require.Error(t, err, "initBot should return error with nil config")
+
+	// Then: Bot instance should be nil
+	assert.Nil(t, b, "bot instance should be nil on error")
+
+	// Then: Error message should be descriptive
+	assert.Contains(t, err.Error(), "config", "error message should mention config")
+}
+
+// TestInitBot_EmptyCredentials tests error when credentials are empty.
+// FR-002: Bot initialization should fail when credentials are empty.
+func TestInitBot_EmptyCredentials(t *testing.T) {
+	tests := []struct {
+		name               string
+		channelSecret      string
+		channelAccessToken string
+		wantErrContains    string
+	}{
+		{
+			name:               "empty channel secret fails initialization",
+			channelSecret:      "",
+			channelAccessToken: "valid-token",
+			wantErrContains:    "LINE_CHANNEL_SECRET",
+		},
+		{
+			name:               "empty channel access token fails initialization",
+			channelSecret:      "valid-secret",
+			channelAccessToken: "",
+			wantErrContains:    "LINE_CHANNEL_ACCESS_TOKEN",
+		},
+		{
+			name:               "both credentials empty fails initialization",
+			channelSecret:      "",
+			channelAccessToken: "",
+			wantErrContains:    "LINE_CHANNEL_SECRET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Configuration with empty credentials
+			config := &Config{
+				ChannelSecret:      tt.channelSecret,
+				ChannelAccessToken: tt.channelAccessToken,
+			}
+
+			// When: Initialize bot
+			b, err := initBot(config)
+
+			// Then: Should return error
+			require.Error(t, err, "initBot should return error with empty credentials")
+
+			// Then: Bot instance should be nil
+			assert.Nil(t, b, "bot instance should be nil on error")
+
+			// Then: Error message should indicate which credential is missing
+			assert.Contains(t, err.Error(), tt.wantErrContains,
+				"error message should indicate missing credential")
+		})
+	}
+}
