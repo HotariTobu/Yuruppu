@@ -6,13 +6,13 @@
     { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": true },
-    { "id": "FR-005", "passes": false },
+    { "id": "FR-005", "passes": true, "note": "All sub-requirements (a/b/c) complete" },
     { "id": "FR-005a", "passes": true, "note": "ko configuration (.ko.yaml) created" },
-    { "id": "FR-005b", "passes": false, "note": "Cloud Build config pending" },
-    { "id": "FR-005c", "passes": false, "note": "OpenTofu config pending" },
+    { "id": "FR-005b", "passes": true, "note": "cloudbuild.yaml created for CI/CD" },
+    { "id": "FR-005c", "passes": true, "note": "OpenTofu config in infra/ directory" },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-005a complete: .ko.yaml created with distroless/static:nonroot base and CGO_ENABLED=0 for pure Go binary. Next session: FR-005b (cloudbuild.yaml for CI/CD). ko handles GOOS=linux automatically."
+  "notes": "FR-005 complete (all a/b/c verified). Security review identified future improvements: scope IAM permissions, add rate limiting, add security headers. These are not blockers for FR-005. Next session: NFR-001/NFR-002 require actual GCP deployment and LINE webhook verification (manual testing)."
 }

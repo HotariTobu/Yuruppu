@@ -1,0 +1,36 @@
+# Cloud Build configuration for CI/CD
+# Triggered on push to main branch
+# See ADR: docs/adr/20251218-cicd.md
+
+steps:
+  # Install ko
+  - name: 'golang:1.23'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'go install github.com/google/ko@latest'
+
+  # Build and push with ko
+  - name: 'golang:1.23'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        export KO_DOCKER_REPO=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu
+        /go/bin/ko build . --bare -t $SHORT_SHA -t latest
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'yuruppu'
+      - '--image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu:$SHORT_SHA'
+      - '--region=asia-northeast1'
+      - '--platform=managed'
+      - '--update-secrets=LINE_CHANNEL_SECRET=LINE_CHANNEL_SECRET:latest'
+      - '--update-secrets=LINE_CHANNEL_ACCESS_TOKEN=LINE_CHANNEL_ACCESS_TOKEN:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
