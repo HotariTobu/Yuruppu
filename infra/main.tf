@@ -47,18 +47,13 @@ resource "google_artifact_registry_repository" "yuruppu" {
 }
 
 # Secret Manager secrets for LINE credentials
-resource "google_secret_manager_secret" "line_channel_secret" {
-  secret_id = "LINE_CHANNEL_SECRET"
-
-  replication {
-    auto {}
-  }
-
-  depends_on = [google_project_service.apis]
+locals {
+  secrets = ["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"]
 }
 
-resource "google_secret_manager_secret" "line_channel_access_token" {
-  secret_id = "LINE_CHANNEL_ACCESS_TOKEN"
+resource "google_secret_manager_secret" "secrets" {
+  for_each  = toset(local.secrets)
+  secret_id = each.value
 
   replication {
     auto {}
@@ -92,15 +87,21 @@ resource "google_project_iam_member" "cloudbuild_secret_accessor" {
   member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 }
 
-# Cloud Build trigger for main branch
-resource "google_cloudbuild_trigger" "main_push" {
-  name        = "yuruppu-main-push"
-  description = "Deploy Yuruppu on push to main branch"
-  location    = var.region
+# Cloud Build 2nd gen connection and repository are created via gcloud
+# See docs/deployment.md for setup instructions
+locals {
+  cloudbuild_repository_id = "projects/${var.project_id}/locations/${var.region}/connections/${var.github_connection}/repositories/${var.github_repo}"
+}
 
-  github {
-    owner = var.github_owner
-    name  = var.github_repo
+# Cloud Build trigger for main branch (Gen 2)
+resource "google_cloudbuild_trigger" "main_push" {
+  name            = "yuruppu-main-push"
+  description     = "Deploy Yuruppu on push to main branch"
+  location        = var.region
+  service_account = "projects/${var.project_id}/serviceAccounts/${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+
+  repository_event_config {
+    repository = local.cloudbuild_repository_id
 
     push {
       branch = "^main$"
@@ -119,24 +120,18 @@ resource "google_cloud_run_v2_service" "yuruppu" {
 
   template {
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/yuruppu/yuruppu:latest"
+      # Use placeholder for initial deployment, Cloud Build updates this
+      image = "gcr.io/cloudrun/hello"
 
-      env {
-        name = "LINE_CHANNEL_SECRET"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.line_channel_secret.secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      env {
-        name = "LINE_CHANNEL_ACCESS_TOKEN"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.line_channel_access_token.secret_id
-            version = "latest"
+      dynamic "env" {
+        for_each = local.secrets
+        content {
+          name = env.value
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.secrets[env.value].secret_id
+              version = "latest"
+            }
           }
         }
       }
@@ -144,7 +139,7 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       resources {
         limits = {
           cpu    = "1"
-          memory = "256Mi"
+          memory = "512Mi"
         }
       }
     }
@@ -159,12 +154,6 @@ resource "google_cloud_run_v2_service" "yuruppu" {
     google_project_service.apis,
     google_artifact_registry_repository.yuruppu,
   ]
-
-  lifecycle {
-    ignore_changes = [
-      template[0].containers[0].image,
-    ]
-  }
 }
 
 # Allow unauthenticated access to Cloud Run (for LINE webhook)
@@ -177,14 +166,9 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
 }
 
 # Grant Cloud Run service account access to secrets
-resource "google_secret_manager_secret_iam_member" "cloudrun_channel_secret" {
-  secret_id = google_secret_manager_secret.line_channel_secret.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
-}
-
-resource "google_secret_manager_secret_iam_member" "cloudrun_access_token" {
-  secret_id = google_secret_manager_secret.line_channel_access_token.id
+resource "google_secret_manager_secret_iam_member" "cloudrun_secrets" {
+  for_each  = toset(local.secrets)
+  secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }

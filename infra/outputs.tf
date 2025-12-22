@@ -7,10 +7,10 @@ output "artifact_registry_url" {
 
 output "cloud_run_url" {
   description = "Cloud Run service URL"
-  value       = google_cloud_run_v2_service.yuruppu.uri
+  value       = try(google_cloud_run_v2_service.yuruppu.uri, null)
 }
 
 output "webhook_url" {
   description = "LINE webhook URL"
-  value       = "${google_cloud_run_v2_service.yuruppu.uri}/webhook"
+  value       = try("${google_cloud_run_v2_service.yuruppu.uri}/webhook", null)
 }

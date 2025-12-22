@@ -19,5 +19,15 @@ variable "github_owner" {
 variable "github_repo" {
   description = "GitHub repository name"
   type        = string
-  default     = "yuruppu"
+  default     = "Yuruppu"
+}
+
+variable "github_connection" {
+  description = "Cloud Build connection name for GitHub"
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID for Cloud Build connection"
+  type        = number
 }

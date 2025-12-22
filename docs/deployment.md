@@ -1,11 +1,5 @@
 # Deployment Guide
 
-## Prerequisites
-
-- [OpenTofu](https://opentofu.org/) (or Terraform)
-- GCP project with billing enabled
-- LINE Messaging API channel
-
 ## Initial Setup (One-time)
 
 ### 1. Create State Bucket
@@ -13,10 +7,15 @@
 ```bash
 gcloud storage buckets create gs://yuruppu-tfstate \
   --project=YOUR_PROJECT_ID \
-  --location=asia-northeast1
+  --location=asia-northeast1 \
+  --enable-autoclass
 ```
 
-### 2. Configure Variables
+### 2. Connect GitHub to Cloud Build
+
+Connect your repository in [Cloud Build Repositories](https://console.cloud.google.com/cloud-build/repositories/2nd-gen).
+
+### 3. Configure Variables
 
 In `infra/`:
 
@@ -26,42 +25,36 @@ cp terraform.tfvars.example terraform.tfvars
 
 Edit `terraform.tfvars` with your values.
 
-### 3. Connect GitHub to Cloud Build
-
-1. Go to [Cloud Build - Repositories](https://console.cloud.google.com/cloud-build/repositories)
-2. Click "Link a repository"
-3. Select "GitHub" and authenticate
-4. Select your repository and connect
-
-### 4. Provision Infrastructure
+### 4. Create Secret Manager Secrets
 
 In `infra/`:
 
 ```bash
 tofu init
-tofu plan
-tofu apply
+tofu apply -target=google_secret_manager_secret.secrets
 ```
 
 ### 5. Configure LINE Secrets
 
-```bash
-echo -n "your-channel-secret" | \
-  gcloud secrets versions add LINE_CHANNEL_SECRET --data-file=-
+Add secret values in [Secret Manager](https://console.cloud.google.com/security/secret-manager) for each secret.
 
-echo -n "your-channel-access-token" | \
-  gcloud secrets versions add LINE_CHANNEL_ACCESS_TOKEN --data-file=-
+### 6. Provision Remaining Infrastructure
+
+In `infra/`:
+
+```bash
+tofu apply
 ```
 
-### 6. Configure LINE Webhook
+### 7. Configure LINE Webhook
 
 1. Get the Cloud Run URL:
    ```bash
-   gcloud run services describe yuruppu --region=asia-northeast1 --format='value(status.url)'
+   tofu output webhook_url
    ```
 
 2. In [LINE Developers Console](https://developers.line.biz/):
-   - Set Webhook URL to: `https://YOUR_CLOUD_RUN_URL/webhook`
+   - Set Webhook URL to the output value
    - Enable "Use webhook"
 
 ## Regular Deployment

@@ -19,18 +19,16 @@ steps:
         export KO_DOCKER_REPO=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu
         /go/bin/ko build . --bare -t $SHORT_SHA -t latest
 
-  # Deploy to Cloud Run
+  # Update Cloud Run image (service managed by Terraform)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
-      - 'deploy'
+      - 'services'
+      - 'update'
       - 'yuruppu'
       - '--image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu:$SHORT_SHA'
       - '--region=asia-northeast1'
-      - '--platform=managed'
-      - '--update-secrets=LINE_CHANNEL_SECRET=LINE_CHANNEL_SECRET:latest'
-      - '--update-secrets=LINE_CHANNEL_ACCESS_TOKEN=LINE_CHANNEL_ACCESS_TOKEN:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
