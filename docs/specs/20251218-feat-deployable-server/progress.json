@@ -1,8 +1,8 @@
 {
-  "phase": "designed",
-  "lastUpdated": "2025-12-19",
+  "phase": "in_progress",
+  "lastUpdated": "2025-12-22",
   "requirements": [
-    { "id": "FR-001", "passes": false },
+    { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": false },
     { "id": "FR-003", "passes": false },
     { "id": "FR-004", "passes": false },
@@ -11,5 +11,5 @@
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "Design decisions: Use ko for container builds (ADR 20251218-container-build), Cloud Build for CI/CD (ADR 20251218-cicd), OpenTofu for IaC (ADR 20251219-iac-tool)"
+  "notes": "FR-001 complete: Created main.go with loadConfig() and Config struct. Next: FR-002 (Bot init) -> FR-004 (package-level settings) -> FR-003 (HTTP server)"
 }
