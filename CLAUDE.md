@@ -38,3 +38,7 @@ This repository follows **Spec-Driven Development**.
 ```
 
 `*` = Repeat until all requirements pass. Each session focuses on **one requirement**.
+
+## Web Search
+
+When including a year in search queries, you **must** check the current date first to ensure accuracy.
