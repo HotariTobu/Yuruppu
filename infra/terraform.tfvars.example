@@ -1,0 +1,7 @@
+# Example variable values for Yuruppu infrastructure
+# Copy to terraform.tfvars and fill in your values
+
+project_id   = "your-gcp-project-id"
+region       = "asia-northeast1"
+github_owner = "your-github-username"
+github_repo  = "yuruppu"
