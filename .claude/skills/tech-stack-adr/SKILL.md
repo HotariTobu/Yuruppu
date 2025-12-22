@@ -16,6 +16,7 @@ Guide technology selection from discovery to ADR documentation.
 4. Comparison      → Present results, discuss trade-offs
 5. Decision        → User decides
 6. ADR             → Write to docs/adr/YYYYMMDD-<topic>.md
+7. Review          → tech-stack-adr-reviewer validates ADR content
 ```
 
 ## Phase 1: Requirements
@@ -65,3 +66,9 @@ User decides. Confirm:
 Write ADR to `docs/adr/YYYYMMDD-<topic>.md` using `docs/adr/TEMPLATE.md`.
 
 Reference the ADR in related spec if applicable.
+
+## Phase 7: Review
+
+Launch `tech-stack-adr-reviewer` agent to validate ADR content.
+
+If violations found, fix and re-run review until PASS.

@@ -3,6 +3,13 @@
 > Date: YYYY-MM-DD
 > Status: Proposed / **Adopted** / Deprecated / Superseded by [ADR](link)
 
+<!--
+ADR records decisions only. Do NOT add:
+- Configuration examples or code snippets
+- Version numbers
+- Setup instructions or commands
+-->
+
 ## Context
 
 Why this technical decision is needed. Describe the background and requirements.
