@@ -3,20 +3,14 @@
 # See ADR: docs/adr/20251218-cicd.md
 
 steps:
-  # Install ko
-  - name: 'golang:1'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - 'go install github.com/google/ko@latest'
-
   # Build and push with ko
   - name: 'golang:1'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        export KO_DOCKER_REPO=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu
+        go install github.com/google/ko@latest
+        export KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}
         /go/bin/ko build . --bare -t $SHORT_SHA -t latest
 
   # Update Cloud Run image (service managed by Terraform)
@@ -26,9 +20,9 @@ steps:
       - 'run'
       - 'services'
       - 'update'
-      - 'yuruppu'
-      - '--image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/yuruppu:$SHORT_SHA'
-      - '--region=asia-northeast1'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}:$SHORT_SHA'
+      - '--region=${_REGION}'
 
 options:
   logging: CLOUD_LOGGING_ONLY

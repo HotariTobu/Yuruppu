@@ -110,6 +110,12 @@ resource "google_cloudbuild_trigger" "main_push" {
 
   filename = "cloudbuild.yaml"
 
+  substitutions = {
+    _REGION       = var.region
+    _SERVICE_NAME = google_cloud_run_v2_service.yuruppu.name
+    _REPO_NAME    = google_artifact_registry_repository.yuruppu.repository_id
+  }
+
   depends_on = [google_project_service.apis]
 }
 
