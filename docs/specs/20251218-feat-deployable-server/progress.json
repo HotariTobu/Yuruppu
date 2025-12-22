@@ -7,9 +7,12 @@
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": false },
+    { "id": "FR-005a", "passes": true, "note": "ko configuration (.ko.yaml) created" },
+    { "id": "FR-005b", "passes": false, "note": "Cloud Build config pending" },
+    { "id": "FR-005c", "passes": false, "note": "OpenTofu config pending" },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-001 to FR-004 complete. FR-003 implements HTTP server with /webhook endpoint and PORT env var (default 8080). Next session: FR-005 (infra - ko, Cloud Build, OpenTofu). Remaining: NFR-001/NFR-002 (Cloud Run deployment)."
+  "notes": "FR-005a complete: .ko.yaml created with distroless/static:nonroot base and CGO_ENABLED=0 for pure Go binary. Next session: FR-005b (cloudbuild.yaml for CI/CD). ko handles GOOS=linux automatically."
 }

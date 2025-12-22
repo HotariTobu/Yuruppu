@@ -1,0 +1,17 @@
+# ko configuration for building container images
+# See: https://ko.build/configuration/
+
+# Default base image (distroless for smallest image size)
+defaultBaseImage: gcr.io/distroless/static:nonroot
+
+# Build configuration
+builds:
+  - id: yuruppu
+    main: .
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
