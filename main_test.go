@@ -423,3 +423,35 @@ func TestInitBot_EmptyCredentials(t *testing.T) {
 		})
 	}
 }
+
+// TestSetupPackageLevel tests package-level configuration.
+// AC-007: Given Bot is initialized successfully,
+// when application starts,
+// then bot.SetDefaultBot() and bot.SetLogger() are called.
+func TestSetupPackageLevel(t *testing.T) {
+	// Given: Valid configuration
+	t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+
+	config, err := loadConfig()
+	require.NoError(t, err)
+
+	b, err := initBot(config)
+	require.NoError(t, err)
+
+	// When: Setup package-level configuration
+	setupPackageLevel(b)
+
+	// Then: Function should complete without panic
+	// (The actual verification of SetDefaultBot/SetLogger is done by the bot package tests)
+}
+
+// TestSetupPackageLevel_NilBot tests package-level configuration with nil bot.
+// FR-004: Package-level settings should handle edge cases gracefully.
+func TestSetupPackageLevel_NilBot(t *testing.T) {
+	// When: Setup package-level configuration with nil bot
+	// Then: Should not panic
+	assert.NotPanics(t, func() {
+		setupPackageLevel(nil)
+	}, "setupPackageLevel should not panic with nil bot")
+}
