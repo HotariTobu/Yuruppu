@@ -3,26 +3,17 @@
 # See ADR: docs/adr/20251218-cicd.md
 
 steps:
-  # Configure Docker for Artifact Registry
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
-        cp -r ~/.docker /workspace/.docker
-
   # Build and push with ko
-  - name: 'golang:1'
-    entrypoint: 'bash'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     env:
-      - 'DOCKER_CONFIG=/workspace/.docker'
+      - 'KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
-        go install github.com/google/ko@latest
-        export KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}
-        /go/bin/ko build . --bare -t $SHORT_SHA -t latest
+        curl -sSfL https://github.com/ko-build/ko/releases/latest/download/ko_Linux_x86_64.tar.gz | tar xzf - ko
+        gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
+        ./ko build . --bare -t $SHORT_SHA
 
   # Update Cloud Run image (service managed by Terraform)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
