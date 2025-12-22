@@ -4,12 +4,12 @@
   "requirements": [
     { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": true },
-    { "id": "FR-003", "passes": false },
+    { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": false },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "FR-001, FR-002, FR-004 complete. Next session should start with FR-003 (HTTP server with /webhook endpoint and PORT env var). Remaining: FR-005 (infra), NFR-001/NFR-002 (Cloud Run deployment)."
+  "notes": "FR-001 to FR-004 complete. FR-003 implements HTTP server with /webhook endpoint and PORT env var (default 8080). Next session: FR-005 (infra - ko, Cloud Build, OpenTofu). Remaining: NFR-001/NFR-002 (Cloud Run deployment)."
 }

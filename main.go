@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -75,23 +76,50 @@ func setupPackageLevel(b *bot.Bot) {
 	bot.SetLogger(&stdLogger{})
 }
 
+// getPort returns the port to listen on from the PORT environment variable.
+// If PORT is not set or empty, returns the default port "8080".
+// AC-005, AC-006: Server reads PORT from environment with 8080 as default.
+func getPort() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		return "8080"
+	}
+	return port
+}
+
+// createHandler creates and returns an http.Handler with registered routes.
+// AC-004: /webhook endpoint is registered with bot.HandleWebhook.
+func createHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/webhook", bot.HandleWebhook)
+	return mux
+}
+
 func main() {
 	// Load configuration
 	config, err := loadConfig()
 	if err != nil {
-		// Error handling will be expanded in later requirements
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Initialize bot
 	b, err := initBot(config)
 	if err != nil {
-		// Error handling will be expanded in later requirements
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Setup package-level bot and logger
 	setupPackageLevel(b)
 
-	// Server initialization will be implemented in later requirements
+	// Create HTTP handler and start server
+	handler := createHandler()
+	port := getPort()
+
+	// AC-004: Log startup message
+	log.Printf("Server listening on port %s", port)
+
+	// Start HTTP server
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
+		log.Fatal(err)
+	}
 }
