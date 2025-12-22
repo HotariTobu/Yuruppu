@@ -62,10 +62,15 @@ resource "google_secret_manager_secret" "secrets" {
   depends_on = [google_project_service.apis]
 }
 
-# Cloud Build service account (required for Gen 2 triggers)
+# Service accounts
 resource "google_service_account" "cloudbuild" {
   account_id   = "yuruppu-cloudbuild"
   display_name = "Cloud Build for Yuruppu"
+}
+
+resource "google_service_account" "cloudrun" {
+  account_id   = "yuruppu-cloudrun"
+  display_name = "Cloud Run for Yuruppu"
 }
 
 resource "google_project_iam_member" "cloudbuild_run_admin" {
@@ -130,6 +135,8 @@ resource "google_cloud_run_v2_service" "yuruppu" {
   location = var.region
 
   template {
+    service_account = google_service_account.cloudrun.email
+
     containers {
       # Use placeholder for initial deployment, Cloud Build updates this
       image = "gcr.io/cloudrun/hello"
@@ -181,10 +188,5 @@ resource "google_secret_manager_secret_iam_member" "cloudrun_secrets" {
   for_each  = toset(local.secrets)
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
-}
-
-# Data source for project info
-data "google_project" "project" {
-  project_id = var.project_id
+  member    = "serviceAccount:${google_service_account.cloudrun.email}"
 }
