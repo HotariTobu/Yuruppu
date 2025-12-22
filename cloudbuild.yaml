@@ -11,9 +11,10 @@ steps:
     args:
       - '-c'
       - |
-        curl -sSfL https://github.com/ko-build/ko/releases/latest/download/ko_Linux_x86_64.tar.gz | tar xzf - ko
+        apt-get update && apt-get install -y golang-go
+        go install github.com/google/ko@latest
         gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
-        ./ko build . --bare -t $SHORT_SHA
+        ko build . --bare -t $SHORT_SHA
 
   # Update Cloud Run image (service managed by Terraform)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
