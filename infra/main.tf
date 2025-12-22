@@ -62,29 +62,34 @@ resource "google_secret_manager_secret" "secrets" {
   depends_on = [google_project_service.apis]
 }
 
-# Cloud Build service account permissions
+# Cloud Build service account (required for Gen 2 triggers)
+resource "google_service_account" "cloudbuild" {
+  account_id   = "yuruppu-cloudbuild"
+  display_name = "Cloud Build for Yuruppu"
+}
+
 resource "google_project_iam_member" "cloudbuild_run_admin" {
   project = var.project_id
   role    = "roles/run.admin"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
 resource "google_project_iam_member" "cloudbuild_service_account_user" {
   project = var.project_id
   role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
 resource "google_project_iam_member" "cloudbuild_artifact_registry" {
   project = var.project_id
   role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
-resource "google_project_iam_member" "cloudbuild_secret_accessor" {
+resource "google_project_iam_member" "cloudbuild_logs" {
   project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
 # Cloud Build 2nd gen connection and repository are created via gcloud
@@ -98,7 +103,7 @@ resource "google_cloudbuild_trigger" "main_push" {
   name            = "yuruppu-main-push"
   description     = "Deploy Yuruppu on push to main branch"
   location        = var.region
-  service_account = "projects/${var.project_id}/serviceAccounts/${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  service_account = google_service_account.cloudbuild.id
 
   repository_event_config {
     repository = local.cloudbuild_repository_id
