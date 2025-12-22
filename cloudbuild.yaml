@@ -11,7 +11,9 @@ steps:
     args:
       - '-c'
       - |
-        apt-get update && apt-get install -y golang-go
+        GO_VERSION=$$(grep "^go " go.mod | awk '{print $$2}')
+        curl -sSfL https://go.dev/dl/go$${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+        export PATH=/usr/local/go/bin:$$PATH
         go install github.com/google/ko@latest
         gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
         $$(go env GOPATH)/bin/ko build . --bare -t $SHORT_SHA
