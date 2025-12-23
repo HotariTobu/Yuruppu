@@ -4,18 +4,14 @@
 
 steps:
   # Build and push with ko
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'golang:1'
     env:
-      - 'KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}'
+      - KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        GO_VERSION=$$(grep "^go " go.mod | awk '{print $$2}')
-        curl -sSfL https://go.dev/dl/go$${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -
-        export PATH=/usr/local/go/bin:$$PATH
         go install github.com/google/ko@latest
-        gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
         $$(go env GOPATH)/bin/ko build . --bare -t $SHORT_SHA
 
   # Update Cloud Run image (service managed by Terraform)
