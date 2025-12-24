@@ -41,8 +41,6 @@ The following decisions will be made in the `/design` phase:
 
 1. **LLM Provider**: OpenAI, Google Gemini, Anthropic Claude, or Vertex AI
 2. **Model Selection**: Specific model to use (e.g., gpt-4o-mini, gemini-1.5-flash, claude-3-haiku)
-3. **System Prompt Content**: The hardcoded system prompt text (character, tone, response length constraints)
-4. **Environment Variable Names**: Names for API key, model, and other configuration
 
 ## Error Handling
 
@@ -188,3 +186,4 @@ Note: No retry logic is implemented; all errors result in a single failed attemp
 | 2025-12-24 | 1.1 | Added FR-007 (single-turn), AC-005 (auth error), AC-011 (single-turn); clarified FR-003, FR-004, FR-005, NFR-001, NFR-002, NFR-003; improved all acceptance criteria with testable conditions | - |
 | 2025-12-24 | 1.2 | Changed FR-005 to hardcoded system prompt; added FR-008 for non-text message handling; updated FR-001 to support all message types; added AC-007 to AC-011 for non-text messages | - |
 | 2025-12-24 | 1.3 | Added FR-009 (no retry); clarified FR-008 format; improved AC-006, AC-007-011, AC-014 testability; clarified NFR-002 | - |
+| 2025-12-24 | 1.4 | Removed system prompt content and env var names from Design Decisions (implementation details) | - |

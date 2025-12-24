@@ -18,5 +18,5 @@
     { "id": "TR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": ""
+  "notes": "ADR: 20251224-llm-provider.md - Adopted Vertex AI with Gemini Flash tier"
 }
