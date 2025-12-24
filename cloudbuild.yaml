@@ -7,7 +7,8 @@ steps:
   # See ADR: docs/adr/20251224-cloud-build-image.md
   - name: 'cgr.dev/chainguard/ko'
     env:
-      - HOME=/tmp
+      - GOCACHE=off
+      - GOMODCACHE=/tmp/go-mod
       - KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/web
     args:
       - 'build'
