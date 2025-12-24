@@ -99,3 +99,18 @@ The user will provide the spec name or path (e.g., "echo" or "20251215-feat-echo
 - Be direct about problems - ambiguity in specs causes implementation failures
 - If requirements are unclear, say so explicitly
 - Do not suggest implementation details - that's for the design phase
+- **NEVER include code blocks in suggestions** - specs define requirements, not code
+
+### Bad Example (Do NOT do this)
+
+```markdown
+### AC-002: Cloud Build Uses Pre-installed ko [Linked to SC-002]
+- **Suggestion**: Replace with specific, measurable criteria:
+  ```yaml
+  - name: 'ghcr.io/ko-build/ko:latest'
+    env:
+      - KO_DOCKER_REPO=...
+  ```
+```
+
+This is wrong because it includes implementation code. Keep suggestions abstract.

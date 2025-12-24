@@ -25,38 +25,6 @@
 
 - [ ] NFR-001: Requirement 1
 
-## API Design
-
-### Functions/Methods
-
-```go
-// ExampleFunction does something.
-// param1 is the parameter description.
-// Returns the result and any error encountered.
-func ExampleFunction(param1 Type) (ReturnType, error)
-```
-
-### Type Definitions
-
-```go
-// ExampleStruct represents an example structure.
-type ExampleStruct struct {
-    Property1 Type
-    Property2 Type
-}
-```
-
-## Usage Examples
-
-```go
-import "github.com/user/project/pkg"
-
-result, err := pkg.ExampleFunction(param)
-if err != nil {
-    // handle error
-}
-```
-
 ## Error Handling
 
 | Error Type | Condition | Message |

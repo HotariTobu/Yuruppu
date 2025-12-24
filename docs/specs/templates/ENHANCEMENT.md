@@ -22,18 +22,6 @@
 - [ ] CH-001: Change 1
 - [ ] CH-002: Change 2
 
-## API Changes
-
-<!-- List any API changes (new parameters, return types, etc.) -->
-
-```typescript
-// Before
-function existingFunction(param1: Type): ReturnType;
-
-// After
-function existingFunction(param1: Type, param2?: NewType): ReturnType;
-```
-
 ## Acceptance Criteria
 
 <!--

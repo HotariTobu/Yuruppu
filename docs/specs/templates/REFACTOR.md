@@ -13,11 +13,11 @@
 
 ## Current Structure
 
-<!-- How is the code currently structured? -->
+<!-- How is the code currently structured? Describe files and their roles. Do NOT include code blocks. -->
 
 ## Proposed Structure
 
-<!-- How will the code be structured after refactoring? -->
+<!-- How will the code be structured after refactoring? Describe changes in prose. Do NOT include code blocks. -->
 
 ## Scope
 
