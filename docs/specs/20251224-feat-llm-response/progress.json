@@ -1,6 +1,6 @@
 {
-  "phase": "spec",
-  "lastUpdated": "2025-12-24",
+  "phase": "designed",
+  "lastUpdated": "2025-12-25",
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
@@ -18,5 +18,5 @@
     { "id": "TR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "ADR: 20251224-llm-provider.md - Adopted Vertex AI with Gemini Flash tier"
+  "notes": "ADRs: 20251224-llm-provider.md (Vertex AI), 20251225-gemini-model-selection.md (Gemini 2.5 Flash-Lite)"
 }
