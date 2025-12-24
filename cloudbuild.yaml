@@ -9,6 +9,9 @@ steps:
     env:
       - GOCACHE=/tmp/go-cache
       - GOMODCACHE=/tmp/go-mod
+      - GIT_CONFIG_COUNT=1
+      - GIT_CONFIG_KEY_0=safe.directory
+      - GIT_CONFIG_VALUE_0=/workspace
       - KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/web
     args:
       - 'build'
