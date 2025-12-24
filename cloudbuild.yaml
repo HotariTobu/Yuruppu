@@ -4,15 +4,16 @@
 
 steps:
   # Build and push with ko
-  - name: 'golang:1'
+  # See ADR: docs/adr/20251224-cloud-build-image.md
+  - name: 'cgr.dev/chainguard/ko'
     env:
       - KO_DOCKER_REPO=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/web
-    entrypoint: 'bash'
     args:
-      - '-c'
-      - |
-        go install github.com/google/ko@latest
-        $$(go env GOPATH)/bin/ko build . --bare -t $SHORT_SHA
+      - 'build'
+      - '.'
+      - '--bare'
+      - '-t'
+      - '$SHORT_SHA'
 
   # Update Cloud Run image (service managed by Terraform)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
