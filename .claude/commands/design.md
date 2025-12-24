@@ -15,29 +15,23 @@ Spec name: $ARGUMENTS
    - Read `spec.md` and `progress.json`
    - If spec not found, ask user for correct name
 
-2. **Analyze the codebase** (use Explore agent):
-   - Identify existing related code
-   - Check current libraries in use (`go.mod`)
-   - Understand project structure
+2. **Enumerate design considerations** (use design-enumerator agent):
+   - Pass only the spec path to the agent
+   - The agent analyzes the codebase itself (no summaries)
+   - The agent systematically checks EVERY requirement
+   - This step MUST NOT be skipped or done manually
 
-3. **Identify required ADRs**:
-   Based on the spec and codebase analysis, determine if ADRs are needed for:
-   - New library/framework introduction
-   - Architecture pattern decisions
-   - Technology choices
+3. **Create ADRs** (for each ADR candidate from step 2):
+   - design-enumerator marks items as "requires ADR"
+   - For each ADR candidate, run `/tech-stack-adr` skill
+   - If no ADR candidates, skip to step 5.
 
-   If no ADRs needed, skip to step 6.
-
-4. **Create ADRs** (use tech-stack-adr skill for each):
-   - Run the skill for each identified decision
-   - Follow the ADR workflow to completion
-
-5. **Generate llms.txt** (use llms-generator agent):
+4. **Generate llms.txt** (use llms-generator agent):
    - For each adopted technology with official documentation, generate llms.txt
    - Store in `docs/llms-txt/<technology-name>/`
    - Skip if documentation is already present or not applicable (e.g., standard library, CLI tools)
 
-6. **Update progress.json**:
+5. **Update progress.json**:
    ```json
    {
      "phase": "designed",
@@ -45,7 +39,7 @@ Spec name: $ARGUMENTS
    }
    ```
 
-7. **Commit changes**:
+6. **Commit changes**:
    ```bash
    git add docs/adr/ docs/llms-txt/ docs/specs/<spec-name>/progress.json
    git commit -m "docs(<spec-name>): complete design phase"
@@ -56,9 +50,8 @@ Spec name: $ARGUMENTS
 ```
 ## Design Complete: <spec-name>
 
-### Codebase Analysis
-- [Summary of relevant existing code]
-- [Current libraries/patterns in use]
+### Design Considerations
+(Paste output from design-enumerator agent)
 
 ### ADRs Created
 - ADR-XXX: [Title] → [Decision]
