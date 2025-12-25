@@ -23,8 +23,7 @@ func (e *LLMTimeoutError) Error() string {
 // LLMRateLimitError represents an LLM API rate limit error.
 // Error Handling: LLM API rate limit exceeded (HTTP 429)
 type LLMRateLimitError struct {
-	Message    string
-	RetryAfter int // seconds until retry is allowed
+	Message string
 }
 
 func (e *LLMRateLimitError) Error() string {

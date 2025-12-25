@@ -282,17 +282,6 @@ func TestLLMRateLimitError(t *testing.T) {
 		assert.Equal(t, rateLimitErr.Message, target.Message)
 	})
 
-	t.Run("supports retry-after information", func(t *testing.T) {
-		// Given: Create LLMRateLimitError with retry-after
-		err := &llm.LLMRateLimitError{
-			Message:    "rate limit exceeded",
-			RetryAfter: 60, // seconds
-		}
-
-		// Then: Should store retry-after value
-		assert.Equal(t, 60, err.RetryAfter,
-			"should store retry-after duration")
-	})
 }
 
 // TestLLMNetworkError tests the LLMNetworkError type.
