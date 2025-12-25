@@ -18,5 +18,5 @@
     { "id": "TR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "FR-002, FR-005, FR-006, FR-007, NFR-002 complete: Text messages call LLM with hardcoded system prompt and reply with generated response (no Yuruppu prefix, single-turn). DEBUG logging for LLM requests/responses added. Next: FR-001+FR-008 (handle non-text messages with [User sent a {type}] format)"
+  "notes": "Session ended with clean state (no uncommitted changes). Completed: FR-002, FR-003, FR-005, FR-006, FR-007, NFR-002, TR-001, TR-002. Code reviews identified: (1) Add timeout context for LLM calls (NFR-001), (2) Implement error type mapping in vertexai.go (FR-004, NFR-003), (3) Handle non-text messages (FR-001, FR-008). Next session should start with FR-001+FR-008: handle image/sticker/video/audio/location messages with '[User sent a {type}]' format."
 }
