@@ -375,30 +375,17 @@ func logIncomingMessage(msgEvent *webhook.MessageEvent) {
 	var text string
 
 	switch msg := msgEvent.Message.(type) {
-	case *webhook.TextMessageContent:
-		messageType = "text"
-		text = msg.Text
 	case webhook.TextMessageContent:
 		messageType = "text"
 		text = msg.Text
-	case *webhook.ImageMessageContent:
-		messageType = "image"
 	case webhook.ImageMessageContent:
 		messageType = "image"
-	case *webhook.StickerMessageContent:
-		messageType = "sticker"
 	case webhook.StickerMessageContent:
 		messageType = "sticker"
-	case *webhook.VideoMessageContent:
-		messageType = "video"
 	case webhook.VideoMessageContent:
 		messageType = "video"
-	case *webhook.AudioMessageContent:
-		messageType = "audio"
 	case webhook.AudioMessageContent:
 		messageType = "audio"
-	case *webhook.LocationMessageContent:
-		messageType = "location"
 	case webhook.LocationMessageContent:
 		messageType = "location"
 	default:
