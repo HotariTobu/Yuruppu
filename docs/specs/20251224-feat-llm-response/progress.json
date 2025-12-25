@@ -1,5 +1,5 @@
 {
-  "phase": "designed",
+  "phase": "in_progress",
   "lastUpdated": "2025-12-25",
   "requirements": [
     { "id": "FR-001", "passes": false },
@@ -14,9 +14,9 @@
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false },
     { "id": "NFR-003", "passes": false },
-    { "id": "TR-001", "passes": false },
-    { "id": "TR-002", "passes": false }
+    { "id": "TR-001", "passes": true },
+    { "id": "TR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "ADRs: 20251224-llm-provider.md (Vertex AI), 20251225-gemini-model-selection.md (Gemini 2.5 Flash-Lite)"
+  "notes": "TR-001/TR-002 complete: Provider interface in internal/llm/provider.go with 5 error types. Next: FR-003 (credentials loading)"
 }
