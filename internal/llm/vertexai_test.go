@@ -56,7 +56,8 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 			// (projectID is set via function parameter, not env var for test isolation)
 
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID)
+			// SC-003: Pass fallback region as parameter
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
 
 			// Then: Should return error indicating missing GCP_PROJECT_ID
 			if tt.wantErr {
@@ -117,7 +118,8 @@ func TestNewVertexAIClient_ValidProjectID(t *testing.T) {
 			// Note: This test will fail until the implementation exists (TDD red phase)
 
 			// When: Create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID)
+			// SC-003: Pass fallback region as parameter
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
 
 			// Then: Should initialize successfully
 			require.NoError(t, err,
@@ -167,7 +169,8 @@ func TestNewVertexAIClient_ErrorMessage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Invalid project ID
 			// When: Attempt to create client
-			_, err := llm.NewVertexAIClient(context.Background(), tt.projectID)
+			// SC-003: Pass fallback region as parameter
+			_, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
 
 			// Then: Error message should be clear
 			require.Error(t, err)
@@ -195,7 +198,8 @@ func TestNewVertexAIClient_ContextSupport(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client with context
-		client, err := llm.NewVertexAIClient(ctx, projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(ctx, projectID, "us-central1")
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -208,7 +212,8 @@ func TestNewVertexAIClient_ContextSupport(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client with context
-		client, err := llm.NewVertexAIClient(ctx, projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(ctx, projectID, "us-central1")
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -222,7 +227,8 @@ func TestNewVertexAIClient_ContextSupport(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client with cancelled context
-		_, err := llm.NewVertexAIClient(ctx, projectID)
+		// SC-003: Pass fallback region as parameter
+		_, err := llm.NewVertexAIClient(ctx, projectID, "us-central1")
 
 		// Then: Should handle gracefully (may succeed or fail depending on implementation)
 		// The key is that it doesn't panic
@@ -251,7 +257,8 @@ func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
 		projectID := os.Getenv("GCP_PROJECT_ID")
 
 		// When: Create client using environment variable
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -271,7 +278,8 @@ func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
 		projectID := os.Getenv("GCP_PROJECT_ID") // Will be empty string
 
 		// When: Attempt to create client
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Should return error
 		require.Error(t, err,
@@ -291,7 +299,8 @@ func TestNewVertexAIClient_ADCAuthentication(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client without API key
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Should succeed (ADC handles authentication)
 		require.NoError(t, err,
@@ -308,7 +317,8 @@ func TestNewVertexAIClient_ADCAuthentication(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Client creation should succeed
 		// (Authentication errors occur during API calls, not during client creation)
@@ -329,7 +339,8 @@ func TestNewVertexAIClient_ModelConfiguration(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -343,31 +354,49 @@ func TestNewVertexAIClient_ModelConfiguration(t *testing.T) {
 
 // TestNewVertexAIClient_RegionConfiguration tests that the client uses correct region.
 // Vertex AI requires a region for API calls
+// SC-003: Fallback region is now passed as parameter
 func TestNewVertexAIClient_RegionConfiguration(t *testing.T) {
-	t.Run("client is configured with default region", func(t *testing.T) {
-		// Given: Valid project ID (region may be hardcoded or from env)
+	t.Run("client is configured with provided fallback region", func(t *testing.T) {
+		// Given: Valid project ID and fallback region
 		projectID := "test-project"
+		fallbackRegion := "us-central1"
 
-		// When: Create client
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// When: Create client with fallback region
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, fallbackRegion)
 
 		// Then: Should succeed
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 
 		// Note: Region configuration is internal to the client
-		// Default region should be us-central1 (or configurable)
+		// Fallback region is used when metadata server is unavailable
+	})
+
+	t.Run("client accepts different fallback regions", func(t *testing.T) {
+		// Given: Valid project ID and different fallback regions
+		projectID := "test-project"
+		regions := []string{"us-central1", "asia-northeast1", "europe-west1"}
+
+		for _, region := range regions {
+			// When: Create client with different fallback region
+			client, err := llm.NewVertexAIClient(context.Background(), projectID, region)
+
+			// Then: Should succeed
+			require.NoError(t, err, "should succeed with fallback region %s", region)
+			assert.NotNil(t, client)
+		}
 	})
 }
 
 // TestGetRegion tests region determination logic for Cloud Run metadata.
 // AC-001: Region derived from Cloud Run metadata
-// SC-001: Remove hardcoded defaultRegion and use Cloud Run metadata
+// SC-004: GetRegion accepts fallback region as parameter instead of reading from environment
 func TestGetRegion(t *testing.T) {
 	tests := []struct {
 		name           string
 		metadataServer *metadataServerMock
-		envVarValue    string
+		fallbackRegion string
 		want           string
 	}{
 		{
@@ -377,8 +406,8 @@ func TestGetRegion(t *testing.T) {
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "",
-			want:        "us-west1",
+			fallbackRegion: "us-central1",
+			want:           "us-west1",
 		},
 		{
 			name: "metadata server returns different region - extract correctly",
@@ -387,134 +416,110 @@ func TestGetRegion(t *testing.T) {
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "",
-			want:        "asia-northeast1",
+			fallbackRegion: "us-central1",
+			want:           "asia-northeast1",
 		},
 		{
-			name: "metadata server timeout (2s) - fallback to env var",
+			name: "metadata server timeout (2s) - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "projects/123456789/regions/us-west1",
 				statusCode: 200,
 				delay:      3000, // 3 seconds - exceeds 2s timeout
 			},
-			envVarValue: "us-east1",
-			want:        "us-east1",
+			fallbackRegion: "us-east1",
+			want:           "us-east1",
 		},
 		{
-			name: "metadata server unavailable - fallback to env var",
+			name: "metadata server unavailable - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "",
 				statusCode: 500,
 				delay:      0,
 			},
-			envVarValue: "europe-west1",
-			want:        "europe-west1",
+			fallbackRegion: "europe-west1",
+			want:           "europe-west1",
 		},
 		{
-			name: "metadata server returns 404 - fallback to env var",
+			name: "metadata server returns 404 - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "",
 				statusCode: 404,
 				delay:      0,
 			},
-			envVarValue: "us-central1",
-			want:        "us-central1",
+			fallbackRegion: "us-central1",
+			want:           "us-central1",
 		},
 		{
-			name: "malformed response (not projects/*/regions/*) - fallback to env var",
+			name: "malformed response (not projects/*/regions/*) - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "invalid-format",
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "us-west2",
-			want:        "us-west2",
+			fallbackRegion: "us-west2",
+			want:           "us-west2",
 		},
 		{
-			name: "malformed response (missing region part) - fallback to env var",
+			name: "malformed response (missing region part) - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "projects/123456789",
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "asia-south1",
-			want:        "asia-south1",
+			fallbackRegion: "asia-south1",
+			want:           "asia-south1",
 		},
 		{
-			name: "malformed response (empty string) - fallback to env var",
+			name: "malformed response (empty string) - fallback to provided region",
 			metadataServer: &metadataServerMock{
 				response:   "",
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "us-east4",
-			want:        "us-east4",
+			fallbackRegion: "us-east4",
+			want:           "us-east4",
 		},
 		{
-			name: "env var set - use env var value when metadata unavailable",
+			name: "metadata unavailable - use provided fallback region",
 			metadataServer: &metadataServerMock{
 				response:   "",
 				statusCode: 503,
 				delay:      0,
 			},
-			envVarValue: "us-south1",
-			want:        "us-south1",
+			fallbackRegion: "us-south1",
+			want:           "us-south1",
 		},
 		{
-			name: "env var not set and metadata unavailable - use default us-central1",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 500,
-				delay:      0,
-			},
-			envVarValue: "",
-			want:        "us-central1",
-		},
-		{
-			name: "env var not set and metadata timeout - use default us-central1",
+			name: "metadata timeout - use provided fallback region",
 			metadataServer: &metadataServerMock{
 				response:   "projects/123456789/regions/us-west1",
 				statusCode: 200,
 				delay:      3000, // 3 seconds - exceeds 2s timeout
 			},
-			envVarValue: "",
-			want:        "us-central1",
+			fallbackRegion: "us-central1",
+			want:           "us-central1",
 		},
 		{
-			name: "env var not set and malformed response - use default us-central1",
+			name: "malformed response - use provided fallback region",
 			metadataServer: &metadataServerMock{
 				response:   "malformed",
 				statusCode: 200,
 				delay:      0,
 			},
-			envVarValue: "",
-			want:        "us-central1",
+			fallbackRegion: "us-central1",
+			want:           "us-central1",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server and environment variable
+			// Given: Mock metadata server and fallback region
 			server := tt.metadataServer.Start(t)
 			defer server.Close()
 
-			// Set up environment variable
-			originalEnv := os.Getenv("GCP_REGION")
-			if tt.envVarValue != "" {
-				os.Setenv("GCP_REGION", tt.envVarValue)
-			} else {
-				os.Unsetenv("GCP_REGION")
-			}
-			t.Cleanup(func() {
-				if originalEnv != "" {
-					os.Setenv("GCP_REGION", originalEnv)
-				} else {
-					os.Unsetenv("GCP_REGION")
-				}
-			})
-
-			// When: Get region (function to be implemented)
-			got := llm.GetRegion(server.URL)
+			// When: Get region with fallback
+			// SC-004: Pass fallback region as parameter
+			got := llm.GetRegion(server.URL, tt.fallbackRegion)
 
 			// Then: Should return expected region
 			assert.Equal(t, tt.want, got,
@@ -537,7 +542,8 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 		defer server.Close()
 
 		// When: Get region
-		_ = llm.GetRegion(server.URL)
+		// SC-004: Pass fallback region as parameter
+		_ = llm.GetRegion(server.URL, "us-central1")
 
 		// Then: Should include Metadata-Flavor header
 		require.NotNil(t, capturedHeaders, "request should have been made")
@@ -558,65 +564,61 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Set env var fallback
-		os.Setenv("GCP_REGION", "fallback-region")
-		t.Cleanup(func() {
-			os.Unsetenv("GCP_REGION")
-		})
-
 		// When: Get region (implementation should include header)
-		got := llm.GetRegion(server.URL)
+		// SC-004: Pass fallback region as parameter
+		got := llm.GetRegion(server.URL, "fallback-region")
 
 		// Then: Should succeed (implementation includes header)
-		// If implementation doesn't include header, it will fallback to env var
+		// If implementation doesn't include header, it will fallback to provided region
 		assert.NotEmpty(t, got, "should return a region")
 	})
 }
 
 // TestGetRegion_Timeout tests that metadata server request has 2-second timeout.
 // AC-001: Metadata server request has a 2-second timeout
+// SC-004: GetRegion now accepts fallback region as parameter
 func TestGetRegion_Timeout(t *testing.T) {
 	tests := []struct {
-		name        string
-		serverDelay int // milliseconds
-		envVarValue string
-		want        string
+		name           string
+		serverDelay    int // milliseconds
+		fallbackRegion string
+		want           string
 	}{
 		{
-			name:        "request completes within 1 second - use metadata",
-			serverDelay: 1000,
-			envVarValue: "fallback-region",
-			want:        "us-west1", // from metadata
+			name:           "request completes within 1 second - use metadata",
+			serverDelay:    1000,
+			fallbackRegion: "fallback-region",
+			want:           "us-west1", // from metadata
 		},
 		{
-			name:        "request completes within 1.9 seconds - use metadata",
-			serverDelay: 1900,
-			envVarValue: "fallback-region",
-			want:        "us-west1", // from metadata
+			name:           "request completes within 1.9 seconds - use metadata",
+			serverDelay:    1900,
+			fallbackRegion: "fallback-region",
+			want:           "us-west1", // from metadata
 		},
 		{
-			name:        "request takes exactly 2 seconds - may timeout",
-			serverDelay: 2000,
-			envVarValue: "fallback-region",
-			want:        "fallback-region", // depends on implementation, may timeout
+			name:           "request takes exactly 2 seconds - may timeout",
+			serverDelay:    2000,
+			fallbackRegion: "fallback-region",
+			want:           "fallback-region", // depends on implementation, may timeout
 		},
 		{
-			name:        "request takes 2.1 seconds - fallback to env var",
-			serverDelay: 2100,
-			envVarValue: "fallback-region",
-			want:        "fallback-region",
+			name:           "request takes 2.1 seconds - fallback to provided region",
+			serverDelay:    2100,
+			fallbackRegion: "fallback-region",
+			want:           "fallback-region",
 		},
 		{
-			name:        "request takes 5 seconds - fallback to env var",
-			serverDelay: 5000,
-			envVarValue: "us-east1",
-			want:        "us-east1",
+			name:           "request takes 5 seconds - fallback to provided region",
+			serverDelay:    5000,
+			fallbackRegion: "us-east1",
+			want:           "us-east1",
 		},
 		{
-			name:        "timeout with no env var - fallback to default",
-			serverDelay: 3000,
-			envVarValue: "",
-			want:        "us-central1",
+			name:           "timeout with us-central1 fallback",
+			serverDelay:    3000,
+			fallbackRegion: "us-central1",
+			want:           "us-central1",
 		},
 	}
 
@@ -630,92 +632,79 @@ func TestGetRegion_Timeout(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Set up environment variable
-			originalEnv := os.Getenv("GCP_REGION")
-			if tt.envVarValue != "" {
-				os.Setenv("GCP_REGION", tt.envVarValue)
-			} else {
-				os.Unsetenv("GCP_REGION")
-			}
-			t.Cleanup(func() {
-				if originalEnv != "" {
-					os.Setenv("GCP_REGION", originalEnv)
-				} else {
-					os.Unsetenv("GCP_REGION")
-				}
-			})
-
-			// When: Get region
-			got := llm.GetRegion(server.URL)
+			// When: Get region with fallback
+			// SC-004: Pass fallback region as parameter
+			got := llm.GetRegion(server.URL, tt.fallbackRegion)
 
 			// Then: Should handle timeout correctly
 			assert.Equal(t, tt.want, got,
-				"should fallback to env var or default when timeout occurs")
+				"should fallback to provided region when timeout occurs")
 		})
 	}
 }
 
 // TestGetRegion_EdgeCases tests edge cases in region extraction.
 // AC-001: Region format validation and edge cases
+// SC-004: GetRegion now accepts fallback region as parameter
 func TestGetRegion_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name             string
 		metadataResponse string
-		envVarValue      string
+		fallbackRegion   string
 		want             string
 	}{
 		{
 			name:             "response with extra slashes",
 			metadataResponse: "projects/123456789/regions/us-west1/",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with leading spaces",
 			metadataResponse: "  projects/123456789/regions/us-west1",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with trailing spaces",
 			metadataResponse: "projects/123456789/regions/us-west1  ",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with newline",
 			metadataResponse: "projects/123456789/regions/us-west1\n",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "us-west1", // trimmed newline is acceptable
 		},
 		{
 			name:             "response with only project",
 			metadataResponse: "projects/123456789",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region",
 		},
 		{
 			name:             "response with wrong format (regions first)",
 			metadataResponse: "regions/us-west1/projects/123456789",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region",
 		},
 		{
 			name:             "response with region but no project number",
 			metadataResponse: "projects//regions/us-west1",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "empty region name",
 			metadataResponse: "projects/123456789/regions/",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region",
 		},
 		{
 			name:             "only slashes",
 			metadataResponse: "///",
-			envVarValue:      "fallback-region",
+			fallbackRegion:   "fallback-region",
 			want:             "fallback-region",
 		},
 	}
@@ -729,23 +718,9 @@ func TestGetRegion_EdgeCases(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Set up environment variable
-			originalEnv := os.Getenv("GCP_REGION")
-			if tt.envVarValue != "" {
-				os.Setenv("GCP_REGION", tt.envVarValue)
-			} else {
-				os.Unsetenv("GCP_REGION")
-			}
-			t.Cleanup(func() {
-				if originalEnv != "" {
-					os.Setenv("GCP_REGION", originalEnv)
-				} else {
-					os.Unsetenv("GCP_REGION")
-				}
-			})
-
-			// When: Get region
-			got := llm.GetRegion(server.URL)
+			// When: Get region with fallback
+			// SC-004: Pass fallback region as parameter
+			got := llm.GetRegion(server.URL, tt.fallbackRegion)
 
 			// Then: Should handle edge case correctly
 			assert.Equal(t, tt.want, got,
@@ -768,7 +743,8 @@ func TestGetRegion_ProductionEndpoint(t *testing.T) {
 		defer server.Close()
 
 		// When: Get region with base URL (production would use http://metadata.google.internal)
-		_ = llm.GetRegion(server.URL)
+		// SC-004: Pass fallback region as parameter
+		_ = llm.GetRegion(server.URL, "us-central1")
 
 		// Then: Should request the correct path
 		expectedPath := "/computeMetadata/v1/instance/region"
@@ -809,7 +785,8 @@ func TestNewVertexAIClient_InterfaceCompliance(t *testing.T) {
 		projectID := "test-project"
 
 		// When: Create client
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 
 		// Then: Should implement Provider interface
 		require.NoError(t, err)
@@ -822,7 +799,8 @@ func TestNewVertexAIClient_InterfaceCompliance(t *testing.T) {
 	t.Run("can call GenerateText method", func(t *testing.T) {
 		// Given: Valid Vertex AI client
 		projectID := "test-project"
-		client, err := llm.NewVertexAIClient(context.Background(), projectID)
+		// SC-003: Pass fallback region as parameter
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 		require.NoError(t, err)
 
 		// When: Call GenerateText (will fail without real credentials, but method exists)
@@ -852,7 +830,8 @@ func TestNewVertexAIClient_Concurrency(t *testing.T) {
 		// When: Create clients concurrently
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
-				client, err := llm.NewVertexAIClient(context.Background(), projectID)
+				// SC-003: Pass fallback region as parameter
+				client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
 				errChan <- err
 				clientChan <- client
 			}()
@@ -1067,9 +1046,11 @@ func TestNewVertexAIClient_InitializationFailure(t *testing.T) {
 
 			if tt.name == "nil context is handled gracefully" {
 				// Test with nil context (may be accepted by SDK)
-				client, err = llm.NewVertexAIClient(nil, tt.projectID)
+				// SC-003: Pass fallback region as parameter
+				client, err = llm.NewVertexAIClient(nil, tt.projectID, "us-central1")
 			} else {
-				client, err = llm.NewVertexAIClient(context.Background(), tt.projectID)
+				// SC-003: Pass fallback region as parameter
+				client, err = llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
 			}
 
 			// Then: Verify error behavior

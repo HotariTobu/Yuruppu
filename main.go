@@ -110,12 +110,13 @@ func initBot(config *Config) (*bot.Bot, error) {
 // initLLM initializes an LLM provider using the provided configuration.
 // Returns the LLM provider or an error if initialization fails.
 // FR-003: Bot fails to start during initialization if credentials are missing
+// SC-003: Pass GCPRegion to NewVertexAIClient as fallback region
 func initLLM(ctx context.Context, config *Config) (llm.Provider, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	return llm.NewVertexAIClient(ctx, config.GCPProjectID)
+	return llm.NewVertexAIClient(ctx, config.GCPProjectID, config.GCPRegion)
 }
 
 // stdLogger implements bot.Logger interface using standard log package.
@@ -146,17 +147,6 @@ func setupPackageLevel(b *bot.Bot, llmProvider llm.Provider, llmTimeout time.Dur
 	bot.SetLogger(&stdLogger{})
 	bot.SetDefaultLLMProvider(llmProvider)
 	bot.SetLLMTimeout(llmTimeout)
-}
-
-// getPort returns the port to listen on from the PORT environment variable.
-// If PORT is not set or empty, returns the default port "8080".
-// AC-005, AC-006: Server reads PORT from environment with 8080 as default.
-func getPort() string {
-	port := os.Getenv("PORT")
-	if port == "" {
-		return "8080"
-	}
-	return port
 }
 
 // createHandler creates and returns an http.Handler with registered routes.
@@ -192,13 +182,14 @@ func main() {
 
 	// Create HTTP handler and start server
 	handler := createHandler()
-	port := getPort()
 
 	// AC-004: Log startup message
-	log.Printf("Server listening on port %s", port)
+	// SC-006: Use config.Port instead of getPort()
+	log.Printf("Server listening on port %s", config.Port)
 
 	// Start HTTP server
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	// SC-006: Use config.Port instead of getPort()
+	if err := http.ListenAndServe(":"+config.Port, handler); err != nil {
 		log.Fatal(err)
 	}
 }
