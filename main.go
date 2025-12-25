@@ -19,23 +19,32 @@ type Config struct {
 	ChannelSecret      string
 	ChannelAccessToken string
 	GCPProjectID       string
-	LLMTimeoutSeconds  int // NFR-001: LLM API timeout in seconds (default: 30)
+	LLMTimeoutSeconds  int    // NFR-001: LLM API timeout in seconds (default: 30)
+	Port               string // SC-001: Server port (default: 8080)
 }
 
-// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
-// NFR-001: LLM API total request timeout should be configurable (default: 30 seconds)
-const defaultLLMTimeoutSeconds = 30
+const (
+	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
+	// NFR-001: LLM API total request timeout should be configurable (default: 30 seconds)
+	defaultLLMTimeoutSeconds = 30
+
+	// defaultPort is the default server port.
+	// SC-001: Server reads PORT from environment with 8080 as default.
+	defaultPort = "8080"
+)
 
 // loadConfig loads configuration from environment variables.
-// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, and LLM_TIMEOUT_SECONDS from environment.
+// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, LLM_TIMEOUT_SECONDS, and PORT from environment.
 // Returns error if any required environment variable is missing or empty after trimming whitespace.
 // FR-003: Load LLM API credentials from environment variables
 // NFR-001: Load LLM timeout configuration
+// SC-001: Load PORT configuration
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
 	channelAccessToken := strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
+	port := strings.TrimSpace(os.Getenv("PORT"))
 
 	// Validate LINE_CHANNEL_SECRET first
 	if channelSecret == "" {
@@ -61,11 +70,17 @@ func loadConfig() (*Config, error) {
 		// Invalid values fall back to default
 	}
 
+	// SC-001: Default PORT to 8080 if empty
+	if port == "" {
+		port = defaultPort
+	}
+
 	return &Config{
 		ChannelSecret:      channelSecret,
 		ChannelAccessToken: channelAccessToken,
 		GCPProjectID:       gcpProjectID,
 		LLMTimeoutSeconds:  llmTimeoutSeconds,
+		Port:               port,
 	}, nil
 }
 
