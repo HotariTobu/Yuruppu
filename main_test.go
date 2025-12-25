@@ -755,6 +755,113 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_Port tests that PORT is loaded via loadConfig.
+// SC-001, AC-001: PORT is read and trimmed, defaults to "8080" if empty.
+func TestLoadConfig_Port(t *testing.T) {
+	tests := []struct {
+		name         string
+		portEnv      string
+		expectedPort string
+	}{
+		{
+			name:         "default port is 8080 when not set",
+			portEnv:      "",
+			expectedPort: "8080",
+		},
+		{
+			name:         "custom port from environment variable",
+			portEnv:      "3000",
+			expectedPort: "3000",
+		},
+		{
+			name:         "port 9000",
+			portEnv:      "9000",
+			expectedPort: "9000",
+		},
+		{
+			name:         "port 80",
+			portEnv:      "80",
+			expectedPort: "80",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+
+			if tt.portEnv != "" {
+				t.Setenv("PORT", tt.portEnv)
+			} else {
+				os.Unsetenv("PORT")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: Port should match expected value
+			assert.Equal(t, tt.expectedPort, config.Port,
+				"Port should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_Port_TrimsWhitespace tests that PORT value is trimmed.
+// SC-001, AC-001: PORT environment variable is read and trimmed.
+func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name         string
+		portEnv      string
+		expectedPort string
+	}{
+		{
+			name:         "leading whitespace is trimmed",
+			portEnv:      "  3000",
+			expectedPort: "3000",
+		},
+		{
+			name:         "trailing whitespace is trimmed",
+			portEnv:      "3000  ",
+			expectedPort: "3000",
+		},
+		{
+			name:         "leading and trailing whitespace is trimmed",
+			portEnv:      "  3000  ",
+			expectedPort: "3000",
+		},
+		{
+			name:         "whitespace only defaults to 8080",
+			portEnv:      "   ",
+			expectedPort: "8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("PORT", tt.portEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: Port should be trimmed and match expected value
+			assert.Equal(t, tt.expectedPort, config.Port,
+				"Port should have whitespace trimmed")
+		})
+	}
+}
+
 // TestLoadConfig_LLMTimeout_InvalidValue tests error handling for invalid timeout values.
 // NFR-001: Invalid timeout values should fall back to default
 func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
