@@ -1,6 +1,7 @@
 package bot_test
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"yuruppu/internal/bot"
+	"yuruppu/internal/llm"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 	"github.com/stretchr/testify/assert"
@@ -517,6 +519,13 @@ func TestHandleWebhook(t *testing.T) {
 		bot.SetDefaultMessageSender(nil)
 	})
 
+	// Setup: Initialize mock LLM provider for LLM integration
+	mockLLM := &mockLLMProvider{response: "LLM Response"}
+	bot.SetDefaultLLMProvider(mockLLM)
+	t.Cleanup(func() {
+		bot.SetDefaultLLMProvider(nil)
+	})
+
 	t.Run("returns 401 when signature is invalid", func(t *testing.T) {
 		mock.reset()
 		// AC-002: Given LINE bot webhook endpoint is exposed,
@@ -557,9 +566,11 @@ func TestHandleWebhook(t *testing.T) {
 
 	t.Run("returns 200 and processes text message event", func(t *testing.T) {
 		mock.reset()
+		mockLLM.reset()
+		mockLLM.response = "Hello there!"
 		// AC-001: Given LINE bot is running and connected,
 		// when user sends a text message "Hello",
-		// then bot receives the message via webhook and replies with "Yuruppu: Hello"
+		// then bot receives the message via webhook and replies with LLM-generated response
 
 		// Given: Create valid webhook request with text message
 		body := `{
@@ -591,8 +602,8 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 for valid webhook request")
-		// Then: Should send reply with "Yuruppu: Hello"
-		mock.assertCalledWith(t, "Yuruppu: Hello")
+		// Then: Should send reply with LLM-generated response (FR-002)
+		mock.assertCalledWith(t, "Hello there!")
 	})
 
 	t.Run("returns 200 and ignores non-text message", func(t *testing.T) {
@@ -656,6 +667,8 @@ func TestHandleWebhook(t *testing.T) {
 
 	t.Run("returns 200 even if reply fails", func(t *testing.T) {
 		mock.reset()
+		mockLLM.reset()
+		mockLLM.response = "Hi there!"
 		// Error handling requirement: ReplyError returns HTTP 200
 		// to prevent LINE from retrying, but error is logged
 
@@ -1660,6 +1673,8 @@ type mockLogger struct {
 	infoLogCallCount int
 	lastLogEntry     string
 	allLogEntries    []string
+	lastDebugEntry   string
+	allDebugEntries  []string
 }
 
 func (m *mockLogger) Info(format string, args ...interface{}) {
@@ -1671,6 +1686,8 @@ func (m *mockLogger) Info(format string, args ...interface{}) {
 
 func (m *mockLogger) Debug(format string, args ...interface{}) {
 	m.debugLogCalled = true
+	m.lastDebugEntry = fmt.Sprintf(format, args...)
+	m.allDebugEntries = append(m.allDebugEntries, m.lastDebugEntry)
 }
 
 func (m *mockLogger) Warn(format string, args ...interface{}) {
@@ -2009,6 +2026,13 @@ func TestHandleWebhook_ConcurrentRequests(t *testing.T) {
 		bot.SetDefaultMessageSender(nil)
 	})
 
+	// Setup: Initialize mock LLM provider
+	mockLLM := &mockLLMProvider{response: "LLM Response"}
+	bot.SetDefaultLLMProvider(mockLLM)
+	t.Cleanup(func() {
+		bot.SetDefaultLLMProvider(nil)
+	})
+
 	// Setup: Initialize thread-safe mock logger
 	mockLog := &concurrentMockLogger{}
 	bot.SetLogger(mockLog)
@@ -2335,6 +2359,58 @@ type concurrentMockLogger struct {
 	infoLogCallCount int
 }
 
+// mockLLMProvider is a mock LLM provider for testing.
+// TR-002: Abstraction layer for LLM providers
+type mockLLMProvider struct {
+	mu              sync.Mutex
+	response        string
+	err             error
+	calls           []mockLLMCall
+	systemPrompt    string
+	lastUserMessage string
+}
+
+type mockLLMCall struct {
+	systemPrompt string
+	userMessage  string
+}
+
+func (m *mockLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, mockLLMCall{systemPrompt: systemPrompt, userMessage: userMessage})
+	m.systemPrompt = systemPrompt
+	m.lastUserMessage = userMessage
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockLLMProvider) reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = nil
+	m.systemPrompt = ""
+	m.lastUserMessage = ""
+}
+
+func (m *mockLLMProvider) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockLLMProvider) getLastCall() (string, string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.calls) == 0 {
+		return "", ""
+	}
+	lastCall := m.calls[len(m.calls)-1]
+	return lastCall.systemPrompt, lastCall.userMessage
+}
+
 func (m *concurrentMockLogger) Info(format string, args ...interface{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -2355,6 +2431,294 @@ func (m *concurrentMockLogger) infoCallCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.infoLogCallCount
+}
+
+// TestHandleWebhook_LLMResponse tests that text messages are processed by LLM.
+// FR-001: Call LLM API when a message is received
+// FR-002: Reply to the user with the LLM-generated response
+// FR-006: Remove the "Yuruppu: " prefix from responses
+func TestHandleWebhook_LLMResponse(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender
+	mockSend := &mockSender{}
+	bot.SetDefaultMessageSender(mockSend)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
+	// Setup: Initialize mock LLM provider
+	mockLLM := &mockLLMProvider{response: "Hello! Nice to meet you!"}
+	bot.SetDefaultLLMProvider(mockLLM)
+	t.Cleanup(func() {
+		bot.SetDefaultLLMProvider(nil)
+	})
+
+	// Setup: Initialize mock logger
+	mockLog := &mockLogger{}
+	bot.SetLogger(mockLog)
+
+	t.Run("text message calls LLM and replies with generated response", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Hello! Nice to meet you!"
+
+		// AC-001: Given LINE bot is running with valid LLM API credentials
+		// When: User sends a text message "Hello"
+		// Then: Bot calls LLM API with the user's message as input
+		// Then: Bot replies with a non-empty text message (the LLM-generated response)
+		// Then: Reply does not contain "Yuruppu: " prefix
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: LLM should have been called with user message
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "Hello", userMsg, "LLM should receive user's message")
+
+		// Then: Reply should be the LLM response (no "Yuruppu: " prefix)
+		require.Len(t, mockSend.calls, 1, "should send one reply")
+		textMsg, ok := mockSend.calls[0].Messages[0].(messaging_api.TextMessage)
+		require.True(t, ok, "expected TextMessage")
+		assert.Equal(t, "Hello! Nice to meet you!", textMsg.Text)
+		assert.NotContains(t, textMsg.Text, "Yuruppu: ", "response should not have Yuruppu prefix")
+	})
+
+	t.Run("LLM receives system prompt", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Hi there!"
+
+		// AC-006: Given LINE bot is running
+		// When: Bot calls LLM API
+		// Then: LLM request contains a non-empty system prompt field
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hi"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		bot.HandleWebhook(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, 1, mockLLM.callCount())
+
+		systemPrompt, _ := mockLLM.getLastCall()
+		assert.NotEmpty(t, systemPrompt, "system prompt should not be empty")
+		assert.Equal(t, llm.SystemPrompt, systemPrompt, "should use the hardcoded system prompt")
+	})
+
+	t.Run("single-turn conversation (no history)", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "I don't know what you said before!"
+
+		// AC-014: Given LINE bot is running
+		// When: User sends message "What did I just say?" after sending "Hello"
+		// Then: Bot calls LLM API with only "What did I just say?" as user message
+		// Then: No previous messages are included in the request
+
+		// First message
+		body1 := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token-1",
+					"mode": "active"
+				}
+			]
+		}`
+		req1 := createRequestWithValidSignature(t, channelSecret, body1)
+		rec1 := httptest.NewRecorder()
+		bot.HandleWebhook(rec1, req1)
+
+		// Second message (asking about previous)
+		mockLLM.reset() // Reset to check only second call
+		body2 := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12346",
+						"text": "What did I just say?"
+					},
+					"timestamp": 1234567891,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token-2",
+					"mode": "active"
+				}
+			]
+		}`
+		req2 := createRequestWithValidSignature(t, channelSecret, body2)
+		rec2 := httptest.NewRecorder()
+		bot.HandleWebhook(rec2, req2)
+
+		assert.Equal(t, http.StatusOK, rec2.Code)
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once for second message")
+
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "What did I just say?", userMsg, "should only contain current message")
+		assert.NotContains(t, userMsg, "Hello", "should not contain previous message")
+	})
+
+	t.Run("LLM error - no reply sent", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.err = fmt.Errorf("LLM API error")
+
+		// FR-004: On LLM API error, do not reply to the user and log the error
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		bot.HandleWebhook(rec, req)
+
+		// Should return 200 (to prevent LINE from retrying)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Should NOT send any reply when LLM fails
+		assert.Empty(t, mockSend.calls, "should not send reply when LLM fails")
+
+		// Cleanup
+		mockLLM.err = nil
+	})
+
+	t.Run("DEBUG logging for LLM request and response", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Hi there, friend!"
+
+		// NFR-002: Log LLM API request (system prompt and user message) and response at DEBUG level
+
+		// Create a fresh mock logger to capture debug logs
+		debugLogger := &mockLogger{}
+		bot.SetLogger(debugLogger)
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello Yuruppu!"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		bot.HandleWebhook(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Should have DEBUG logs for LLM request and response
+		assert.True(t, debugLogger.debugLogCalled, "should log at DEBUG level")
+		assert.Len(t, debugLogger.allDebugEntries, 2, "should have 2 DEBUG log entries (request and response)")
+
+		// First DEBUG log should be the request with system prompt and user message
+		assert.Contains(t, debugLogger.allDebugEntries[0], "llm_request", "first DEBUG log should be LLM request")
+		assert.Contains(t, debugLogger.allDebugEntries[0], "systemPrompt", "request log should contain system prompt")
+		assert.Contains(t, debugLogger.allDebugEntries[0], "userMessage", "request log should contain user message")
+		assert.Contains(t, debugLogger.allDebugEntries[0], "Hello Yuruppu!", "request log should contain actual user message")
+
+		// Second DEBUG log should be the response with generated text
+		assert.Contains(t, debugLogger.allDebugEntries[1], "llm_response", "second DEBUG log should be LLM response")
+		assert.Contains(t, debugLogger.allDebugEntries[1], "generatedText", "response log should contain generated text")
+		assert.Contains(t, debugLogger.allDebugEntries[1], "Hi there, friend!", "response log should contain actual response")
+	})
 }
 
 // BenchmarkHandleWebhook_Parallel benchmarks concurrent request handling.
