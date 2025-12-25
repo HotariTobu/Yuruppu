@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"yuruppu/internal/llm"
 
@@ -524,7 +525,7 @@ func TestInitBot_EmptyCredentials(t *testing.T) {
 // TestSetupPackageLevel tests package-level configuration.
 // AC-007: Given Bot is initialized successfully,
 // when application starts,
-// then bot.SetDefaultBot(), bot.SetLogger(), and bot.SetDefaultLLMProvider() are called.
+// then bot.SetDefaultBot(), bot.SetLogger(), bot.SetDefaultLLMProvider(), and bot.SetLLMTimeout() are called.
 func TestSetupPackageLevel(t *testing.T) {
 	// Given: Valid configuration
 	t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
@@ -540,11 +541,14 @@ func TestSetupPackageLevel(t *testing.T) {
 	// Given: Mock LLM provider (since we can't initialize real Vertex AI in tests)
 	llmProvider := &mockLLMProvider{}
 
+	// Given: LLM timeout
+	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
+
 	// When: Setup package-level configuration
-	setupPackageLevel(b, llmProvider)
+	setupPackageLevel(b, llmProvider, llmTimeout)
 
 	// Then: Function should complete without panic
-	// (The actual verification of SetDefaultBot/SetLogger/SetDefaultLLMProvider is done by the bot package tests)
+	// (The actual verification of SetDefaultBot/SetLogger/SetDefaultLLMProvider/SetLLMTimeout is done by the bot package tests)
 }
 
 // TestSetupPackageLevel_NilBot tests package-level configuration with nil bot.
@@ -553,7 +557,7 @@ func TestSetupPackageLevel_NilBot(t *testing.T) {
 	// When: Setup package-level configuration with nil bot
 	// Then: Should not panic
 	assert.NotPanics(t, func() {
-		setupPackageLevel(nil, nil)
+		setupPackageLevel(nil, nil, 0)
 	}, "setupPackageLevel should not panic with nil bot")
 }
 
@@ -693,4 +697,111 @@ func TestCreateHandler(t *testing.T) {
 
 	// Then: Should return non-nil handler
 	assert.NotNil(t, handler, "handler should not be nil")
+}
+
+// TestLoadConfig_LLMTimeout tests LLM timeout configuration loading.
+// NFR-001: LLM API total request timeout should be configurable via environment variable (default: 30 seconds)
+func TestLoadConfig_LLMTimeout(t *testing.T) {
+	tests := []struct {
+		name            string
+		llmTimeoutEnv   string
+		expectedTimeout int
+	}{
+		{
+			name:            "default timeout is 30 seconds when not set",
+			llmTimeoutEnv:   "",
+			expectedTimeout: 30,
+		},
+		{
+			name:            "custom timeout from environment variable",
+			llmTimeoutEnv:   "60",
+			expectedTimeout: 60,
+		},
+		{
+			name:            "timeout of 1 second",
+			llmTimeoutEnv:   "1",
+			expectedTimeout: 1,
+		},
+		{
+			name:            "timeout of 120 seconds",
+			llmTimeoutEnv:   "120",
+			expectedTimeout: 120,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+
+			if tt.llmTimeoutEnv != "" {
+				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
+			} else {
+				os.Unsetenv("LLM_TIMEOUT_SECONDS")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LLM timeout should match expected value
+			assert.Equal(t, tt.expectedTimeout, config.LLMTimeoutSeconds,
+				"LLMTimeoutSeconds should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_LLMTimeout_InvalidValue tests error handling for invalid timeout values.
+// NFR-001: Invalid timeout values should fall back to default
+func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
+	tests := []struct {
+		name            string
+		llmTimeoutEnv   string
+		expectedTimeout int
+	}{
+		{
+			name:            "non-numeric value falls back to default",
+			llmTimeoutEnv:   "abc",
+			expectedTimeout: 30,
+		},
+		{
+			name:            "negative value falls back to default",
+			llmTimeoutEnv:   "-5",
+			expectedTimeout: 30,
+		},
+		{
+			name:            "zero value falls back to default",
+			llmTimeoutEnv:   "0",
+			expectedTimeout: 30,
+		},
+		{
+			name:            "float value uses integer part",
+			llmTimeoutEnv:   "45.5",
+			expectedTimeout: 30, // strconv.Atoi doesn't parse floats, falls back to default
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed (invalid values fall back to default)
+			require.NoError(t, err, "loadConfig should not return error for invalid timeout")
+
+			// Then: LLM timeout should fall back to default
+			assert.Equal(t, tt.expectedTimeout, config.LLMTimeoutSeconds,
+				"LLMTimeoutSeconds should fall back to default for invalid value")
+		})
+	}
 }

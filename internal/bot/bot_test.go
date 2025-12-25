@@ -3179,3 +3179,219 @@ func BenchmarkHandleWebhook_Parallel(b *testing.B) {
 		}
 	})
 }
+
+// TestHandleWebhook_LLMTimeout tests that LLM timeout is applied to GenerateText calls.
+// NFR-001: LLM API total request timeout should be configurable via environment variable (default: 30 seconds)
+func TestHandleWebhook_LLMTimeout(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender
+	mockSend := &mockSender{}
+	bot.SetDefaultMessageSender(mockSend)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
+	t.Run("default timeout is 30 seconds", func(t *testing.T) {
+		// Given: No timeout is set (should use default)
+		bot.SetLLMTimeout(0) // Reset to default
+
+		// Given: Mock LLM provider that records the context deadline
+		mockLLM := &timeoutCapturingLLMProvider{response: "Hello!"}
+		bot.SetDefaultLLMProvider(mockLLM)
+		t.Cleanup(func() {
+			bot.SetDefaultLLMProvider(nil)
+		})
+
+		mockSend.reset()
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Context should have a deadline set
+		assert.True(t, mockLLM.hadDeadline, "context should have a deadline")
+
+		// Then: Timeout should be approximately 30 seconds (default)
+		// Allow some tolerance for test execution time
+		assert.InDelta(t, 30*time.Second, mockLLM.deadline, float64(2*time.Second),
+			"default timeout should be approximately 30 seconds")
+	})
+
+	t.Run("custom timeout is applied", func(t *testing.T) {
+		// Given: Set custom timeout of 5 seconds
+		bot.SetLLMTimeout(5 * time.Second)
+		t.Cleanup(func() {
+			bot.SetLLMTimeout(0) // Reset to default
+		})
+
+		// Given: Mock LLM provider that records the context deadline
+		mockLLM := &timeoutCapturingLLMProvider{response: "Hello!"}
+		bot.SetDefaultLLMProvider(mockLLM)
+		t.Cleanup(func() {
+			bot.SetDefaultLLMProvider(nil)
+		})
+
+		mockSend.reset()
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Context should have a deadline set
+		assert.True(t, mockLLM.hadDeadline, "context should have a deadline")
+
+		// Then: Timeout should be approximately 5 seconds
+		assert.InDelta(t, 5*time.Second, mockLLM.deadline, float64(2*time.Second),
+			"custom timeout should be approximately 5 seconds")
+	})
+
+	t.Run("timeout error is handled correctly", func(t *testing.T) {
+		// Given: Set very short timeout (will exceed)
+		bot.SetLLMTimeout(1 * time.Millisecond)
+		t.Cleanup(func() {
+			bot.SetLLMTimeout(0) // Reset to default
+		})
+
+		// Given: Mock LLM provider that simulates a slow response
+		mockLLM := &slowLLMProvider{delay: 100 * time.Millisecond}
+		bot.SetDefaultLLMProvider(mockLLM)
+		t.Cleanup(func() {
+			bot.SetDefaultLLMProvider(nil)
+		})
+
+		// Given: Mock logger to capture error logs
+		mockLog := &mockLogger{}
+		bot.SetLogger(mockLog)
+		t.Cleanup(func() {
+			bot.SetLogger(nil)
+		})
+
+		mockSend.reset()
+
+		body := `{
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "text",
+						"id": "12345",
+						"text": "Hello"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200 (to prevent LINE from retrying)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should NOT send any reply when timeout occurs
+		assert.Empty(t, mockSend.calls, "should not send reply when timeout occurs")
+
+		// Then: Should log timeout error at ERROR level
+		assert.True(t, mockLog.errorLogCalled, "should log timeout at ERROR level")
+		assert.Contains(t, mockLog.lastErrorEntry, "timeout", "error log should contain 'timeout'")
+	})
+}
+
+// timeoutCapturingLLMProvider is a mock LLM provider that captures context deadline information.
+type timeoutCapturingLLMProvider struct {
+	mu          sync.Mutex
+	response    string
+	hadDeadline bool
+	deadline    time.Duration
+}
+
+func (m *timeoutCapturingLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	deadline, ok := ctx.Deadline()
+	m.hadDeadline = ok
+	if ok {
+		m.deadline = time.Until(deadline)
+	}
+
+	return m.response, nil
+}
+
+// slowLLMProvider is a mock LLM provider that simulates a slow response.
+type slowLLMProvider struct {
+	delay time.Duration
+}
+
+func (m *slowLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	select {
+	case <-time.After(m.delay):
+		return "Response after delay", nil
+	case <-ctx.Done():
+		return "", &llm.LLMTimeoutError{Message: "context deadline exceeded"}
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"yuruppu/internal/llm"
 
@@ -180,6 +181,38 @@ var (
 	llmProviderMu sync.RWMutex
 	llmProvider   LLMProvider
 )
+
+// defaultLLMTimeout is the default timeout for LLM API calls.
+// NFR-001: LLM API total request timeout should be configurable (default: 30 seconds)
+const defaultLLMTimeout = 30 * time.Second
+
+// Package-level LLM timeout for HandleWebhook
+var (
+	llmTimeoutMu sync.RWMutex
+	llmTimeout   time.Duration
+)
+
+// SetLLMTimeout sets the package-level LLM timeout for HandleWebhook.
+// If timeout is 0 or negative, the default timeout (30 seconds) is used.
+// This function is safe for concurrent use.
+// NFR-001: LLM API total request timeout should be configurable via environment variable
+func SetLLMTimeout(timeout time.Duration) {
+	llmTimeoutMu.Lock()
+	defer llmTimeoutMu.Unlock()
+	llmTimeout = timeout
+}
+
+// getLLMTimeout returns the package-level LLM timeout.
+// Returns the default timeout (30 seconds) if no timeout has been set.
+// This function is safe for concurrent use.
+func getLLMTimeout() time.Duration {
+	llmTimeoutMu.RLock()
+	defer llmTimeoutMu.RUnlock()
+	if llmTimeout <= 0 {
+		return defaultLLMTimeout
+	}
+	return llmTimeout
+}
 
 // SetDefaultLLMProvider sets the package-level LLM provider for HandleWebhook.
 // This function is safe for concurrent use.
@@ -514,8 +547,12 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 					l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, userMessage)
 				}
 
+				// NFR-001: Create context with timeout for LLM API call
+				timeout := getLLMTimeout()
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+
 				// Call LLM to generate response (FR-001)
-				ctx := context.Background()
 				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, userMessage)
 				if err != nil {
 					// FR-004: On LLM API error, do not reply to the user
