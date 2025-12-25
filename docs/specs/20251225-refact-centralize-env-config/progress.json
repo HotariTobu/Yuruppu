@@ -3,12 +3,12 @@
   "lastUpdated": "2025-12-25",
   "requirements": [
     { "id": "SC-001", "passes": true },
-    { "id": "SC-002", "passes": false },
+    { "id": "SC-002", "passes": true },
     { "id": "SC-003", "passes": false },
     { "id": "SC-004", "passes": false },
     { "id": "SC-005", "passes": false },
     { "id": "SC-006", "passes": false }
   ],
   "blockers": [],
-  "notes": "SC-001 complete: Added Port field to Config struct, added defaultPort constant, loadConfig reads and trims PORT env var with default 8080. Added comprehensive tests. Next session should start with SC-002 (GCP_REGION) or SC-006 (remove getPort and use config.Port in main)."
+  "notes": "SC-002 complete: Added GCPRegion field to Config struct, added defaultRegion constant, loadConfig reads and trims GCP_REGION env var with default us-central1. Added comprehensive tests. Next session should continue with SC-003 (update NewVertexAIClient to accept region parameter), SC-004 (update GetRegion to accept fallback parameter), or SC-005 (move defaultRegion constant to main.go - already done as part of SC-002)."
 }

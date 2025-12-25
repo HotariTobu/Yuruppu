@@ -862,6 +862,113 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_GCPRegion tests that GCP_REGION is loaded via loadConfig.
+// SC-002, AC-002: GCP_REGION is read and trimmed, defaults to "us-central1" if empty.
+func TestLoadConfig_GCPRegion(t *testing.T) {
+	tests := []struct {
+		name           string
+		gcpRegionEnv   string
+		expectedRegion string
+	}{
+		{
+			name:           "default region is us-central1 when not set",
+			gcpRegionEnv:   "",
+			expectedRegion: "us-central1",
+		},
+		{
+			name:           "custom region from environment variable",
+			gcpRegionEnv:   "asia-northeast1",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "region us-west1",
+			gcpRegionEnv:   "us-west1",
+			expectedRegion: "us-west1",
+		},
+		{
+			name:           "region europe-west1",
+			gcpRegionEnv:   "europe-west1",
+			expectedRegion: "europe-west1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+
+			if tt.gcpRegionEnv != "" {
+				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
+			} else {
+				os.Unsetenv("GCP_REGION")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: GCPRegion should match expected value
+			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
+				"GCPRegion should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_GCPRegion_TrimsWhitespace tests that GCP_REGION value is trimmed.
+// SC-002, AC-002: GCP_REGION environment variable is read and trimmed.
+func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name           string
+		gcpRegionEnv   string
+		expectedRegion string
+	}{
+		{
+			name:           "leading whitespace is trimmed",
+			gcpRegionEnv:   "  asia-northeast1",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "trailing whitespace is trimmed",
+			gcpRegionEnv:   "asia-northeast1  ",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "leading and trailing whitespace is trimmed",
+			gcpRegionEnv:   "  asia-northeast1  ",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "whitespace only defaults to us-central1",
+			gcpRegionEnv:   "   ",
+			expectedRegion: "us-central1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: GCPRegion should be trimmed and match expected value
+			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
+				"GCPRegion should have whitespace trimmed")
+		})
+	}
+}
+
 // TestLoadConfig_LLMTimeout_InvalidValue tests error handling for invalid timeout values.
 // NFR-001: Invalid timeout values should fall back to default
 func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
