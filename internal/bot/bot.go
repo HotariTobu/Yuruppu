@@ -479,38 +479,20 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			var shouldProcess bool
 
 			switch msg := msgEvent.Message.(type) {
-			case *webhook.TextMessageContent:
-				userMessage = msg.Text
-				shouldProcess = true
 			case webhook.TextMessageContent:
 				userMessage = msg.Text
-				shouldProcess = true
-			case *webhook.ImageMessageContent:
-				userMessage = "[User sent an image]"
 				shouldProcess = true
 			case webhook.ImageMessageContent:
 				userMessage = "[User sent an image]"
 				shouldProcess = true
-			case *webhook.StickerMessageContent:
-				userMessage = "[User sent a sticker]"
-				shouldProcess = true
 			case webhook.StickerMessageContent:
 				userMessage = "[User sent a sticker]"
-				shouldProcess = true
-			case *webhook.VideoMessageContent:
-				userMessage = "[User sent a video]"
 				shouldProcess = true
 			case webhook.VideoMessageContent:
 				userMessage = "[User sent a video]"
 				shouldProcess = true
-			case *webhook.AudioMessageContent:
-				userMessage = "[User sent an audio]"
-				shouldProcess = true
 			case webhook.AudioMessageContent:
 				userMessage = "[User sent an audio]"
-				shouldProcess = true
-			case *webhook.LocationMessageContent:
-				userMessage = "[User sent a location]"
 				shouldProcess = true
 			case webhook.LocationMessageContent:
 				userMessage = "[User sent a location]"
