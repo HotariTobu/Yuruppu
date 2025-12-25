@@ -606,11 +606,12 @@ func TestHandleWebhook(t *testing.T) {
 		mock.assertCalledWith(t, "Hello there!")
 	})
 
-	t.Run("returns 200 and ignores non-text message", func(t *testing.T) {
+	t.Run("returns 200 and processes non-text message", func(t *testing.T) {
 		mock.reset()
-		// AC-004: Given LINE bot is running,
+		mockLLM.reset()
+		// FR-001, FR-008: Given LINE bot is running,
 		// when user sends a non-text message (image, sticker, etc.),
-		// then bot does not reply, no error is raised
+		// then bot calls LLM API with "[User sent a {type}]" and replies
 
 		// Given: Create webhook request with image message
 		body := `{
@@ -644,8 +645,12 @@ func TestHandleWebhook(t *testing.T) {
 		// Then: Should return 200 without error
 		assert.Equal(t, http.StatusOK, rec.Code,
 			"should return 200 for non-text message")
-		// Then: Should NOT send any reply (AC-004)
-		mock.assertNotCalled(t)
+		// Then: Should call LLM with image description (FR-008)
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent an image]", userMsg, "should send image description to LLM")
+		// Then: Should send reply with LLM response (FR-001, FR-002)
+		mock.assertCalledOnce(t)
 	})
 
 	t.Run("returns 200 with empty events", func(t *testing.T) {
@@ -2131,7 +2136,7 @@ func TestHandleWebhook_ConcurrentRequests(t *testing.T) {
 						]
 					}`, i, i, i, i)
 				} else {
-					// Image message (no reply expected)
+					// Image message (FR-001, FR-008: also triggers LLM call and reply)
 					body = fmt.Sprintf(`{
 						"events": [
 							{
@@ -2167,9 +2172,9 @@ func TestHandleWebhook_ConcurrentRequests(t *testing.T) {
 
 		wg.Wait()
 
-		// Then: Only text messages should have sent replies (half of total)
-		assert.Equal(t, numRequests/2, mock.callCount(),
-			"only text messages should trigger replies")
+		// Then: All messages (both text and image) should have sent replies (FR-001, FR-008)
+		assert.Equal(t, numRequests, mock.callCount(),
+			"all message types should trigger replies")
 		// Then: All messages should have been logged
 		assert.Equal(t, numRequests, mockLog.infoCallCount(),
 			"all messages should be logged")
@@ -2718,6 +2723,291 @@ func TestHandleWebhook_LLMResponse(t *testing.T) {
 		assert.Contains(t, debugLogger.allDebugEntries[1], "llm_response", "second DEBUG log should be LLM response")
 		assert.Contains(t, debugLogger.allDebugEntries[1], "generatedText", "response log should contain generated text")
 		assert.Contains(t, debugLogger.allDebugEntries[1], "Hi there, friend!", "response log should contain actual response")
+	})
+}
+
+// TestHandleWebhook_NonTextMessages tests handling of non-text message types.
+// FR-001: Call LLM API when a message is received (text, image, sticker, video, audio, location)
+// FR-008: For non-text messages, send a description in the format "[User sent a {type}]" to the LLM
+func TestHandleWebhook_NonTextMessages(t *testing.T) {
+	// Setup: Create a valid channel secret
+	channelSecret := "test-channel-secret"
+	channelAccessToken := "test-access-token"
+
+	// Setup: Initialize bot for handler
+	testBot, err := bot.NewBot(channelSecret, channelAccessToken)
+	require.NoError(t, err)
+	bot.SetDefaultBot(testBot)
+
+	// Setup: Initialize mock sender
+	mockSend := &mockSender{}
+	bot.SetDefaultMessageSender(mockSend)
+	t.Cleanup(func() {
+		bot.SetDefaultMessageSender(nil)
+	})
+
+	// Setup: Initialize mock LLM provider
+	mockLLM := &mockLLMProvider{response: "Thanks for sharing!"}
+	bot.SetDefaultLLMProvider(mockLLM)
+	t.Cleanup(func() {
+		bot.SetDefaultLLMProvider(nil)
+	})
+
+	t.Run("image message calls LLM with [User sent an image]", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Nice image!"
+
+		// AC-007: Given LINE bot is running
+		// When: User sends an image message
+		// Then: Bot calls LLM API with "[User sent an image]" as user message
+		// Then: Bot replies with a non-empty text message
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "image",
+						"id": "12345",
+						"contentProvider": {
+							"type": "line"
+						}
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should call LLM with correct message format
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent an image]", userMsg, "should send image description to LLM")
+
+		// Then: Should send reply with LLM response
+		mockSend.assertCalledOnce(t)
+		mockSend.assertCalledWith(t, "Nice image!")
+	})
+
+	t.Run("sticker message calls LLM with [User sent a sticker]", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Cool sticker!"
+
+		// AC-008: Given LINE bot is running
+		// When: User sends a sticker message
+		// Then: Bot calls LLM API with "[User sent a sticker]" as user message
+		// Then: Bot replies with a non-empty text message
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "sticker",
+						"id": "12345",
+						"packageId": "1",
+						"stickerId": "1"
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should call LLM with correct message format
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent a sticker]", userMsg, "should send sticker description to LLM")
+
+		// Then: Should send reply with LLM response
+		mockSend.assertCalledOnce(t)
+		mockSend.assertCalledWith(t, "Cool sticker!")
+	})
+
+	t.Run("video message calls LLM with [User sent a video]", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Interesting video!"
+
+		// AC-009: Given LINE bot is running
+		// When: User sends a video message
+		// Then: Bot calls LLM API with "[User sent a video]" as user message
+		// Then: Bot replies with a non-empty text message
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "video",
+						"id": "12345",
+						"duration": 5000,
+						"contentProvider": {
+							"type": "line"
+						}
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should call LLM with correct message format
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent a video]", userMsg, "should send video description to LLM")
+
+		// Then: Should send reply with LLM response
+		mockSend.assertCalledOnce(t)
+		mockSend.assertCalledWith(t, "Interesting video!")
+	})
+
+	t.Run("audio message calls LLM with [User sent an audio]", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Nice tune!"
+
+		// AC-010: Given LINE bot is running
+		// When: User sends an audio message
+		// Then: Bot calls LLM API with "[User sent an audio]" as user message
+		// Then: Bot replies with a non-empty text message
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "audio",
+						"id": "12345",
+						"duration": 10000,
+						"contentProvider": {
+							"type": "line"
+						}
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should call LLM with correct message format
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent an audio]", userMsg, "should send audio description to LLM")
+
+		// Then: Should send reply with LLM response
+		mockSend.assertCalledOnce(t)
+		mockSend.assertCalledWith(t, "Nice tune!")
+	})
+
+	t.Run("location message calls LLM with [User sent a location]", func(t *testing.T) {
+		mockSend.reset()
+		mockLLM.reset()
+		mockLLM.response = "Thanks for the location!"
+
+		// AC-011: Given LINE bot is running
+		// When: User sends a location message
+		// Then: Bot calls LLM API with "[User sent a location]" as user message
+		// Then: Bot replies with a non-empty text message
+
+		body := `{
+			"destination": "xxxxxxxxxx",
+			"events": [
+				{
+					"type": "message",
+					"message": {
+						"type": "location",
+						"id": "12345",
+						"title": "Tokyo Tower",
+						"address": "Tokyo, Japan",
+						"latitude": 35.6586,
+						"longitude": 139.7454
+					},
+					"timestamp": 1234567890,
+					"source": {
+						"type": "user",
+						"userId": "U1234567890abcdef"
+					},
+					"replyToken": "test-reply-token",
+					"mode": "active"
+				}
+			]
+		}`
+		req := createRequestWithValidSignature(t, channelSecret, body)
+		rec := httptest.NewRecorder()
+
+		// When: Call webhook handler
+		bot.HandleWebhook(rec, req)
+
+		// Then: Should return 200
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Then: Should call LLM with correct message format
+		assert.Equal(t, 1, mockLLM.callCount(), "LLM should be called once")
+		_, userMsg := mockLLM.getLastCall()
+		assert.Equal(t, "[User sent a location]", userMsg, "should send location description to LLM")
+
+		// Then: Should send reply with LLM response
+		mockSend.assertCalledOnce(t)
+		mockSend.assertCalledWith(t, "Thanks for the location!")
 	})
 }
 
