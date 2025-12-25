@@ -2715,7 +2715,7 @@ func TestHandleWebhook_LLMResponse(t *testing.T) {
 			},
 			{
 				name:             "rate limit error logs at ERROR level",
-				llmError:         &llm.LLMRateLimitError{Message: "quota exceeded", RetryAfter: 60},
+				llmError:         &llm.LLMRateLimitError{Message: "quota exceeded"},
 				wantErrorType:    "rate_limit",
 				wantErrorContain: "quota exceeded",
 			},

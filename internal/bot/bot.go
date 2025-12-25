@@ -423,7 +423,7 @@ func logLLMError(err error) {
 	case *llm.LLMTimeoutError:
 		logger.Error("llm_error errorType=timeout details=%q", e.Message)
 	case *llm.LLMRateLimitError:
-		logger.Error("llm_error errorType=rate_limit retryAfter=%d details=%q", e.RetryAfter, e.Message)
+		logger.Error("llm_error errorType=rate_limit details=%q", e.Message)
 	case *llm.LLMNetworkError:
 		logger.Error("llm_error errorType=network details=%q", e.Message)
 	case *llm.LLMAuthError:
