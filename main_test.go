@@ -619,73 +619,9 @@ func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
 	assert.Contains(t, err.Error(), "GCP_PROJECT_ID", "error message should mention GCP_PROJECT_ID")
 }
 
-// TestGetPort_DefaultPort tests default port when PORT is not set.
-// AC-005: Given PORT environment variable is not set,
-// when application starts,
-// then server starts on port 8080.
-func TestGetPort_DefaultPort(t *testing.T) {
-	// Given: PORT is not set
-	os.Unsetenv("PORT")
-
-	// When: Get port
-	port := getPort()
-
-	// Then: Should return default port 8080
-	assert.Equal(t, "8080", port, "default port should be 8080")
-}
-
-// TestGetPort_CustomPort tests custom port from PORT environment variable.
-// AC-006: Given PORT environment variable is set to "3000",
-// when application starts,
-// then server starts on port 3000.
-func TestGetPort_CustomPort(t *testing.T) {
-	tests := []struct {
-		name     string
-		portEnv  string
-		expected string
-	}{
-		{
-			name:     "port 3000",
-			portEnv:  "3000",
-			expected: "3000",
-		},
-		{
-			name:     "port 9000",
-			portEnv:  "9000",
-			expected: "9000",
-		},
-		{
-			name:     "port 80",
-			portEnv:  "80",
-			expected: "80",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: PORT is set
-			t.Setenv("PORT", tt.portEnv)
-
-			// When: Get port
-			port := getPort()
-
-			// Then: Should return the custom port
-			assert.Equal(t, tt.expected, port, "port should match PORT environment variable")
-		})
-	}
-}
-
-// TestGetPort_EmptyPort tests that empty PORT falls back to default.
-func TestGetPort_EmptyPort(t *testing.T) {
-	// Given: PORT is set to empty string
-	t.Setenv("PORT", "")
-
-	// When: Get port
-	port := getPort()
-
-	// Then: Should return default port 8080
-	assert.Equal(t, "8080", port, "empty PORT should fallback to default 8080")
-}
+// Note: TestGetPort_* tests were removed as part of SC-006.
+// PORT functionality is now tested via TestLoadConfig_Port tests.
+// The getPort() function was removed and replaced with Config.Port.
 
 // TestCreateHandler tests that createHandler returns an http.Handler.
 // AC-004: Given Bot is initialized successfully,

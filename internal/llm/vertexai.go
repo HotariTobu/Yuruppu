@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -14,9 +13,6 @@ import (
 )
 
 const (
-	// defaultRegion is the default GCP region for Vertex AI API calls.
-	defaultRegion = "us-central1"
-
 	// metadataServerURL is the Cloud Run metadata server URL.
 	metadataServerURL = "http://metadata.google.internal"
 
@@ -35,10 +31,12 @@ type vertexAIClient struct {
 // FR-003: Load LLM API credentials from environment variables
 // AC-012: Bot initializes LLM client successfully when credentials are set
 // AC-013: Bot fails to start during initialization if credentials are missing
+// SC-003: Accept fallbackRegion as parameter instead of reading from environment
 //
 // The projectID parameter should typically come from the GCP_PROJECT_ID environment variable.
+// The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
 // Returns an error if projectID is empty or contains only whitespace.
-func NewVertexAIClient(ctx context.Context, projectID string) (Provider, error) {
+func NewVertexAIClient(ctx context.Context, projectID string, fallbackRegion string) (Provider, error) {
 	// Validate projectID is not empty or whitespace
 	if strings.TrimSpace(projectID) == "" {
 		return nil, errors.New("GCP_PROJECT_ID is missing or empty")
@@ -49,9 +47,10 @@ func NewVertexAIClient(ctx context.Context, projectID string) (Provider, error) 
 		ctx = context.Background()
 	}
 
-	// Determine region from Cloud Run metadata, with fallbacks
+	// Determine region from Cloud Run metadata, with fallback to provided region
 	// AC-001: Region derived from Cloud Run metadata
-	region := GetRegion(metadataServerURL)
+	// SC-003: Fallback region is passed as parameter
+	region := GetRegion(metadataServerURL, fallbackRegion)
 
 	// Create Vertex AI client
 	// ADR: 20251224-llm-provider.md - Uses Application Default Credentials (ADC)
@@ -111,31 +110,24 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 
 // GetRegion determines the GCP region to use for Vertex AI API calls.
 // AC-001: Region derived from Cloud Run metadata
-// SC-001: Remove hardcoded defaultRegion and use Cloud Run metadata
+// SC-004: Accept fallbackRegion as parameter instead of reading from environment
 //
 // It attempts to read the region from the Cloud Run metadata server.
-// If that fails (timeout, error, malformed response), it falls back to:
-// 1. GCP_REGION environment variable
-// 2. Hardcoded default: us-central1
+// If that fails (timeout, error, malformed response), it falls back to the provided fallbackRegion.
 //
 // The metadataServerURL parameter should be the base URL of the metadata server
 // (e.g., "http://metadata.google.internal" in production).
 // The function appends "/computeMetadata/v1/instance/region" to this URL.
-func GetRegion(metadataServerURL string) string {
+// The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
+func GetRegion(metadataServerURL string, fallbackRegion string) string {
 	// Try to get region from metadata server
 	region := getRegionFromMetadata(metadataServerURL)
 	if region != "" {
 		return region
 	}
 
-	// Fallback to environment variable
-	envRegion := os.Getenv("GCP_REGION")
-	if envRegion != "" {
-		return envRegion
-	}
-
-	// Fallback to default
-	return defaultRegion
+	// Fallback to provided region
+	return fallbackRegion
 }
 
 // getRegionFromMetadata attempts to retrieve the region from the Cloud Run metadata server.
