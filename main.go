@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"yuruppu/internal/bot"
 	"yuruppu/internal/llm"
@@ -17,12 +19,18 @@ type Config struct {
 	ChannelSecret      string
 	ChannelAccessToken string
 	GCPProjectID       string
+	LLMTimeoutSeconds  int // NFR-001: LLM API timeout in seconds (default: 30)
 }
 
+// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
+// NFR-001: LLM API total request timeout should be configurable (default: 30 seconds)
+const defaultLLMTimeoutSeconds = 30
+
 // loadConfig loads configuration from environment variables.
-// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, and GCP_PROJECT_ID from environment.
+// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, and LLM_TIMEOUT_SECONDS from environment.
 // Returns error if any required environment variable is missing or empty after trimming whitespace.
 // FR-003: Load LLM API credentials from environment variables
+// NFR-001: Load LLM timeout configuration
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
@@ -44,10 +52,20 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("GCP_PROJECT_ID is required")
 	}
 
+	// Parse LLM timeout (NFR-001)
+	llmTimeoutSeconds := defaultLLMTimeoutSeconds
+	if llmTimeoutEnv := os.Getenv("LLM_TIMEOUT_SECONDS"); llmTimeoutEnv != "" {
+		if parsed, err := strconv.Atoi(llmTimeoutEnv); err == nil && parsed > 0 {
+			llmTimeoutSeconds = parsed
+		}
+		// Invalid values fall back to default
+	}
+
 	return &Config{
 		ChannelSecret:      channelSecret,
 		ChannelAccessToken: channelAccessToken,
 		GCPProjectID:       gcpProjectID,
+		LLMTimeoutSeconds:  llmTimeoutSeconds,
 	}, nil
 }
 
@@ -91,13 +109,15 @@ func (l *stdLogger) Error(format string, args ...interface{}) {
 	log.Printf("[ERROR] "+format, args...)
 }
 
-// setupPackageLevel sets up package-level Bot, Logger, and LLM provider instances.
+// setupPackageLevel sets up package-level Bot, Logger, LLM provider, and timeout instances.
 // AC-007: bot.SetDefaultBot() and bot.SetLogger() are called.
 // FR-003: LLM provider is set during initialization.
-func setupPackageLevel(b *bot.Bot, llmProvider llm.Provider) {
+// NFR-001: LLM timeout is set during initialization.
+func setupPackageLevel(b *bot.Bot, llmProvider llm.Provider, llmTimeout time.Duration) {
 	bot.SetDefaultBot(b)
 	bot.SetLogger(&stdLogger{})
 	bot.SetDefaultLLMProvider(llmProvider)
+	bot.SetLLMTimeout(llmTimeout)
 }
 
 // getPort returns the port to listen on from the PORT environment variable.
@@ -138,8 +158,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Setup package-level bot, logger, and LLM provider
-	setupPackageLevel(b, llmProvider)
+	// Setup package-level bot, logger, LLM provider, and timeout (NFR-001)
+	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
+	setupPackageLevel(b, llmProvider, llmTimeout)
 
 	// Create HTTP handler and start server
 	handler := createHandler()
