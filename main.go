@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -8,21 +9,25 @@ import (
 	"strings"
 
 	"yuruppu/internal/bot"
+	"yuruppu/internal/llm"
 )
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
 	ChannelSecret      string
 	ChannelAccessToken string
+	GCPProjectID       string
 }
 
 // loadConfig loads configuration from environment variables.
-// It reads LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN from environment.
-// Returns error if either required environment variable is missing or empty after trimming whitespace.
+// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, and GCP_PROJECT_ID from environment.
+// Returns error if any required environment variable is missing or empty after trimming whitespace.
+// FR-003: Load LLM API credentials from environment variables
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
 	channelAccessToken := strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
 
 	// Validate LINE_CHANNEL_SECRET first
 	if channelSecret == "" {
@@ -34,9 +39,15 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("LINE_CHANNEL_ACCESS_TOKEN is required")
 	}
 
+	// Validate GCP_PROJECT_ID (FR-003)
+	if gcpProjectID == "" {
+		return nil, errors.New("GCP_PROJECT_ID is required")
+	}
+
 	return &Config{
 		ChannelSecret:      channelSecret,
 		ChannelAccessToken: channelAccessToken,
+		GCPProjectID:       gcpProjectID,
 	}, nil
 }
 
@@ -48,6 +59,17 @@ func initBot(config *Config) (*bot.Bot, error) {
 	}
 
 	return bot.NewBot(config.ChannelSecret, config.ChannelAccessToken)
+}
+
+// initLLM initializes an LLM provider using the provided configuration.
+// Returns the LLM provider or an error if initialization fails.
+// FR-003: Bot fails to start during initialization if credentials are missing
+func initLLM(ctx context.Context, config *Config) (llm.Provider, error) {
+	if config == nil {
+		return nil, errors.New("config is required")
+	}
+
+	return llm.NewVertexAIClient(ctx, config.GCPProjectID)
 }
 
 // stdLogger implements bot.Logger interface using standard log package.
@@ -69,11 +91,13 @@ func (l *stdLogger) Error(format string, args ...interface{}) {
 	log.Printf("[ERROR] "+format, args...)
 }
 
-// setupPackageLevel sets up package-level Bot and Logger instances.
+// setupPackageLevel sets up package-level Bot, Logger, and LLM provider instances.
 // AC-007: bot.SetDefaultBot() and bot.SetLogger() are called.
-func setupPackageLevel(b *bot.Bot) {
+// FR-003: LLM provider is set during initialization.
+func setupPackageLevel(b *bot.Bot, llmProvider llm.Provider) {
 	bot.SetDefaultBot(b)
 	bot.SetLogger(&stdLogger{})
+	bot.SetDefaultLLMProvider(llmProvider)
 }
 
 // getPort returns the port to listen on from the PORT environment variable.
@@ -108,8 +132,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Setup package-level bot and logger
-	setupPackageLevel(b)
+	// Initialize LLM provider (FR-003)
+	llmProvider, err := initLLM(context.Background(), config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Setup package-level bot, logger, and LLM provider
+	setupPackageLevel(b, llmProvider)
 
 	// Create HTTP handler and start server
 	handler := createHandler()
