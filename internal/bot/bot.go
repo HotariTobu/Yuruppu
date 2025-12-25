@@ -303,6 +303,29 @@ func FormatEchoMessage(message string) string {
 	return "Yuruppu: " + message
 }
 
+// ExtractMessageInfo extracts the message type and user message from a webhook message.
+// Returns messageType (one of: "text", "image", "sticker", "video", "audio", "location", "unknown")
+// and userMessage (text content for text messages, or formatted string like "[User sent an image]" for non-text).
+// AC-004: Helper function to eliminate code duplication in logIncomingMessage and HandleWebhook.
+func ExtractMessageInfo(message webhook.MessageContentInterface) (messageType string, userMessage string) {
+	switch msg := message.(type) {
+	case webhook.TextMessageContent:
+		return "text", msg.Text
+	case webhook.ImageMessageContent:
+		return "image", "[User sent an image]"
+	case webhook.StickerMessageContent:
+		return "sticker", "[User sent a sticker]"
+	case webhook.VideoMessageContent:
+		return "video", "[User sent a video]"
+	case webhook.AudioMessageContent:
+		return "audio", "[User sent an audio]"
+	case webhook.LocationMessageContent:
+		return "location", "[User sent a location]"
+	default:
+		return "unknown", ""
+	}
+}
+
 // TextMessageEvent extends MessageEvent to provide access to text content.
 type TextMessageEvent interface {
 	MessageEvent
@@ -370,33 +393,14 @@ func logIncomingMessage(msgEvent *webhook.MessageEvent) {
 		}
 	}
 
-	// Extract message type and text (if text message)
-	var messageType string
-	var text string
-
-	switch msg := msgEvent.Message.(type) {
-	case webhook.TextMessageContent:
-		messageType = "text"
-		text = msg.Text
-	case webhook.ImageMessageContent:
-		messageType = "image"
-	case webhook.StickerMessageContent:
-		messageType = "sticker"
-	case webhook.VideoMessageContent:
-		messageType = "video"
-	case webhook.AudioMessageContent:
-		messageType = "audio"
-	case webhook.LocationMessageContent:
-		messageType = "location"
-	default:
-		messageType = "unknown"
-	}
+	// Extract message type and text using helper (AC-004)
+	messageType, userMessage := ExtractMessageInfo(msgEvent.Message)
 
 	// Log with structured format
 	if messageType == "text" {
 		// For text messages, include the text field
 		logger.Info("timestamp=%d userId=%s messageType=%s text=%s",
-			timestamp, userId, messageType, text)
+			timestamp, userId, messageType, userMessage)
 	} else {
 		// For non-text messages, omit the text field
 		logger.Info("timestamp=%d userId=%s messageType=%s",
@@ -473,36 +477,12 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			// Log incoming message (NFR-002)
 			logIncomingMessage(msgEvent)
 
-			// Determine user message based on message type (FR-001, FR-008)
+			// Extract message type and user message using helper (AC-004)
 			// FR-008: For non-text messages, use format "[User sent a {type}]"
-			var userMessage string
-			var shouldProcess bool
+			messageType, userMessage := ExtractMessageInfo(msgEvent.Message)
 
-			switch msg := msgEvent.Message.(type) {
-			case webhook.TextMessageContent:
-				userMessage = msg.Text
-				shouldProcess = true
-			case webhook.ImageMessageContent:
-				userMessage = "[User sent an image]"
-				shouldProcess = true
-			case webhook.StickerMessageContent:
-				userMessage = "[User sent a sticker]"
-				shouldProcess = true
-			case webhook.VideoMessageContent:
-				userMessage = "[User sent a video]"
-				shouldProcess = true
-			case webhook.AudioMessageContent:
-				userMessage = "[User sent an audio]"
-				shouldProcess = true
-			case webhook.LocationMessageContent:
-				userMessage = "[User sent a location]"
-				shouldProcess = true
-			default:
-				// Unknown message type, skip processing
-				shouldProcess = false
-			}
-
-			if shouldProcess {
+			// Skip unknown message types
+			if messageType != "unknown" {
 				// Get LLM provider (FR-001, FR-002)
 				llmProvider := getDefaultLLMProvider()
 				if llmProvider == nil {
