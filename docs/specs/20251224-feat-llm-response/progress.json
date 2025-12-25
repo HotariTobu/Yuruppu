@@ -3,20 +3,20 @@
   "lastUpdated": "2025-12-25",
   "requirements": [
     { "id": "FR-001", "passes": false },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
-    { "id": "FR-005", "passes": false },
-    { "id": "FR-006", "passes": false },
-    { "id": "FR-007", "passes": false },
+    { "id": "FR-005", "passes": true },
+    { "id": "FR-006", "passes": true },
+    { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": false },
     { "id": "FR-009", "passes": false },
     { "id": "NFR-001", "passes": false },
-    { "id": "NFR-002", "passes": false },
+    { "id": "NFR-002", "passes": true },
     { "id": "NFR-003", "passes": false },
     { "id": "TR-001", "passes": true },
     { "id": "TR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "FR-003 complete: Vertex AI client with GCP_PROJECT_ID validation. Migrated to new genai SDK (google.golang.org/genai). Bot fails to start if GCP_PROJECT_ID is missing. Next: FR-001+FR-002 (call LLM API and reply to user)"
+  "notes": "FR-002, FR-005, FR-006, FR-007, NFR-002 complete: Text messages call LLM with hardcoded system prompt and reply with generated response (no Yuruppu prefix, single-turn). DEBUG logging for LLM requests/responses added. Next: FR-001+FR-008 (handle non-text messages with [User sent a {type}] format)"
 }

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"yuruppu/internal/llm"
+
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
@@ -438,6 +440,33 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if isTextMessage {
+				// Get LLM provider (FR-001, FR-002)
+				llmProvider := getDefaultLLMProvider()
+				if llmProvider == nil {
+					// No LLM provider configured, skip reply
+					log.Printf("No LLM provider configured, skipping reply")
+					continue
+				}
+
+				// NFR-002: Log LLM request at DEBUG level
+				if l := getLogger(); l != nil {
+					l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, text)
+				}
+
+				// Call LLM to generate response (FR-001)
+				ctx := context.Background()
+				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, text)
+				if err != nil {
+					// FR-004: On LLM API error, do not reply to the user and log the error
+					log.Printf("LLM API error: %v", err)
+					continue
+				}
+
+				// NFR-002: Log LLM response at DEBUG level
+				if l := getLogger(); l != nil {
+					l.Debug("llm_response generatedText=%q", response)
+				}
+
 				// Get message sender (use injected mock in tests, real client in production)
 				sender := getDefaultMessageSender()
 				if sender == nil {
@@ -445,15 +474,12 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 					sender = bot.client
 				}
 
-				// Format the echo message
-				formattedMessage := FormatEchoMessage(text)
-
-				// Create reply request
+				// Create reply request with LLM response (FR-002, FR-006: no "Yuruppu: " prefix)
 				request := &messaging_api.ReplyMessageRequest{
 					ReplyToken: msgEvent.ReplyToken,
 					Messages: []messaging_api.MessageInterface{
 						messaging_api.TextMessage{
-							Text: formattedMessage,
+							Text: response,
 						},
 					},
 				}
