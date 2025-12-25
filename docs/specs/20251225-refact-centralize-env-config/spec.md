@@ -63,7 +63,7 @@ None - all changes are internal implementation details.
 - **Then**:
   - `Config` struct contains `GCPRegion` field
   - GCP_REGION environment variable is read and trimmed
-  - If empty after trimming, defaults to "us-central1"
+  - If empty after trimming, defaults to "asia-northeast1"
   - All existing tests pass
 
 ### AC-003: NewVertexAIClient accepts fallback region parameter [Linked to SC-003]

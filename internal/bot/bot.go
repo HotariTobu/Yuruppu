@@ -435,6 +435,77 @@ func logLLMError(err error) {
 	}
 }
 
+// processMessageEvent processes a single message event by calling the LLM and sending a reply.
+// This function is extracted from HandleWebhook to properly scope the context cancellation.
+func processMessageEvent(msgEvent *webhook.MessageEvent, fallbackSender MessageSender) {
+	// Log incoming message (NFR-002)
+	logIncomingMessage(msgEvent)
+
+	// Extract message type and user message using helper (AC-004)
+	// FR-008: For non-text messages, use format "[User sent a {type}]"
+	messageType, userMessage := ExtractMessageInfo(msgEvent.Message)
+
+	// Skip unknown message types
+	if messageType == "unknown" {
+		return
+	}
+
+	// Get LLM provider (FR-001, FR-002)
+	llmProvider := getDefaultLLMProvider()
+	if llmProvider == nil {
+		// No LLM provider configured, skip reply
+		log.Printf("No LLM provider configured, skipping reply")
+		return
+	}
+
+	// NFR-002: Log LLM request at DEBUG level
+	if l := getLogger(); l != nil {
+		l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, userMessage)
+	}
+
+	// NFR-001: Create context with timeout for LLM API call
+	timeout := getLLMTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Call LLM to generate response (FR-001)
+	response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, userMessage)
+	if err != nil {
+		// FR-004: On LLM API error, do not reply to the user
+		// NFR-003: Log LLM API errors at ERROR level with error type and details
+		logLLMError(err)
+		return
+	}
+
+	// NFR-002: Log LLM response at DEBUG level
+	if l := getLogger(); l != nil {
+		l.Debug("llm_response generatedText=%q", response)
+	}
+
+	// Get message sender (use injected mock in tests, real client in production)
+	sender := getDefaultMessageSender()
+	if sender == nil {
+		// Fallback to real client if no sender is set
+		sender = fallbackSender
+	}
+
+	// Create reply request with LLM response (FR-002, FR-006: no "Yuruppu: " prefix)
+	request := &messaging_api.ReplyMessageRequest{
+		ReplyToken: msgEvent.ReplyToken,
+		Messages: []messaging_api.MessageInterface{
+			messaging_api.TextMessage{
+				Text: response,
+			},
+		},
+	}
+
+	// Send reply using MessageSender interface
+	if _, err := sender.ReplyMessage(request); err != nil {
+		// Log error but return 200 to prevent LINE from retrying
+		log.Printf("Failed to send reply: %v", err)
+	}
+}
+
 // HandleWebhook processes incoming LINE webhook requests.
 // w is the HTTP response writer.
 // r is the HTTP request containing the webhook payload.
@@ -474,70 +545,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if msgEvent != nil {
-			// Log incoming message (NFR-002)
-			logIncomingMessage(msgEvent)
-
-			// Extract message type and user message using helper (AC-004)
-			// FR-008: For non-text messages, use format "[User sent a {type}]"
-			messageType, userMessage := ExtractMessageInfo(msgEvent.Message)
-
-			// Skip unknown message types
-			if messageType != "unknown" {
-				// Get LLM provider (FR-001, FR-002)
-				llmProvider := getDefaultLLMProvider()
-				if llmProvider == nil {
-					// No LLM provider configured, skip reply
-					log.Printf("No LLM provider configured, skipping reply")
-					continue
-				}
-
-				// NFR-002: Log LLM request at DEBUG level
-				if l := getLogger(); l != nil {
-					l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, userMessage)
-				}
-
-				// NFR-001: Create context with timeout for LLM API call
-				timeout := getLLMTimeout()
-				ctx, cancel := context.WithTimeout(context.Background(), timeout)
-				defer cancel()
-
-				// Call LLM to generate response (FR-001)
-				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, userMessage)
-				if err != nil {
-					// FR-004: On LLM API error, do not reply to the user
-					// NFR-003: Log LLM API errors at ERROR level with error type and details
-					logLLMError(err)
-					continue
-				}
-
-				// NFR-002: Log LLM response at DEBUG level
-				if l := getLogger(); l != nil {
-					l.Debug("llm_response generatedText=%q", response)
-				}
-
-				// Get message sender (use injected mock in tests, real client in production)
-				sender := getDefaultMessageSender()
-				if sender == nil {
-					// Fallback to real client if no sender is set
-					sender = bot.client
-				}
-
-				// Create reply request with LLM response (FR-002, FR-006: no "Yuruppu: " prefix)
-				request := &messaging_api.ReplyMessageRequest{
-					ReplyToken: msgEvent.ReplyToken,
-					Messages: []messaging_api.MessageInterface{
-						messaging_api.TextMessage{
-							Text: response,
-						},
-					},
-				}
-
-				// Send reply using MessageSender interface
-				if _, err := sender.ReplyMessage(request); err != nil {
-					// Log error but return 200 to prevent LINE from retrying
-					log.Printf("Failed to send reply: %v", err)
-				}
-			}
+			processMessageEvent(msgEvent, bot.client)
 		}
 	}
 

@@ -82,7 +82,7 @@ func loadConfig() (*Config, error) {
 		port = defaultPort
 	}
 
-	// SC-002: Default GCP_REGION to us-central1 if empty
+	// SC-002: Default GCP_REGION to asia-northeast1 if empty
 	if gcpRegion == "" {
 		gcpRegion = defaultRegion
 	}
