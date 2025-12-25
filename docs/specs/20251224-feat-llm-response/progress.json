@@ -4,7 +4,7 @@
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
-    { "id": "FR-003", "passes": false },
+    { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
     { "id": "FR-005", "passes": false },
     { "id": "FR-006", "passes": false },
@@ -18,5 +18,5 @@
     { "id": "TR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "TR-001/TR-002 complete: Provider interface in internal/llm/provider.go with 5 error types. Next: FR-003 (credentials loading)"
+  "notes": "FR-003 complete: Vertex AI client with GCP_PROJECT_ID validation. Migrated to new genai SDK (google.golang.org/genai). Bot fails to start if GCP_PROJECT_ID is missing. Next: FR-001+FR-002 (call LLM API and reply to user)"
 }
