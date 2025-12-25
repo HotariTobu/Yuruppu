@@ -21,6 +21,7 @@ type Config struct {
 	GCPProjectID       string
 	LLMTimeoutSeconds  int    // NFR-001: LLM API timeout in seconds (default: 30)
 	Port               string // SC-001: Server port (default: 8080)
+	GCPRegion          string // SC-002: GCP region for Vertex AI (default: us-central1)
 }
 
 const (
@@ -31,20 +32,26 @@ const (
 	// defaultPort is the default server port.
 	// SC-001: Server reads PORT from environment with 8080 as default.
 	defaultPort = "8080"
+
+	// defaultRegion is the default GCP region for Vertex AI API calls.
+	// SC-002: GCP_REGION is read from environment with us-central1 as default.
+	defaultRegion = "us-central1"
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, LLM_TIMEOUT_SECONDS, and PORT from environment.
+// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, LLM_TIMEOUT_SECONDS, PORT, and GCP_REGION from environment.
 // Returns error if any required environment variable is missing or empty after trimming whitespace.
 // FR-003: Load LLM API credentials from environment variables
 // NFR-001: Load LLM timeout configuration
 // SC-001: Load PORT configuration
+// SC-002: Load GCP_REGION configuration
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
 	channelAccessToken := strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
 	port := strings.TrimSpace(os.Getenv("PORT"))
+	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
 
 	// Validate LINE_CHANNEL_SECRET first
 	if channelSecret == "" {
@@ -75,12 +82,18 @@ func loadConfig() (*Config, error) {
 		port = defaultPort
 	}
 
+	// SC-002: Default GCP_REGION to us-central1 if empty
+	if gcpRegion == "" {
+		gcpRegion = defaultRegion
+	}
+
 	return &Config{
 		ChannelSecret:      channelSecret,
 		ChannelAccessToken: channelAccessToken,
 		GCPProjectID:       gcpProjectID,
 		LLMTimeoutSeconds:  llmTimeoutSeconds,
 		Port:               port,
+		GCPRegion:          gcpRegion,
 	}, nil
 }
 
