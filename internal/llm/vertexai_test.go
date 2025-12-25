@@ -3,9 +3,12 @@ package llm_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"yuruppu/internal/llm"
 
@@ -355,6 +358,447 @@ func TestNewVertexAIClient_RegionConfiguration(t *testing.T) {
 		// Note: Region configuration is internal to the client
 		// Default region should be us-central1 (or configurable)
 	})
+}
+
+// TestGetRegion tests region determination logic for Cloud Run metadata.
+// AC-001: Region derived from Cloud Run metadata
+// SC-001: Remove hardcoded defaultRegion and use Cloud Run metadata
+func TestGetRegion(t *testing.T) {
+	tests := []struct {
+		name           string
+		metadataServer *metadataServerMock
+		envVarValue    string
+		want           string
+	}{
+		{
+			name: "metadata server returns valid response - extract region correctly",
+			metadataServer: &metadataServerMock{
+				response:   "projects/123456789/regions/us-west1",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "",
+			want:        "us-west1",
+		},
+		{
+			name: "metadata server returns different region - extract correctly",
+			metadataServer: &metadataServerMock{
+				response:   "projects/987654321/regions/asia-northeast1",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "",
+			want:        "asia-northeast1",
+		},
+		{
+			name: "metadata server timeout (2s) - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "projects/123456789/regions/us-west1",
+				statusCode: 200,
+				delay:      3000, // 3 seconds - exceeds 2s timeout
+			},
+			envVarValue: "us-east1",
+			want:        "us-east1",
+		},
+		{
+			name: "metadata server unavailable - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 500,
+				delay:      0,
+			},
+			envVarValue: "europe-west1",
+			want:        "europe-west1",
+		},
+		{
+			name: "metadata server returns 404 - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 404,
+				delay:      0,
+			},
+			envVarValue: "us-central1",
+			want:        "us-central1",
+		},
+		{
+			name: "malformed response (not projects/*/regions/*) - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "invalid-format",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "us-west2",
+			want:        "us-west2",
+		},
+		{
+			name: "malformed response (missing region part) - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "projects/123456789",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "asia-south1",
+			want:        "asia-south1",
+		},
+		{
+			name: "malformed response (empty string) - fallback to env var",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "us-east4",
+			want:        "us-east4",
+		},
+		{
+			name: "env var set - use env var value when metadata unavailable",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 503,
+				delay:      0,
+			},
+			envVarValue: "us-south1",
+			want:        "us-south1",
+		},
+		{
+			name: "env var not set and metadata unavailable - use default us-central1",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 500,
+				delay:      0,
+			},
+			envVarValue: "",
+			want:        "us-central1",
+		},
+		{
+			name: "env var not set and metadata timeout - use default us-central1",
+			metadataServer: &metadataServerMock{
+				response:   "projects/123456789/regions/us-west1",
+				statusCode: 200,
+				delay:      3000, // 3 seconds - exceeds 2s timeout
+			},
+			envVarValue: "",
+			want:        "us-central1",
+		},
+		{
+			name: "env var not set and malformed response - use default us-central1",
+			metadataServer: &metadataServerMock{
+				response:   "malformed",
+				statusCode: 200,
+				delay:      0,
+			},
+			envVarValue: "",
+			want:        "us-central1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server and environment variable
+			server := tt.metadataServer.Start(t)
+			defer server.Close()
+
+			// Set up environment variable
+			originalEnv := os.Getenv("GCP_REGION")
+			if tt.envVarValue != "" {
+				os.Setenv("GCP_REGION", tt.envVarValue)
+			} else {
+				os.Unsetenv("GCP_REGION")
+			}
+			t.Cleanup(func() {
+				if originalEnv != "" {
+					os.Setenv("GCP_REGION", originalEnv)
+				} else {
+					os.Unsetenv("GCP_REGION")
+				}
+			})
+
+			// When: Get region (function to be implemented)
+			got := llm.GetRegion(server.URL)
+
+			// Then: Should return expected region
+			assert.Equal(t, tt.want, got,
+				"region should match expected value")
+		})
+	}
+}
+
+// TestGetRegion_MetadataHeaders tests that metadata server requests include required headers.
+// AC-001: Metadata request requires header: Metadata-Flavor: Google
+func TestGetRegion_MetadataHeaders(t *testing.T) {
+	t.Run("metadata request includes Metadata-Flavor: Google header", func(t *testing.T) {
+		// Given: Mock metadata server that captures request headers
+		var capturedHeaders http.Header
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedHeaders = r.Header
+			w.WriteHeader(200)
+			w.Write([]byte("projects/123456789/regions/us-west1"))
+		}))
+		defer server.Close()
+
+		// When: Get region
+		_ = llm.GetRegion(server.URL)
+
+		// Then: Should include Metadata-Flavor header
+		require.NotNil(t, capturedHeaders, "request should have been made")
+		assert.Equal(t, "Google", capturedHeaders.Get("Metadata-Flavor"),
+			"should include Metadata-Flavor: Google header")
+	})
+
+	t.Run("metadata request without proper header should be rejected by real server", func(t *testing.T) {
+		// Given: Mock metadata server that requires Metadata-Flavor header
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Metadata-Flavor") != "Google" {
+				w.WriteHeader(403)
+				w.Write([]byte("Forbidden"))
+				return
+			}
+			w.WriteHeader(200)
+			w.Write([]byte("projects/123456789/regions/us-west1"))
+		}))
+		defer server.Close()
+
+		// Set env var fallback
+		os.Setenv("GCP_REGION", "fallback-region")
+		t.Cleanup(func() {
+			os.Unsetenv("GCP_REGION")
+		})
+
+		// When: Get region (implementation should include header)
+		got := llm.GetRegion(server.URL)
+
+		// Then: Should succeed (implementation includes header)
+		// If implementation doesn't include header, it will fallback to env var
+		assert.NotEmpty(t, got, "should return a region")
+	})
+}
+
+// TestGetRegion_Timeout tests that metadata server request has 2-second timeout.
+// AC-001: Metadata server request has a 2-second timeout
+func TestGetRegion_Timeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		serverDelay int // milliseconds
+		envVarValue string
+		want        string
+	}{
+		{
+			name:        "request completes within 1 second - use metadata",
+			serverDelay: 1000,
+			envVarValue: "fallback-region",
+			want:        "us-west1", // from metadata
+		},
+		{
+			name:        "request completes within 1.9 seconds - use metadata",
+			serverDelay: 1900,
+			envVarValue: "fallback-region",
+			want:        "us-west1", // from metadata
+		},
+		{
+			name:        "request takes exactly 2 seconds - may timeout",
+			serverDelay: 2000,
+			envVarValue: "fallback-region",
+			want:        "fallback-region", // depends on implementation, may timeout
+		},
+		{
+			name:        "request takes 2.1 seconds - fallback to env var",
+			serverDelay: 2100,
+			envVarValue: "fallback-region",
+			want:        "fallback-region",
+		},
+		{
+			name:        "request takes 5 seconds - fallback to env var",
+			serverDelay: 5000,
+			envVarValue: "us-east1",
+			want:        "us-east1",
+		},
+		{
+			name:        "timeout with no env var - fallback to default",
+			serverDelay: 3000,
+			envVarValue: "",
+			want:        "us-central1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server with delay
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(time.Duration(tt.serverDelay) * time.Millisecond)
+				w.WriteHeader(200)
+				w.Write([]byte("projects/123456789/regions/us-west1"))
+			}))
+			defer server.Close()
+
+			// Set up environment variable
+			originalEnv := os.Getenv("GCP_REGION")
+			if tt.envVarValue != "" {
+				os.Setenv("GCP_REGION", tt.envVarValue)
+			} else {
+				os.Unsetenv("GCP_REGION")
+			}
+			t.Cleanup(func() {
+				if originalEnv != "" {
+					os.Setenv("GCP_REGION", originalEnv)
+				} else {
+					os.Unsetenv("GCP_REGION")
+				}
+			})
+
+			// When: Get region
+			got := llm.GetRegion(server.URL)
+
+			// Then: Should handle timeout correctly
+			assert.Equal(t, tt.want, got,
+				"should fallback to env var or default when timeout occurs")
+		})
+	}
+}
+
+// TestGetRegion_EdgeCases tests edge cases in region extraction.
+// AC-001: Region format validation and edge cases
+func TestGetRegion_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name             string
+		metadataResponse string
+		envVarValue      string
+		want             string
+	}{
+		{
+			name:             "response with extra slashes",
+			metadataResponse: "projects/123456789/regions/us-west1/",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region", // malformed, fallback
+		},
+		{
+			name:             "response with leading spaces",
+			metadataResponse: "  projects/123456789/regions/us-west1",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region", // malformed, fallback
+		},
+		{
+			name:             "response with trailing spaces",
+			metadataResponse: "projects/123456789/regions/us-west1  ",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region", // malformed, fallback
+		},
+		{
+			name:             "response with newline",
+			metadataResponse: "projects/123456789/regions/us-west1\n",
+			envVarValue:      "fallback-region",
+			want:             "us-west1", // trimmed newline is acceptable
+		},
+		{
+			name:             "response with only project",
+			metadataResponse: "projects/123456789",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region",
+		},
+		{
+			name:             "response with wrong format (regions first)",
+			metadataResponse: "regions/us-west1/projects/123456789",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region",
+		},
+		{
+			name:             "response with region but no project number",
+			metadataResponse: "projects//regions/us-west1",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region", // malformed, fallback
+		},
+		{
+			name:             "empty region name",
+			metadataResponse: "projects/123456789/regions/",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region",
+		},
+		{
+			name:             "only slashes",
+			metadataResponse: "///",
+			envVarValue:      "fallback-region",
+			want:             "fallback-region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server returning edge case response
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(200)
+				w.Write([]byte(tt.metadataResponse))
+			}))
+			defer server.Close()
+
+			// Set up environment variable
+			originalEnv := os.Getenv("GCP_REGION")
+			if tt.envVarValue != "" {
+				os.Setenv("GCP_REGION", tt.envVarValue)
+			} else {
+				os.Unsetenv("GCP_REGION")
+			}
+			t.Cleanup(func() {
+				if originalEnv != "" {
+					os.Setenv("GCP_REGION", originalEnv)
+				} else {
+					os.Unsetenv("GCP_REGION")
+				}
+			})
+
+			// When: Get region
+			got := llm.GetRegion(server.URL)
+
+			// Then: Should handle edge case correctly
+			assert.Equal(t, tt.want, got,
+				"should handle edge case correctly")
+		})
+	}
+}
+
+// TestGetRegion_ProductionEndpoint tests using actual Cloud Run metadata endpoint path.
+// AC-001: Production endpoint format
+func TestGetRegion_ProductionEndpoint(t *testing.T) {
+	t.Run("uses correct metadata endpoint path", func(t *testing.T) {
+		// Given: Mock server that verifies the request path
+		var requestedPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestedPath = r.URL.Path
+			w.WriteHeader(200)
+			w.Write([]byte("projects/123456789/regions/us-west1"))
+		}))
+		defer server.Close()
+
+		// When: Get region with base URL (production would use http://metadata.google.internal)
+		_ = llm.GetRegion(server.URL)
+
+		// Then: Should request the correct path
+		expectedPath := "/computeMetadata/v1/instance/region"
+		assert.Equal(t, expectedPath, requestedPath,
+			"should request metadata endpoint path: %s", expectedPath)
+	})
+}
+
+// metadataServerMock is a helper struct for mocking Cloud Run metadata server.
+type metadataServerMock struct {
+	response   string
+	statusCode int
+	delay      int // milliseconds
+}
+
+// Start creates and starts an httptest server with the configured mock behavior.
+func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate delay if configured
+		if m.delay > 0 {
+			time.Sleep(time.Duration(m.delay) * time.Millisecond)
+		}
+
+		// Return configured status code and response
+		w.WriteHeader(m.statusCode)
+		if m.response != "" {
+			w.Write([]byte(m.response))
+		}
+	}))
 }
 
 // TestNewVertexAIClient_InterfaceCompliance tests that the client implements Provider interface.
