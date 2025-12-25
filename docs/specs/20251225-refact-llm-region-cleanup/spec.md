@@ -16,7 +16,7 @@ The LLM response feature (`20251224-feat-llm-response`) introduced several code 
 
 ## Current Structure
 
-- `internal/llm/vertexai.go`: Contains hardcoded `defaultRegion = "us-central1"`
+- `internal/llm/vertexai.go`: Contains hardcoded `defaultRegion = "asia-northeast1"`
 - `internal/llm/provider.go`: Contains `LLMRateLimitError.RetryAfter` field that is never populated
 - `internal/llm/errors.go`: Creates `LLMRateLimitError` without setting `RetryAfter`
 - `internal/bot/bot.go`: Contains duplicate pointer/non-pointer type checks for all message types in two separate switch statements
@@ -52,7 +52,7 @@ None - all changes are internal implementation details.
   - Metadata server request has a 2-second timeout
   - If metadata server is unavailable or times out, fallback to `GCP_REGION` environment variable
   - If metadata response format is unexpected (not `projects/*/regions/*`), fallback to `GCP_REGION` environment variable
-  - If environment variable is not set, fallback to `us-central1`
+  - If environment variable is not set, fallback to `asia-northeast1`
   - All existing tests pass
 
 ### AC-002: Single type case per message type in logIncomingMessage [Linked to SC-002]
