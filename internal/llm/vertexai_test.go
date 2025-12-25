@@ -880,7 +880,6 @@ func TestMapAPIError(t *testing.T) {
 		wantType       string
 		wantContains   string
 		wantStatusCode int
-		wantRetryAfter int
 	}{
 		{
 			name: "HTTP 401 maps to LLMAuthError",
@@ -976,11 +975,6 @@ func TestMapAPIError(t *testing.T) {
 				if tt.wantStatusCode > 0 {
 					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
 						"auth error should have status code %d", tt.wantStatusCode)
-				}
-			case *llm.LLMRateLimitError:
-				if tt.wantRetryAfter > 0 {
-					assert.Equal(t, tt.wantRetryAfter, e.RetryAfter,
-						"rate limit error should have retry-after %d", tt.wantRetryAfter)
 				}
 			}
 		})
