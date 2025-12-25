@@ -799,7 +799,7 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 }
 
 // TestLoadConfig_GCPRegion tests that GCP_REGION is loaded via loadConfig.
-// SC-002, AC-002: GCP_REGION is read and trimmed, defaults to "us-central1" if empty.
+// SC-002, AC-002: GCP_REGION is read and trimmed, defaults to "asia-northeast1" if empty.
 func TestLoadConfig_GCPRegion(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -807,9 +807,9 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 		expectedRegion string
 	}{
 		{
-			name:           "default region is us-central1 when not set",
+			name:           "default region is asia-northeast1 when not set",
 			gcpRegionEnv:   "",
-			expectedRegion: "us-central1",
+			expectedRegion: "asia-northeast1",
 		},
 		{
 			name:           "custom region from environment variable",
@@ -878,9 +878,9 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			expectedRegion: "asia-northeast1",
 		},
 		{
-			name:           "whitespace only defaults to us-central1",
+			name:           "whitespace only defaults to asia-northeast1",
 			gcpRegionEnv:   "   ",
-			expectedRegion: "us-central1",
+			expectedRegion: "asia-northeast1",
 		},
 	}
 
