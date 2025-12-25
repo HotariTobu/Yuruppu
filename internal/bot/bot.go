@@ -426,20 +426,54 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			// Log incoming message (NFR-002)
 			logIncomingMessage(msgEvent)
 
-			// Only handle text messages (FR-004: ignore non-text messages)
-			// Try both pointer and non-pointer types
-			var text string
-			var isTextMessage bool
+			// Determine user message based on message type (FR-001, FR-008)
+			// FR-008: For non-text messages, use format "[User sent a {type}]"
+			var userMessage string
+			var shouldProcess bool
 
-			if textMsg, ok := msgEvent.Message.(*webhook.TextMessageContent); ok {
-				text = textMsg.Text
-				isTextMessage = true
-			} else if textMsg, ok := msgEvent.Message.(webhook.TextMessageContent); ok {
-				text = textMsg.Text
-				isTextMessage = true
+			switch msg := msgEvent.Message.(type) {
+			case *webhook.TextMessageContent:
+				userMessage = msg.Text
+				shouldProcess = true
+			case webhook.TextMessageContent:
+				userMessage = msg.Text
+				shouldProcess = true
+			case *webhook.ImageMessageContent:
+				userMessage = "[User sent an image]"
+				shouldProcess = true
+			case webhook.ImageMessageContent:
+				userMessage = "[User sent an image]"
+				shouldProcess = true
+			case *webhook.StickerMessageContent:
+				userMessage = "[User sent a sticker]"
+				shouldProcess = true
+			case webhook.StickerMessageContent:
+				userMessage = "[User sent a sticker]"
+				shouldProcess = true
+			case *webhook.VideoMessageContent:
+				userMessage = "[User sent a video]"
+				shouldProcess = true
+			case webhook.VideoMessageContent:
+				userMessage = "[User sent a video]"
+				shouldProcess = true
+			case *webhook.AudioMessageContent:
+				userMessage = "[User sent an audio]"
+				shouldProcess = true
+			case webhook.AudioMessageContent:
+				userMessage = "[User sent an audio]"
+				shouldProcess = true
+			case *webhook.LocationMessageContent:
+				userMessage = "[User sent a location]"
+				shouldProcess = true
+			case webhook.LocationMessageContent:
+				userMessage = "[User sent a location]"
+				shouldProcess = true
+			default:
+				// Unknown message type, skip processing
+				shouldProcess = false
 			}
 
-			if isTextMessage {
+			if shouldProcess {
 				// Get LLM provider (FR-001, FR-002)
 				llmProvider := getDefaultLLMProvider()
 				if llmProvider == nil {
@@ -450,12 +484,12 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 				// NFR-002: Log LLM request at DEBUG level
 				if l := getLogger(); l != nil {
-					l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, text)
+					l.Debug("llm_request systemPrompt=%q userMessage=%q", llm.SystemPrompt, userMessage)
 				}
 
 				// Call LLM to generate response (FR-001)
 				ctx := context.Background()
-				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, text)
+				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, userMessage)
 				if err != nil {
 					// FR-004: On LLM API error, do not reply to the user and log the error
 					log.Printf("LLM API error: %v", err)
