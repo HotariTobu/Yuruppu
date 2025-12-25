@@ -9,5 +9,5 @@
     { "id": "SC-005", "passes": true }
   ],
   "blockers": [],
-  "notes": "All requirements complete. SC-005: Removed unused RetryAfter field from LLMRateLimitError struct in provider.go. Updated bot.go logging to no longer reference the field. Removed related test code in bot_test.go, vertexai_test.go, and provider_test.go. All tests pass."
+  "notes": "All requirements complete. Default region changed from us-central1 to asia-northeast1 (Tokyo) per user request. Ready for PR."
 }

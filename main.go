@@ -21,7 +21,7 @@ type Config struct {
 	GCPProjectID       string
 	LLMTimeoutSeconds  int    // NFR-001: LLM API timeout in seconds (default: 30)
 	Port               string // SC-001: Server port (default: 8080)
-	GCPRegion          string // SC-002: GCP region for Vertex AI (default: us-central1)
+	GCPRegion          string // SC-002: GCP region for Vertex AI (default: asia-northeast1)
 }
 
 const (
@@ -34,8 +34,8 @@ const (
 	defaultPort = "8080"
 
 	// defaultRegion is the default GCP region for Vertex AI API calls.
-	// SC-002: GCP_REGION is read from environment with us-central1 as default.
-	defaultRegion = "us-central1"
+	// SC-002: GCP_REGION is read from environment with asia-northeast1 as default.
+	defaultRegion = "asia-northeast1"
 )
 
 // loadConfig loads configuration from environment variables.
