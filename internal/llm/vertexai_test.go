@@ -2,7 +2,9 @@ package llm_test
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"yuruppu/internal/llm"
@@ -422,6 +424,172 @@ func TestNewVertexAIClient_Concurrency(t *testing.T) {
 				"concurrent client creation should return valid client")
 		}
 	})
+}
+
+// TestMapAPIError tests mapping of Vertex AI API errors to custom error types.
+// FR-004: On LLM API error, return appropriate custom error type
+// NFR-003: Error details should be preserved for logging
+func TestMapAPIError(t *testing.T) {
+	tests := []struct {
+		name           string
+		apiError       error
+		wantType       string
+		wantContains   string
+		wantStatusCode int
+		wantRetryAfter int
+	}{
+		{
+			name: "HTTP 401 maps to LLMAuthError",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 401,
+				Msg:      "Unauthorized",
+			},
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 401,
+		},
+		{
+			name: "HTTP 403 maps to LLMAuthError",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 403,
+				Msg:      "Forbidden",
+			},
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 403,
+		},
+		{
+			name: "HTTP 429 maps to LLMRateLimitError",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 429,
+				Msg:      "Too Many Requests",
+			},
+			wantType:     "*llm.LLMRateLimitError",
+			wantContains: "rate limit",
+		},
+		{
+			name:         "context.DeadlineExceeded maps to LLMTimeoutError",
+			apiError:     context.DeadlineExceeded,
+			wantType:     "*llm.LLMTimeoutError",
+			wantContains: "timeout",
+		},
+		{
+			name:         "context.Canceled maps to LLMTimeoutError",
+			apiError:     context.Canceled,
+			wantType:     "*llm.LLMTimeoutError",
+			wantContains: "timeout",
+		},
+		{
+			name: "HTTP 500 maps to LLMResponseError",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 500,
+				Msg:      "Internal Server Error",
+			},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name: "HTTP 503 maps to LLMResponseError",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 503,
+				Msg:      "Service Unavailable",
+			},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name:         "net.OpError maps to LLMNetworkError",
+			apiError:     &llm.MockNetError{Msg: "connection refused"},
+			wantType:     "*llm.LLMNetworkError",
+			wantContains: "network",
+		},
+		{
+			name:         "DNS error maps to LLMNetworkError",
+			apiError:     &llm.MockDNSError{Msg: "lookup failed"},
+			wantType:     "*llm.LLMNetworkError",
+			wantContains: "network",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When: Map the API error
+			mappedErr := llm.MapAPIError(tt.apiError)
+
+			// Then: Should return correct error type
+			require.NotNil(t, mappedErr)
+			actualType := fmt.Sprintf("%T", mappedErr)
+			assert.Equal(t, tt.wantType, actualType,
+				"error should be mapped to %s, got %s", tt.wantType, actualType)
+
+			// Then: Error message should contain expected text
+			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
+				"error message should contain '%s'", tt.wantContains)
+
+			// Then: Verify type-specific fields
+			switch e := mappedErr.(type) {
+			case *llm.LLMAuthError:
+				if tt.wantStatusCode > 0 {
+					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
+						"auth error should have status code %d", tt.wantStatusCode)
+				}
+			case *llm.LLMRateLimitError:
+				if tt.wantRetryAfter > 0 {
+					assert.Equal(t, tt.wantRetryAfter, e.RetryAfter,
+						"rate limit error should have retry-after %d", tt.wantRetryAfter)
+				}
+			}
+		})
+	}
+}
+
+// TestMapAPIError_PreservesOriginalErrorDetails tests that original error details are preserved.
+// NFR-003: Log LLM API errors at ERROR level with error type and details
+func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
+	tests := []struct {
+		name     string
+		apiError error
+		wantMsg  string
+	}{
+		{
+			name: "API error message is preserved",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 401,
+				Msg:      "Invalid API key: abc123",
+			},
+			wantMsg: "Invalid API key: abc123",
+		},
+		{
+			name: "rate limit details are preserved",
+			apiError: &llm.MockAPIError{
+				HTTPCode: 429,
+				Msg:      "Quota exceeded for project",
+			},
+			wantMsg: "Quota exceeded for project",
+		},
+		{
+			name:     "context error message is preserved",
+			apiError: context.DeadlineExceeded,
+			wantMsg:  "context deadline exceeded",
+		},
+		{
+			name:     "network error details are preserved",
+			apiError: &llm.MockNetError{Msg: "dial tcp: connection refused"},
+			wantMsg:  "dial tcp: connection refused",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When: Map the API error
+			mappedErr := llm.MapAPIError(tt.apiError)
+
+			// Then: Original error details should be preserved in the message
+			require.NotNil(t, mappedErr)
+			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
+				"mapped error should preserve original message")
+		})
+	}
 }
 
 // TestNewVertexAIClient_InitializationFailure tests initialization failure scenarios.

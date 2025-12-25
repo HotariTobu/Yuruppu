@@ -5,7 +5,7 @@
     { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
-    { "id": "FR-004", "passes": false },
+    { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
     { "id": "FR-006", "passes": true },
     { "id": "FR-007", "passes": true },
@@ -13,10 +13,10 @@
     { "id": "FR-009", "passes": true },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": true },
-    { "id": "NFR-003", "passes": false },
+    { "id": "NFR-003", "passes": true },
     { "id": "TR-001", "passes": true },
     { "id": "TR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session verified FR-009 passes (no retry logic implemented). Remaining work: (1) FR-004+NFR-003: Map Vertex AI errors to custom error types in vertexai.go (see TODO at line 79) and log at ERROR level with structured details, (2) NFR-001: Add timeout context for LLM calls (currently uses context.Background() without timeout). Next session should start with FR-004+NFR-003: implement error type mapping for timeout, rate limit, network, auth, and response errors."
+  "notes": "Session completed FR-004 and NFR-003: implemented MapAPIError() in errors.go to map Vertex AI errors to custom types, and logLLMError() in bot.go for structured ERROR logging. Fixed genai.APIError type assertion (value type, not pointer). Next session should implement NFR-001: add configurable timeout context for LLM calls in bot.go (currently uses context.Background() without timeout). Requirements: (1) Add LLM_TIMEOUT_SECONDS env var with default 30s, (2) Use context.WithTimeout in HandleWebhook before calling GenerateText, (3) Add tests for timeout behavior."
 }

@@ -76,8 +76,8 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	// Generate content
 	resp, err := v.client.Models.GenerateContent(ctx, geminiModel, genai.Text(userMessage), config)
 	if err != nil {
-		// TODO: Map specific errors to custom error types (LLMTimeoutError, etc.)
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		// FR-004: Map specific errors to custom error types
+		return "", MapAPIError(err)
 	}
 
 	// Extract text from response
