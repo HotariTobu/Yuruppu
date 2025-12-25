@@ -17,6 +17,7 @@ import (
 	"yuruppu/internal/llm"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
+	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -3394,4 +3395,148 @@ func (m *slowLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMe
 	case <-ctx.Done():
 		return "", &llm.LLMTimeoutError{Message: "context deadline exceeded"}
 	}
+}
+
+// TestExtractMessageInfo tests the extractMessageInfo helper function.
+// AC-004: The function should extract message type and user message content
+// from webhook.MessageContentInterface.
+func TestExtractMessageInfo(t *testing.T) {
+	tests := []struct {
+		name            string
+		message         webhook.MessageContentInterface
+		wantMessageType string
+		wantUserMessage string
+	}{
+		// AC-004: Text messages return type "text" and actual message content
+		{
+			name: "text message returns text type and message content",
+			message: webhook.TextMessageContent{
+				Text: "Hello, Yuruppu!",
+			},
+			wantMessageType: "text",
+			wantUserMessage: "Hello, Yuruppu!",
+		},
+		{
+			name: "text message with empty string returns text type and empty message",
+			message: webhook.TextMessageContent{
+				Text: "",
+			},
+			wantMessageType: "text",
+			wantUserMessage: "",
+		},
+		{
+			name: "text message with unicode returns text type and unicode content",
+			message: webhook.TextMessageContent{
+				Text: "こんにちは 🌍",
+			},
+			wantMessageType: "text",
+			wantUserMessage: "こんにちは 🌍",
+		},
+		// AC-004: Image messages return type "image" and formatted message
+		{
+			name:            "image message returns image type and formatted message",
+			message:         webhook.ImageMessageContent{},
+			wantMessageType: "image",
+			wantUserMessage: "[User sent an image]",
+		},
+		// AC-004: Sticker messages return type "sticker" and formatted message
+		{
+			name:            "sticker message returns sticker type and formatted message",
+			message:         webhook.StickerMessageContent{},
+			wantMessageType: "sticker",
+			wantUserMessage: "[User sent a sticker]",
+		},
+		// AC-004: Video messages return type "video" and formatted message
+		{
+			name:            "video message returns video type and formatted message",
+			message:         webhook.VideoMessageContent{},
+			wantMessageType: "video",
+			wantUserMessage: "[User sent a video]",
+		},
+		// AC-004: Audio messages return type "audio" and formatted message
+		{
+			name:            "audio message returns audio type and formatted message",
+			message:         webhook.AudioMessageContent{},
+			wantMessageType: "audio",
+			wantUserMessage: "[User sent an audio]",
+		},
+		// AC-004: Location messages return type "location" and formatted message
+		{
+			name:            "location message returns location type and formatted message",
+			message:         webhook.LocationMessageContent{},
+			wantMessageType: "location",
+			wantUserMessage: "[User sent a location]",
+		},
+		// AC-004: Unknown/nil messages return type "unknown" and empty message
+		{
+			name:            "nil message returns unknown type and empty message",
+			message:         nil,
+			wantMessageType: "unknown",
+			wantUserMessage: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			gotMessageType, gotUserMessage := bot.ExtractMessageInfo(tt.message)
+
+			// Then
+			assert.Equal(t, tt.wantMessageType, gotMessageType,
+				"message type should match expected value")
+			assert.Equal(t, tt.wantUserMessage, gotUserMessage,
+				"user message should match expected value")
+		})
+	}
+}
+
+// TestExtractMessageInfo_EdgeCases tests edge cases for extractMessageInfo.
+func TestExtractMessageInfo_EdgeCases(t *testing.T) {
+	t.Run("text message with very long content", func(t *testing.T) {
+		// Given
+		longText := strings.Repeat("a", 10000)
+		message := webhook.TextMessageContent{
+			Text: longText,
+		}
+
+		// When
+		gotMessageType, gotUserMessage := bot.ExtractMessageInfo(message)
+
+		// Then
+		assert.Equal(t, "text", gotMessageType)
+		assert.Equal(t, longText, gotUserMessage,
+			"should handle very long text messages")
+	})
+
+	t.Run("text message with special characters", func(t *testing.T) {
+		// Given
+		specialText := "!@#$%^&*()_+-=[]{}|;:,.<>?/~`\n\t\r"
+		message := webhook.TextMessageContent{
+			Text: specialText,
+		}
+
+		// When
+		gotMessageType, gotUserMessage := bot.ExtractMessageInfo(message)
+
+		// Then
+		assert.Equal(t, "text", gotMessageType)
+		assert.Equal(t, specialText, gotUserMessage,
+			"should preserve special characters including newlines and tabs")
+	})
+
+	t.Run("text message with only whitespace", func(t *testing.T) {
+		// Given
+		whitespaceText := "   \t\n   "
+		message := webhook.TextMessageContent{
+			Text: whitespaceText,
+		}
+
+		// When
+		gotMessageType, gotUserMessage := bot.ExtractMessageInfo(message)
+
+		// Then
+		assert.Equal(t, "text", gotMessageType)
+		assert.Equal(t, whitespaceText, gotUserMessage,
+			"should preserve whitespace in text messages")
+	})
 }

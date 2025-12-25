@@ -5,9 +5,9 @@
     { "id": "SC-001", "passes": true },
     { "id": "SC-002", "passes": true },
     { "id": "SC-003", "passes": true },
-    { "id": "SC-004", "passes": false },
+    { "id": "SC-004", "passes": true },
     { "id": "SC-005", "passes": false }
   ],
   "blockers": [],
-  "notes": "SC-003 complete. Removed 6 redundant pointer type cases from HandleWebhook switch (12 cases -> 6 cases). Next session should work on SC-004: extract message type and content extraction into a helper function."
+  "notes": "SC-004 complete. Created ExtractMessageInfo helper function that eliminates code duplication between logIncomingMessage and HandleWebhook. Reduced switch statement in HandleWebhook from 25 lines to 5 lines. Next session should work on SC-005: remove unused RetryAfter field from LLMRateLimitError."
 }
