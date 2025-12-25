@@ -384,6 +384,33 @@ func logIncomingMessage(msgEvent *webhook.MessageEvent) {
 	}
 }
 
+// logLLMError logs an LLM API error at ERROR level with error type and details.
+// NFR-003: Log LLM API errors at ERROR level with error type and details
+func logLLMError(err error) {
+	logger := getLogger()
+	if logger == nil {
+		// Fallback to standard log if no logger is set
+		log.Printf("LLM API error: %v", err)
+		return
+	}
+
+	// Determine error type and log with structured format
+	switch e := err.(type) {
+	case *llm.LLMTimeoutError:
+		logger.Error("llm_error errorType=timeout details=%q", e.Message)
+	case *llm.LLMRateLimitError:
+		logger.Error("llm_error errorType=rate_limit retryAfter=%d details=%q", e.RetryAfter, e.Message)
+	case *llm.LLMNetworkError:
+		logger.Error("llm_error errorType=network details=%q", e.Message)
+	case *llm.LLMAuthError:
+		logger.Error("llm_error errorType=auth statusCode=%d details=%q", e.StatusCode, e.Message)
+	case *llm.LLMResponseError:
+		logger.Error("llm_error errorType=response details=%q", e.Message)
+	default:
+		logger.Error("llm_error errorType=unknown details=%q", err.Error())
+	}
+}
+
 // HandleWebhook processes incoming LINE webhook requests.
 // w is the HTTP response writer.
 // r is the HTTP request containing the webhook payload.
@@ -491,8 +518,9 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 				ctx := context.Background()
 				response, err := llmProvider.GenerateText(ctx, llm.SystemPrompt, userMessage)
 				if err != nil {
-					// FR-004: On LLM API error, do not reply to the user and log the error
-					log.Printf("LLM API error: %v", err)
+					// FR-004: On LLM API error, do not reply to the user
+					// NFR-003: Log LLM API errors at ERROR level with error type and details
+					logLLMError(err)
 					continue
 				}
 

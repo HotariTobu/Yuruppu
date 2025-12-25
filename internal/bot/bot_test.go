@@ -1680,6 +1680,8 @@ type mockLogger struct {
 	allLogEntries    []string
 	lastDebugEntry   string
 	allDebugEntries  []string
+	lastErrorEntry   string
+	allErrorEntries  []string
 }
 
 func (m *mockLogger) Info(format string, args ...interface{}) {
@@ -1701,6 +1703,8 @@ func (m *mockLogger) Warn(format string, args ...interface{}) {
 
 func (m *mockLogger) Error(format string, args ...interface{}) {
 	m.errorLogCalled = true
+	m.lastErrorEntry = fmt.Sprintf(format, args...)
+	m.allErrorEntries = append(m.allErrorEntries, m.lastErrorEntry)
 }
 
 // mockSender is a mock implementation of MessageSender for testing.
@@ -2362,6 +2366,7 @@ func (m *concurrentMockSender) callCount() int {
 type concurrentMockLogger struct {
 	mu               sync.Mutex
 	infoLogCallCount int
+	errorLogCalls    []string
 }
 
 // mockLLMProvider is a mock LLM provider for testing.
@@ -2424,18 +2429,37 @@ func (m *concurrentMockLogger) Info(format string, args ...interface{}) {
 
 func (m *concurrentMockLogger) Debug(format string, args ...interface{}) {}
 func (m *concurrentMockLogger) Warn(format string, args ...interface{})  {}
-func (m *concurrentMockLogger) Error(format string, args ...interface{}) {}
+func (m *concurrentMockLogger) Error(format string, args ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.errorLogCalls = append(m.errorLogCalls, fmt.Sprintf(format, args...))
+}
 
 func (m *concurrentMockLogger) reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.infoLogCallCount = 0
+	m.errorLogCalls = nil
 }
 
 func (m *concurrentMockLogger) infoCallCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.infoLogCallCount
+}
+
+func (m *concurrentMockLogger) errorCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.errorLogCalls)
+}
+
+func (m *concurrentMockLogger) getErrorLogCalls() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]string, len(m.errorLogCalls))
+	copy(result, m.errorLogCalls)
+	return result
 }
 
 // TestHandleWebhook_LLMResponse tests that text messages are processed by LLM.
@@ -2670,6 +2694,108 @@ func TestHandleWebhook_LLMResponse(t *testing.T) {
 
 		// Cleanup
 		mockLLM.err = nil
+	})
+
+	t.Run("ERROR logging for LLM errors with type and details", func(t *testing.T) {
+		// NFR-003: Log LLM API errors at ERROR level with error type and details
+		// Test each error type to ensure proper logging
+
+		tests := []struct {
+			name             string
+			llmError         error
+			wantErrorType    string
+			wantErrorContain string
+		}{
+			{
+				name:             "timeout error logs at ERROR level",
+				llmError:         &llm.LLMTimeoutError{Message: "request timed out after 30s"},
+				wantErrorType:    "timeout",
+				wantErrorContain: "request timed out after 30s",
+			},
+			{
+				name:             "rate limit error logs at ERROR level",
+				llmError:         &llm.LLMRateLimitError{Message: "quota exceeded", RetryAfter: 60},
+				wantErrorType:    "rate_limit",
+				wantErrorContain: "quota exceeded",
+			},
+			{
+				name:             "network error logs at ERROR level",
+				llmError:         &llm.LLMNetworkError{Message: "connection refused"},
+				wantErrorType:    "network",
+				wantErrorContain: "connection refused",
+			},
+			{
+				name:             "auth error logs at ERROR level with status code",
+				llmError:         &llm.LLMAuthError{Message: "invalid API key", StatusCode: 401},
+				wantErrorType:    "auth",
+				wantErrorContain: "invalid API key",
+			},
+			{
+				name:             "response error logs at ERROR level",
+				llmError:         &llm.LLMResponseError{Message: "invalid response format"},
+				wantErrorType:    "response",
+				wantErrorContain: "invalid response format",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				mockSend.reset()
+				mockLLM.reset()
+				mockLLM.err = tt.llmError
+
+				// Setup fresh mock logger
+				errorLogger := &mockLogger{}
+				bot.SetLogger(errorLogger)
+
+				body := `{
+					"events": [
+						{
+							"type": "message",
+							"message": {
+								"type": "text",
+								"id": "12345",
+								"text": "Hello"
+							},
+							"timestamp": 1234567890,
+							"source": {
+								"type": "user",
+								"userId": "U1234567890abcdef"
+							},
+							"replyToken": "test-reply-token",
+							"mode": "active"
+						}
+					]
+				}`
+				req := createRequestWithValidSignature(t, channelSecret, body)
+				rec := httptest.NewRecorder()
+
+				bot.HandleWebhook(rec, req)
+
+				// Should return 200 (to prevent LINE from retrying)
+				assert.Equal(t, http.StatusOK, rec.Code)
+
+				// Should NOT send any reply when LLM fails
+				assert.Empty(t, mockSend.calls, "should not send reply when LLM fails")
+
+				// Should log error at ERROR level
+				assert.True(t, errorLogger.errorLogCalled, "should log at ERROR level")
+				assert.Len(t, errorLogger.allErrorEntries, 1, "should have exactly 1 ERROR log entry")
+
+				// Error log should contain error type
+				assert.Contains(t, errorLogger.lastErrorEntry, "llm_error",
+					"error log should contain 'llm_error' prefix")
+				assert.Contains(t, errorLogger.lastErrorEntry, "errorType="+tt.wantErrorType,
+					"error log should contain error type")
+
+				// Error log should contain error details
+				assert.Contains(t, errorLogger.lastErrorEntry, tt.wantErrorContain,
+					"error log should contain error details")
+
+				// Cleanup
+				mockLLM.err = nil
+			})
+		}
 	})
 
 	t.Run("DEBUG logging for LLM request and response", func(t *testing.T) {
