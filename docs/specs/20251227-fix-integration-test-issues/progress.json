@@ -1,14 +1,14 @@
 {
-  "phase": "designed",
+  "phase": "in_progress",
   "lastUpdated": "2025-12-27",
   "requirements": [
     { "id": "FX-001", "passes": false },
     { "id": "FX-002", "passes": false },
-    { "id": "FX-003", "passes": false },
+    { "id": "FX-003", "passes": true },
     { "id": "AC-001", "passes": false },
     { "id": "AC-002", "passes": false },
-    { "id": "AC-003", "passes": false }
+    { "id": "AC-003", "passes": true }
   ],
   "blockers": [],
-  "notes": ""
+  "notes": "FX-003/AC-003 complete: Replaced real timers with testing/synctest fake timers per ADR 20251227-fake-time-testing.md. Tests now complete in ~0s instead of ~23s. Added SetMetadataHTTPClient() for test injection. Review notes: Architectural concern about global variable race condition is theoretical (tests don't use t.Parallel), could be addressed in future refactoring. Next session should work on FX-001/AC-001 (LINE integration tests) or FX-002/AC-002 (remove default region fallback)."
 }

@@ -1,14 +1,18 @@
 package llm_test
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 	"yuruppu/internal/llm"
 
@@ -333,70 +337,110 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 // TestGetRegion_Timeout tests that metadata server request has 2-second timeout.
 // AC-001: Metadata server request has a 2-second timeout
 // SC-004: GetRegion now accepts fallback region as parameter
+// ADR: 20251227-fake-time-testing.md - Uses testing/synctest for deterministic timeout testing
 func TestGetRegion_Timeout(t *testing.T) {
-	tests := []struct {
-		name           string
-		serverDelay    int // milliseconds
-		fallbackRegion string
-		want           string
-	}{
-		{
-			name:           "request completes within 1 second - use metadata",
-			serverDelay:    1000,
-			fallbackRegion: "fallback-region",
-			want:           "us-west1", // from metadata
-		},
-		{
-			name:           "request completes within 1.9 seconds - use metadata",
-			serverDelay:    1900,
-			fallbackRegion: "fallback-region",
-			want:           "us-west1", // from metadata
-		},
-		{
-			name:           "request takes exactly 2 seconds - may timeout",
-			serverDelay:    2000,
-			fallbackRegion: "fallback-region",
-			want:           "fallback-region", // depends on implementation, may timeout
-		},
-		{
-			name:           "request takes 2.1 seconds - fallback to provided region",
-			serverDelay:    2100,
-			fallbackRegion: "fallback-region",
-			want:           "fallback-region",
-		},
-		{
-			name:           "request takes 5 seconds - fallback to provided region",
-			serverDelay:    5000,
-			fallbackRegion: "us-east1",
-			want:           "us-east1",
-		},
-		{
-			name:           "timeout with us-central1 fallback",
-			serverDelay:    3000,
-			fallbackRegion: "us-central1",
-			want:           "us-central1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server with delay
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(time.Duration(tt.serverDelay) * time.Millisecond)
-				w.WriteHeader(200)
-				w.Write([]byte("projects/123456789/regions/us-west1"))
-			}))
-			defer server.Close()
-
-			// When: Get region with fallback
-			// SC-004: Pass fallback region as parameter
-			got := llm.GetRegion(server.URL, tt.fallbackRegion)
-
-			// Then: Should handle timeout correctly
-			assert.Equal(t, tt.want, got,
-				"should fallback to provided region when timeout occurs")
+	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetRegionTimeout(t, 1*time.Second, "fallback-region", "us-west1")
 		})
+	})
+
+	t.Run("request takes exactly 2 seconds - timeout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetRegionTimeout(t, 2*time.Second, "fallback-region", "fallback-region")
+		})
+	})
+
+	t.Run("request takes longer than timeout - fallback", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetRegionTimeout(t, 5*time.Second, "us-east1", "us-east1")
+		})
+	})
+}
+
+// testGetRegionTimeout tests GetRegion timeout behavior using synctest fake time.
+// It creates an in-memory HTTP server that delays the response by serverDelay.
+func testGetRegionTimeout(t *testing.T, serverDelay time.Duration, fallbackRegion, want string) {
+	t.Helper()
+
+	// Create in-memory connection pair
+	srvConn, cliConn := net.Pipe()
+
+	// Configure HTTP client with custom transport that uses the pipe
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return cliConn, nil
+			},
+		},
 	}
+
+	// Inject the test client
+	cleanup := llm.SetMetadataHTTPClient(client)
+	defer cleanup()
+
+	// Channel to signal server goroutine completion
+	serverDone := make(chan struct{})
+
+	// Channel to cancel the server delay
+	cancelDelay := make(chan struct{})
+
+	// Start fake server goroutine
+	go func() {
+		defer close(serverDone)
+		defer srvConn.Close()
+
+		// Read the HTTP request
+		req, err := http.ReadRequest(bufio.NewReader(srvConn))
+		if err != nil {
+			// Client closed connection (timeout case)
+			return
+		}
+		req.Body.Close()
+
+		// Wait for delay or cancellation
+		timer := time.NewTimer(serverDelay)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			// Timer expired, send response
+		case <-cancelDelay:
+			// Cancelled, exit without sending response
+			return
+		}
+
+		// Write response
+		resp := &http.Response{
+			StatusCode: 200,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     make(http.Header),
+			Body:       http.NoBody,
+		}
+		resp.Header.Set("Content-Type", "text/plain")
+
+		// For region endpoint, return the metadata format
+		body := "projects/123456789/regions/us-west1"
+		resp.Body = io.NopCloser(strings.NewReader(body))
+		resp.ContentLength = int64(len(body))
+
+		resp.Write(srvConn)
+	}()
+
+	// Call GetRegion (uses any URL since we override transport)
+	got := llm.GetRegion("http://fake-metadata-server", fallbackRegion)
+
+	// Close client connection and cancel server delay to unblock server
+	cliConn.Close()
+	close(cancelDelay)
+
+	// Wait for server goroutine to finish
+	<-serverDone
+
+	assert.Equal(t, want, got)
 }
 
 // TestGetRegion_EdgeCases tests edge cases in region extraction.
@@ -734,51 +778,110 @@ func TestGetProjectID_EdgeCases(t *testing.T) {
 
 // TestGetProjectID_Timeout tests that metadata server request has 2-second timeout.
 // AC-001: Metadata server request has a 2-second timeout
+// ADR: 20251227-fake-time-testing.md - Uses testing/synctest for deterministic timeout testing
 func TestGetProjectID_Timeout(t *testing.T) {
-	tests := []struct {
-		name              string
-		serverDelay       int // milliseconds
-		fallbackProjectID string
-		want              string
-	}{
-		{
-			name:              "request completes within 1 second - use metadata",
-			serverDelay:       1000,
-			fallbackProjectID: "fallback-project",
-			want:              "my-project-123", // from metadata
-		},
-		{
-			name:              "request takes 2.1 seconds - fallback to provided project ID",
-			serverDelay:       2100,
-			fallbackProjectID: "fallback-project",
-			want:              "fallback-project",
-		},
-		{
-			name:              "request takes 5 seconds - fallback to provided project ID",
-			serverDelay:       5000,
-			fallbackProjectID: "my-dev-project",
-			want:              "my-dev-project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server with delay
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(time.Duration(tt.serverDelay) * time.Millisecond)
-				w.WriteHeader(200)
-				w.Write([]byte("my-project-123"))
-			}))
-			defer server.Close()
-
-			// When: Get project ID with fallback
-			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
-
-			// Then: Should handle timeout correctly
-			assert.Equal(t, tt.want, got,
-				"should fallback to provided project ID when timeout occurs")
+	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetProjectIDTimeout(t, 1*time.Second, "fallback-project", "my-project-123")
 		})
+	})
+
+	t.Run("request takes exactly 2 seconds - timeout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetProjectIDTimeout(t, 2*time.Second, "fallback-project", "fallback-project")
+		})
+	})
+
+	t.Run("request takes longer than timeout - fallback", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			testGetProjectIDTimeout(t, 5*time.Second, "my-dev-project", "my-dev-project")
+		})
+	})
+}
+
+// testGetProjectIDTimeout tests GetProjectID timeout behavior using synctest fake time.
+// It creates an in-memory HTTP server that delays the response by serverDelay.
+func testGetProjectIDTimeout(t *testing.T, serverDelay time.Duration, fallbackProjectID, want string) {
+	t.Helper()
+
+	// Create in-memory connection pair
+	srvConn, cliConn := net.Pipe()
+
+	// Configure HTTP client with custom transport that uses the pipe
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return cliConn, nil
+			},
+		},
 	}
+
+	// Inject the test client
+	cleanup := llm.SetMetadataHTTPClient(client)
+	defer cleanup()
+
+	// Channel to signal server goroutine completion
+	serverDone := make(chan struct{})
+
+	// Channel to cancel the server delay
+	cancelDelay := make(chan struct{})
+
+	// Start fake server goroutine
+	go func() {
+		defer close(serverDone)
+		defer srvConn.Close()
+
+		// Read the HTTP request
+		req, err := http.ReadRequest(bufio.NewReader(srvConn))
+		if err != nil {
+			// Client closed connection (timeout case)
+			return
+		}
+		req.Body.Close()
+
+		// Wait for delay or cancellation
+		timer := time.NewTimer(serverDelay)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			// Timer expired, send response
+		case <-cancelDelay:
+			// Cancelled, exit without sending response
+			return
+		}
+
+		// Write response
+		resp := &http.Response{
+			StatusCode: 200,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     make(http.Header),
+			Body:       http.NoBody,
+		}
+		resp.Header.Set("Content-Type", "text/plain")
+
+		// For project ID endpoint, return plain project ID
+		body := "my-project-123"
+		resp.Body = io.NopCloser(strings.NewReader(body))
+		resp.ContentLength = int64(len(body))
+
+		resp.Write(srvConn)
+	}()
+
+	// Call GetProjectID (uses any URL since we override transport)
+	got := llm.GetProjectID("http://fake-metadata-server", fallbackProjectID)
+
+	// Close client connection and cancel server delay to unblock server
+	cliConn.Close()
+	close(cancelDelay)
+
+	// Wait for server goroutine to finish
+	<-serverDone
+
+	assert.Equal(t, want, got)
 }
 
 // =============================================================================

@@ -20,7 +20,28 @@ const (
 	// geminiModel is the Gemini model to use for text generation.
 	// ADR: 20251225-gemini-model-selection.md - Using Gemini 2.5 Flash-Lite
 	geminiModel = "gemini-2.5-flash-lite"
+
+	// metadataTimeout is the timeout for metadata server requests.
+	metadataTimeout = 2 * time.Second
 )
+
+// metadataHTTPClient is the HTTP client used for metadata requests.
+// It can be overridden in tests to use fake transports.
+// ADR: 20251227-fake-time-testing.md - Allow test injection for synctest
+var metadataHTTPClient = &http.Client{
+	Timeout: metadataTimeout,
+}
+
+// SetMetadataHTTPClient replaces the HTTP client used for metadata requests.
+// This is intended for testing with fake transports.
+// It returns a cleanup function to restore the original client.
+func SetMetadataHTTPClient(client *http.Client) func() {
+	original := metadataHTTPClient
+	metadataHTTPClient = client
+	return func() {
+		metadataHTTPClient = original
+	}
+}
 
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
 type vertexAIClient struct {
@@ -169,10 +190,6 @@ func GetRegion(metadataServerURL string, fallbackRegion string) string {
 // Returns empty string on any failure (timeout, HTTP error, malformed response).
 // The parser function is applied to the response body to extract the desired value.
 func fetchMetadata(baseURL string, endpoint string, parser func(string) string) string {
-	client := &http.Client{
-		Timeout: 2 * time.Second,
-	}
-
 	req, err := http.NewRequest("GET", baseURL+endpoint, nil)
 	if err != nil {
 		return ""
@@ -180,7 +197,7 @@ func fetchMetadata(baseURL string, endpoint string, parser func(string) string) 
 
 	req.Header.Set("Metadata-Flavor", "Google")
 
-	resp, err := client.Do(req)
+	resp, err := metadataHTTPClient.Do(req)
 	if err != nil {
 		return ""
 	}
