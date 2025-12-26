@@ -114,7 +114,8 @@ func main() {
 	}
 
 	// Initialize components
-	server, err := line.NewServer(config.ChannelSecret, logger)
+	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
+	server, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -131,10 +132,6 @@ func main() {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-
-	// Configure server
-	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	server.SetCallbackTimeout(llmTimeout)
 
 	// Create yuruppu handler and register callback
 	yHandler := yuruppu.NewHandler(llmProvider, client, logger)

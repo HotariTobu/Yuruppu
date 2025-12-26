@@ -20,6 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testTimeout is the default timeout for tests.
+const testTimeout = 30 * time.Second
+
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -62,7 +65,7 @@ func TestNewServer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server, err := line.NewServer(tt.channelSecret, discardLogger())
+			server, err := line.NewServer(tt.channelSecret, testTimeout, discardLogger())
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -79,7 +82,7 @@ func TestNewServer(t *testing.T) {
 func TestServer_OnMessage(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", discardLogger())
+	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	callback := func(ctx context.Context, msg line.Message) error {
@@ -98,7 +101,7 @@ func TestServer_OnMessage(t *testing.T) {
 func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", discardLogger())
+	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -116,7 +119,7 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", discardLogger())
+	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -136,7 +139,7 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -158,7 +161,7 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	var mu sync.Mutex
@@ -227,7 +230,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	callbackStarted := make(chan struct{})
@@ -283,7 +286,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	var mu sync.Mutex
@@ -356,7 +359,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	callbackCalled := false
@@ -397,7 +400,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	var receivedMsg line.Message
@@ -446,7 +449,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	var receivedMsg line.Message
@@ -496,7 +499,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	var receivedCtx context.Context
@@ -547,7 +550,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	panicTriggered := make(chan struct{})
@@ -597,7 +600,7 @@ func TestServer_HandleWebhook_NoCallback(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	// No callback registered
@@ -629,17 +632,14 @@ func TestServer_HandleWebhook_NoCallback(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestServer_SetCallbackTimeout tests configurable timeout.
-func TestServer_SetCallbackTimeout(t *testing.T) {
+// TestServer_NewServerWithTimeout tests timeout passed to NewServer.
+func TestServer_NewServerWithTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, discardLogger())
-	require.NoError(t, err)
-
-	// Set custom timeout
 	customTimeout := 10 * time.Second
-	server.SetCallbackTimeout(customTimeout)
+	server, err := line.NewServer(channelSecret, customTimeout, discardLogger())
+	require.NoError(t, err)
 
 	var receivedCtx context.Context
 	callbackDone := make(chan struct{})
@@ -684,4 +684,93 @@ func TestServer_SetCallbackTimeout(t *testing.T) {
 	timeUntilDeadline := time.Until(deadline)
 	assert.True(t, timeUntilDeadline > 5*time.Second && timeUntilDeadline <= customTimeout,
 		"deadline should be approximately %v from now, got %v", customTimeout, timeUntilDeadline)
+}
+
+// TestNewServer_ZeroTimeout tests that zero timeout is rejected.
+func TestNewServer_ZeroTimeout(t *testing.T) {
+	t.Parallel()
+
+	server, err := line.NewServer("test-secret", 0, discardLogger())
+
+	require.Error(t, err, "zero timeout should be rejected")
+	assert.Nil(t, server)
+
+	var configErr *line.ConfigError
+	require.ErrorAs(t, err, &configErr)
+	assert.Equal(t, "timeout", configErr.Variable)
+}
+
+// TestNewServer_NegativeTimeout tests that negative timeout is rejected.
+func TestNewServer_NegativeTimeout(t *testing.T) {
+	t.Parallel()
+
+	server, err := line.NewServer("test-secret", -5*time.Second, discardLogger())
+
+	require.Error(t, err, "negative timeout should be rejected")
+	assert.Nil(t, server)
+
+	var configErr *line.ConfigError
+	require.ErrorAs(t, err, &configErr)
+	assert.Equal(t, "timeout", configErr.Variable)
+}
+
+// TestServer_CallbackTimeout_Enforcement tests that long-running callbacks are cancelled.
+func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	shortTimeout := 100 * time.Millisecond
+	server, err := line.NewServer(channelSecret, shortTimeout, discardLogger())
+	require.NoError(t, err)
+
+	callbackStarted := make(chan struct{})
+	contextCancelled := make(chan struct{})
+
+	server.OnMessage(func(ctx context.Context, msg line.Message) error {
+		close(callbackStarted)
+
+		// Wait for context cancellation
+		select {
+		case <-ctx.Done():
+			close(contextCancelled)
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			t.Error("context was not cancelled within timeout")
+		}
+		return nil
+	})
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "U123"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "1", "text": "test"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	server.HandleWebhook(w, req)
+
+	// Wait for callback to start
+	select {
+	case <-callbackStarted:
+	case <-time.After(1 * time.Second):
+		t.Fatal("callback was not invoked")
+	}
+
+	// Wait for context to be cancelled due to timeout
+	select {
+	case <-contextCancelled:
+		// Success - timeout was enforced
+	case <-time.After(1 * time.Second):
+		t.Fatal("context was not cancelled by timeout")
+	}
 }

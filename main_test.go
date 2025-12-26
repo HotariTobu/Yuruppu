@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
@@ -13,6 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testTimeout is the default timeout for tests.
+const testTimeout = 30 * time.Second
 
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
@@ -395,7 +399,7 @@ func TestNewServer_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// When: Initialize server directly
-			s, err := line.NewServer(tt.channelSecret, discardLogger())
+			s, err := line.NewServer(tt.channelSecret, testTimeout, discardLogger())
 
 			// Then: Should succeed without error
 			require.NoError(t, err, "line.NewServer should not return error with valid credentials")
@@ -409,7 +413,7 @@ func TestNewServer_Success(t *testing.T) {
 // TestNewServer_EmptySecret tests error when channel secret is empty.
 func TestNewServer_EmptySecret(t *testing.T) {
 	// When: Initialize server with empty channel secret
-	s, err := line.NewServer("", discardLogger())
+	s, err := line.NewServer("", testTimeout, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "line.NewServer should return error with empty channel secret")
@@ -492,7 +496,7 @@ func TestNewVertexAIClient_EmptyGCPProjectID(t *testing.T) {
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
 	// Given: Create a server directly
-	server, err := line.NewServer("test-secret", discardLogger())
+	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
 	require.NoError(t, err)
 
 	// When: Create handler

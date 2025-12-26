@@ -10,10 +10,6 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
-// defaultCallbackTimeout is the default timeout for callback execution.
-// This matches the LLM timeout from the spec (30 seconds).
-const defaultCallbackTimeout = 30 * time.Second
-
 // ConfigError represents an error related to missing or invalid configuration.
 type ConfigError struct {
 	Variable string
@@ -33,25 +29,24 @@ type Server struct {
 
 // NewServer creates a new LINE webhook server.
 // channelSecret is the LINE channel secret for signature verification.
+// timeout is the timeout for callback execution (must be positive).
 // logger is the structured logger for the server.
-// Returns an error if channelSecret is empty.
-func NewServer(channelSecret string, logger *slog.Logger) (*Server, error) {
+// Returns an error if channelSecret is empty or timeout is not positive.
+func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
 	channelSecret = strings.TrimSpace(channelSecret)
 	if channelSecret == "" {
 		return nil, &ConfigError{Variable: "channelSecret"}
 	}
 
+	if timeout <= 0 {
+		return nil, &ConfigError{Variable: "timeout"}
+	}
+
 	return &Server{
 		channelSecret:   channelSecret,
-		callbackTimeout: defaultCallbackTimeout,
+		callbackTimeout: timeout,
 		logger:          logger,
 	}, nil
-}
-
-// SetCallbackTimeout sets the timeout for callback execution.
-// The callback context will have this timeout set.
-func (s *Server) SetCallbackTimeout(timeout time.Duration) {
-	s.callbackTimeout = timeout
 }
 
 // OnMessage registers a callback to be invoked for each incoming message.
