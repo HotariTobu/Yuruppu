@@ -1,0 +1,22 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2025-12-26",
+  "requirements": [
+    { "id": "SC-001", "passes": false },
+    { "id": "SC-002", "passes": false },
+    { "id": "SC-003", "passes": false },
+    { "id": "SC-004", "passes": false },
+    { "id": "SC-005", "passes": false },
+    { "id": "SC-006", "passes": false },
+    { "id": "SC-007", "passes": false },
+    { "id": "AC-001", "passes": false },
+    { "id": "AC-002", "passes": false },
+    { "id": "AC-003", "passes": false },
+    { "id": "AC-004", "passes": false },
+    { "id": "AC-005", "passes": false },
+    { "id": "AC-006", "passes": false },
+    { "id": "AC-007", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
