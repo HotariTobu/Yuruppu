@@ -1,14 +1,14 @@
 {
-  "phase": "in_progress",
+  "phase": "completed",
   "lastUpdated": "2025-12-27",
   "requirements": [
-    { "id": "FX-001", "passes": false },
+    { "id": "FX-001", "passes": true },
     { "id": "FX-002", "passes": true },
     { "id": "FX-003", "passes": true },
-    { "id": "AC-001", "passes": false },
+    { "id": "AC-001", "passes": true },
     { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": true }
   ],
   "blockers": [],
-  "notes": "FX-002/AC-002 complete: Replaced skipIfMissingCredentials() with requireGCPCredentials() that uses t.Fatal() instead of t.Skip(). Removed fallback region logic - GCP_REGION is now required. Verified: no t.Skip() calls, no us-central1 string in vertexai_integration_test.go. Next session: FX-001/AC-001 (LINE integration tests)."
+  "notes": "All requirements complete. FX-001/AC-001: Created internal/line/line_integration_test.go with TestLINE_Integration_GetBotInfo. Uses requireLINECredentials() that fails with t.Fatal() when LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN is missing. Verified: test correctly fails without credentials, no t.Skip() calls in test file."
 }
