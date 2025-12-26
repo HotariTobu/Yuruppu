@@ -165,47 +165,43 @@ func GetRegion(metadataServerURL string, fallbackRegion string) string {
 	return fallbackRegion
 }
 
-// getRegionFromMetadata attempts to retrieve the region from the Cloud Run metadata server.
+// fetchMetadata fetches a value from the Cloud Run metadata server.
 // Returns empty string on any failure (timeout, HTTP error, malformed response).
-func getRegionFromMetadata(baseURL string) string {
-	// Create HTTP client with 2-second timeout
+// The parser function is applied to the response body to extract the desired value.
+func fetchMetadata(baseURL string, endpoint string, parser func(string) string) string {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
-	// Construct metadata endpoint URL
-	url := baseURL + "/computeMetadata/v1/instance/region"
-
-	// Create request
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", baseURL+endpoint, nil)
 	if err != nil {
 		return ""
 	}
 
-	// Add required header
 	req.Header.Set("Metadata-Flavor", "Google")
 
-	// Make request
 	resp, err := client.Do(req)
 	if err != nil {
 		return ""
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		return ""
 	}
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}
 
-	// Parse response format: projects/PROJECT-NUMBER/regions/REGION
-	// parseRegionFromResponse will handle trimming and validation
-	return parseRegionFromResponse(string(body))
+	return parser(string(body))
+}
+
+// getRegionFromMetadata attempts to retrieve the region from the Cloud Run metadata server.
+// Returns empty string on any failure (timeout, HTTP error, malformed response).
+func getRegionFromMetadata(baseURL string) string {
+	return fetchMetadata(baseURL, "/computeMetadata/v1/instance/region", parseRegionFromResponse)
 }
 
 // GetProjectID determines the GCP project ID to use for Vertex AI API calls.
@@ -234,43 +230,7 @@ func GetProjectID(metadataServerURL string, fallbackProjectID string) string {
 // getProjectIDFromMetadata attempts to retrieve the project ID from the Cloud Run metadata server.
 // Returns empty string on any failure (timeout, HTTP error, empty response).
 func getProjectIDFromMetadata(baseURL string) string {
-	// Create HTTP client with 2-second timeout
-	client := &http.Client{
-		Timeout: 2 * time.Second,
-	}
-
-	// Construct metadata endpoint URL
-	url := baseURL + "/computeMetadata/v1/project/project-id"
-
-	// Create request
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return ""
-	}
-
-	// Add required header
-	req.Header.Set("Metadata-Flavor", "Google")
-
-	// Make request
-	resp, err := client.Do(req)
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		return ""
-	}
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ""
-	}
-
-	// Parse response - project ID is returned as plain text
-	return parseProjectIDFromResponse(string(body))
+	return fetchMetadata(baseURL, "/computeMetadata/v1/project/project-id", parseProjectIDFromResponse)
 }
 
 // parseProjectIDFromResponse extracts the project ID from the metadata server response.
