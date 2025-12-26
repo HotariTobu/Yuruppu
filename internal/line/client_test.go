@@ -29,6 +29,10 @@ func (m *mockMessagingAPI) ReplyMessage(req *messaging_api.ReplyMessageRequest) 
 	return &messaging_api.ReplyMessageResponse{}, nil
 }
 
+// =============================================================================
+// NewClient Tests
+// =============================================================================
+
 // TestNewClient tests Client creation with various inputs.
 // SC-003: Client should validate channelToken
 func TestNewClient(t *testing.T) {
@@ -89,6 +93,26 @@ func TestNewClient(t *testing.T) {
 		})
 	}
 }
+
+// TestNewClient_TrimSpace tests that channelToken is trimmed.
+// SC-003: Follow same pattern as Server (trim whitespace)
+func TestNewClient_TrimSpace(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	// Create client with leading/trailing whitespace
+	client, err := line.NewClient("  valid-token  ", logger)
+	require.NoError(t, err)
+	assert.NotNil(t, client)
+
+	// Client should accept the token (after trimming)
+	// Internal implementation should trim the token
+}
+
+// =============================================================================
+// SendReply Tests
+// =============================================================================
 
 // TestClient_SendReply tests the SendReply method.
 // SC-003: Client.SendReply should call LINE ReplyMessage API
@@ -261,6 +285,10 @@ func TestClient_SendReply_MultipleCalls(t *testing.T) {
 	assert.Equal(t, "token-3", mock.replyMessageCalls[2].ReplyToken)
 }
 
+// =============================================================================
+// ConfigError Tests
+// =============================================================================
+
 // TestConfigError_Message tests ConfigError error message format.
 // SC-003: ConfigError should follow same pattern as Server
 func TestConfigError_Message(t *testing.T) {
@@ -269,20 +297,4 @@ func TestConfigError_Message(t *testing.T) {
 	err := &line.ConfigError{Variable: "channelToken"}
 	expected := "Missing required configuration: channelToken"
 	assert.Equal(t, expected, err.Error())
-}
-
-// TestNewClient_TrimSpace tests that channelToken is trimmed.
-// SC-003: Follow same pattern as Server (trim whitespace)
-func TestNewClient_TrimSpace(t *testing.T) {
-	t.Parallel()
-
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-
-	// Create client with leading/trailing whitespace
-	client, err := line.NewClient("  valid-token  ", logger)
-	require.NoError(t, err)
-	assert.NotNil(t, client)
-
-	// Client should accept the token (after trimming)
-	// Internal implementation should trim the token
 }

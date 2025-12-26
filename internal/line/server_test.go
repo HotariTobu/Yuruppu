@@ -35,6 +35,10 @@ func computeSignature(body []byte, channelSecret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// =============================================================================
+// NewServer Tests
+// =============================================================================
+
 // TestNewServer tests server creation with various inputs.
 func TestNewServer(t *testing.T) {
 	t.Parallel()
@@ -78,6 +82,38 @@ func TestNewServer(t *testing.T) {
 	}
 }
 
+// TestNewServer_ZeroTimeout tests that zero timeout is rejected.
+func TestNewServer_ZeroTimeout(t *testing.T) {
+	t.Parallel()
+
+	server, err := line.NewServer("test-secret", 0, discardLogger())
+
+	require.Error(t, err, "zero timeout should be rejected")
+	assert.Nil(t, server)
+
+	var configErr *line.ConfigError
+	require.ErrorAs(t, err, &configErr)
+	assert.Equal(t, "timeout", configErr.Variable)
+}
+
+// TestNewServer_NegativeTimeout tests that negative timeout is rejected.
+func TestNewServer_NegativeTimeout(t *testing.T) {
+	t.Parallel()
+
+	server, err := line.NewServer("test-secret", -5*time.Second, discardLogger())
+
+	require.Error(t, err, "negative timeout should be rejected")
+	assert.Nil(t, server)
+
+	var configErr *line.ConfigError
+	require.ErrorAs(t, err, &configErr)
+	assert.Equal(t, "timeout", configErr.Variable)
+}
+
+// =============================================================================
+// OnMessage Tests
+// =============================================================================
+
 // TestServer_OnMessage tests callback registration.
 func TestServer_OnMessage(t *testing.T) {
 	t.Parallel()
@@ -95,6 +131,10 @@ func TestServer_OnMessage(t *testing.T) {
 	// Registration should be idempotent - can register again without error
 	server.OnMessage(callback)
 }
+
+// =============================================================================
+// Signature Verification Tests
+// =============================================================================
 
 // TestServer_HandleWebhook_InvalidSignature tests signature verification.
 // AC-002: Signature is verified synchronously.
@@ -154,6 +194,10 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	// Should return 200 OK
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+// =============================================================================
+// Message Processing Tests
+// =============================================================================
 
 // TestServer_HandleWebhook_CallbackInvoked tests that callback is invoked for message events.
 // AC-002/AC-003: Callback is invoked asynchronously for each MessageEvent.
@@ -222,62 +266,6 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 	assert.Equal(t, "text", receivedMessages[0].Type)
 	assert.Equal(t, "Hello, World!", receivedMessages[0].Text)
 	assert.Equal(t, "U1234567890", receivedMessages[0].UserID)
-}
-
-// TestServer_HandleWebhook_AsyncExecution tests that HTTP response is sent before callback completes.
-// AC-002: HTTP response time does not depend on callback execution time.
-func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
-	require.NoError(t, err)
-
-	callbackStarted := make(chan struct{})
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		close(callbackStarted)
-		// Simulate slow processing
-		time.Sleep(500 * time.Millisecond)
-		close(callbackDone)
-		return nil
-	})
-
-	body := `{
-		"events": [
-			{
-				"type": "message",
-				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
-				"timestamp": 1625000000000,
-				"message": {"type": "text", "id": "1", "text": "test"}
-			}
-		]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-
-	// Measure time for HandleWebhook to return
-	start := time.Now()
-	server.HandleWebhook(w, req)
-	responseTime := time.Since(start)
-
-	// HTTP response should be sent quickly (before callback completes)
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Less(t, responseTime, 100*time.Millisecond, "HTTP response should be sent before callback completes")
-
-	// Wait for callback to complete
-	select {
-	case <-callbackDone:
-		// Success
-	case <-time.After(2 * time.Second):
-		t.Fatal("callback did not complete within timeout")
-	}
 }
 
 // TestServer_HandleWebhook_MultipleEvents tests multiple message events in one webhook.
@@ -493,6 +481,103 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	assert.Equal(t, "[User sent a sticker]", receivedMsg.Text)
 }
 
+// TestServer_HandleWebhook_NoCallback tests behavior when no callback is registered.
+func TestServer_HandleWebhook_NoCallback(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	require.NoError(t, err)
+
+	// No callback registered
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "U123"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "1", "text": "test"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+
+	// Should not panic when no callback is registered
+	assert.NotPanics(t, func() {
+		server.HandleWebhook(w, req)
+	})
+
+	// HTTP 200 should still be returned
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// =============================================================================
+// Async Execution and Context Tests
+// =============================================================================
+
+// TestServer_HandleWebhook_AsyncExecution tests that HTTP response is sent before callback completes.
+// AC-002: HTTP response time does not depend on callback execution time.
+func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	require.NoError(t, err)
+
+	callbackStarted := make(chan struct{})
+	callbackDone := make(chan struct{})
+
+	server.OnMessage(func(ctx context.Context, msg line.Message) error {
+		close(callbackStarted)
+		// Simulate slow processing
+		time.Sleep(500 * time.Millisecond)
+		close(callbackDone)
+		return nil
+	})
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "U123"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "1", "text": "test"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+
+	// Measure time for HandleWebhook to return
+	start := time.Now()
+	server.HandleWebhook(w, req)
+	responseTime := time.Since(start)
+
+	// HTTP response should be sent quickly (before callback completes)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Less(t, responseTime, 100*time.Millisecond, "HTTP response should be sent before callback completes")
+
+	// Wait for callback to complete
+	select {
+	case <-callbackDone:
+		// Success
+	case <-time.After(2 * time.Second):
+		t.Fatal("callback did not complete within timeout")
+	}
+}
+
 // TestServer_HandleWebhook_ContextWithTimeout tests that callback receives context with timeout.
 // Implementation note: Context propagation with configurable timeout.
 func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
@@ -542,94 +627,6 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	// Context should have a deadline
 	_, hasDeadline := receivedCtx.Deadline()
 	assert.True(t, hasDeadline, "context should have a timeout deadline")
-}
-
-// TestServer_HandleWebhook_PanicRecovery tests panic recovery in callback.
-// AC-008: Panics are recovered using defer/recover.
-func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
-	require.NoError(t, err)
-
-	panicTriggered := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		close(panicTriggered)
-		panic("test panic")
-	})
-
-	body := `{
-		"events": [
-			{
-				"type": "message",
-				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
-				"timestamp": 1625000000000,
-				"message": {"type": "text", "id": "1", "text": "test"}
-			}
-		]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-
-	// Should not panic even if callback panics
-	assert.NotPanics(t, func() {
-		server.HandleWebhook(w, req)
-	})
-
-	// HTTP 200 should still be returned
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	// Wait for panic to be triggered
-	select {
-	case <-panicTriggered:
-		// Panic was triggered and recovered
-	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
-	}
-}
-
-// TestServer_HandleWebhook_NoCallback tests behavior when no callback is registered.
-func TestServer_HandleWebhook_NoCallback(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
-	require.NoError(t, err)
-
-	// No callback registered
-
-	body := `{
-		"events": [
-			{
-				"type": "message",
-				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
-				"timestamp": 1625000000000,
-				"message": {"type": "text", "id": "1", "text": "test"}
-			}
-		]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-
-	// Should not panic when no callback is registered
-	assert.NotPanics(t, func() {
-		server.HandleWebhook(w, req)
-	})
-
-	// HTTP 200 should still be returned
-	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 // TestServer_NewServerWithTimeout tests timeout passed to NewServer.
@@ -684,34 +681,6 @@ func TestServer_NewServerWithTimeout(t *testing.T) {
 	timeUntilDeadline := time.Until(deadline)
 	assert.True(t, timeUntilDeadline > 5*time.Second && timeUntilDeadline <= customTimeout,
 		"deadline should be approximately %v from now, got %v", customTimeout, timeUntilDeadline)
-}
-
-// TestNewServer_ZeroTimeout tests that zero timeout is rejected.
-func TestNewServer_ZeroTimeout(t *testing.T) {
-	t.Parallel()
-
-	server, err := line.NewServer("test-secret", 0, discardLogger())
-
-	require.Error(t, err, "zero timeout should be rejected")
-	assert.Nil(t, server)
-
-	var configErr *line.ConfigError
-	require.ErrorAs(t, err, &configErr)
-	assert.Equal(t, "timeout", configErr.Variable)
-}
-
-// TestNewServer_NegativeTimeout tests that negative timeout is rejected.
-func TestNewServer_NegativeTimeout(t *testing.T) {
-	t.Parallel()
-
-	server, err := line.NewServer("test-secret", -5*time.Second, discardLogger())
-
-	require.Error(t, err, "negative timeout should be rejected")
-	assert.Nil(t, server)
-
-	var configErr *line.ConfigError
-	require.ErrorAs(t, err, &configErr)
-	assert.Equal(t, "timeout", configErr.Variable)
 }
 
 // TestServer_CallbackTimeout_Enforcement tests that long-running callbacks are cancelled.
@@ -772,5 +741,56 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 		// Success - timeout was enforced
 	case <-time.After(1 * time.Second):
 		t.Fatal("context was not cancelled by timeout")
+	}
+}
+
+// TestServer_HandleWebhook_PanicRecovery tests panic recovery in callback.
+// AC-008: Panics are recovered using defer/recover.
+func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	require.NoError(t, err)
+
+	panicTriggered := make(chan struct{})
+
+	server.OnMessage(func(ctx context.Context, msg line.Message) error {
+		close(panicTriggered)
+		panic("test panic")
+	})
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "U123"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "1", "text": "test"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+
+	// Should not panic even if callback panics
+	assert.NotPanics(t, func() {
+		server.HandleWebhook(w, req)
+	})
+
+	// HTTP 200 should still be returned
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Wait for panic to be triggered
+	select {
+	case <-panicTriggered:
+		// Panic was triggered and recovered
+	case <-time.After(2 * time.Second):
+		t.Fatal("callback was not invoked")
 	}
 }
