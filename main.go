@@ -79,38 +79,6 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
-// initServer initializes a LINE webhook server using the provided configuration.
-// Returns the Server instance or an error if initialization fails.
-func initServer(config *Config, logger *slog.Logger) (*line.Server, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
-
-	return line.NewServer(config.ChannelSecret, logger)
-}
-
-// initClient initializes a LINE messaging client using the provided configuration.
-// Returns the Client instance or an error if initialization fails.
-func initClient(config *Config, logger *slog.Logger) (*line.Client, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
-
-	return line.NewClient(config.ChannelAccessToken, logger)
-}
-
-// initLLM initializes an LLM provider using the provided configuration.
-// Returns the LLM provider or an error if initialization fails.
-// FR-003: Bot fails to start during initialization if credentials are missing
-// SC-003: Pass GCPRegion to NewVertexAIClient as fallback region
-func initLLM(ctx context.Context, config *Config, logger *slog.Logger) (llm.Provider, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
-
-	return llm.NewVertexAIClient(ctx, config.GCPProjectID, config.GCPRegion, logger)
-}
-
 // createMessageCallback creates a callback that adapts line.Message to yuruppu.Message.
 // This adapter bridges the line and yuruppu packages without creating circular imports.
 func createMessageCallback(handler *yuruppu.Handler) line.MessageHandler {
@@ -146,19 +114,19 @@ func main() {
 	}
 
 	// Initialize components
-	server, err := initServer(config, logger)
+	server, err := line.NewServer(config.ChannelSecret, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	client, err := initClient(config, logger)
+	client, err := line.NewClient(config.ChannelAccessToken, logger)
 	if err != nil {
 		logger.Error("failed to initialize client", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	llmProvider, err := initLLM(context.Background(), config, logger)
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), config.GCPProjectID, config.GCPRegion, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)
