@@ -32,11 +32,17 @@ type vertexAIClient struct {
 // AC-012: Bot initializes LLM client successfully when credentials are set
 // AC-013: Bot fails to start during initialization if credentials are missing
 // SC-003: Accept fallbackRegion as parameter instead of reading from environment
+// FX-001: Auto-detect project ID from Cloud Run metadata server
 //
-// The projectID parameter should typically come from the GCP_PROJECT_ID environment variable.
+// The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (optional on Cloud Run).
 // The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
-// Returns an error if projectID is empty or contains only whitespace.
-func NewVertexAIClient(ctx context.Context, projectID string, fallbackRegion string) (Provider, error) {
+// On Cloud Run, project ID and region are auto-detected from metadata server.
+// Returns an error if project ID cannot be determined from either metadata or fallback.
+func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string) (Provider, error) {
+	// Determine project ID from Cloud Run metadata, with fallback to provided project ID
+	// FX-001: Auto-detect project ID on Cloud Run
+	projectID := GetProjectID(metadataServerURL, fallbackProjectID)
+
 	// Validate projectID is not empty or whitespace
 	if strings.TrimSpace(projectID) == "" {
 		return nil, errors.New("GCP_PROJECT_ID is missing or empty")
@@ -171,6 +177,92 @@ func getRegionFromMetadata(baseURL string) string {
 	// Parse response format: projects/PROJECT-NUMBER/regions/REGION
 	// parseRegionFromResponse will handle trimming and validation
 	return parseRegionFromResponse(string(body))
+}
+
+// GetProjectID determines the GCP project ID to use for Vertex AI API calls.
+// FX-001: Add GetProjectID function following the GetRegion() pattern
+// AC-001: Auto-detect project ID on Cloud Run
+// AC-002: Fallback to env var when metadata unavailable
+//
+// It attempts to read the project ID from the Cloud Run metadata server.
+// If that fails (timeout, error, empty response), it falls back to the provided fallbackProjectID.
+//
+// The metadataServerURL parameter should be the base URL of the metadata server
+// (e.g., "http://metadata.google.internal" in production).
+// The function appends "/computeMetadata/v1/project/project-id" to this URL.
+// The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (via Config.GCPProjectID).
+func GetProjectID(metadataServerURL string, fallbackProjectID string) string {
+	// Try to get project ID from metadata server
+	projectID := getProjectIDFromMetadata(metadataServerURL)
+	if projectID != "" {
+		return projectID
+	}
+
+	// Fallback to provided project ID
+	return fallbackProjectID
+}
+
+// getProjectIDFromMetadata attempts to retrieve the project ID from the Cloud Run metadata server.
+// Returns empty string on any failure (timeout, HTTP error, empty response).
+func getProjectIDFromMetadata(baseURL string) string {
+	// Create HTTP client with 2-second timeout
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	// Construct metadata endpoint URL
+	url := baseURL + "/computeMetadata/v1/project/project-id"
+
+	// Create request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return ""
+	}
+
+	// Add required header
+	req.Header.Set("Metadata-Flavor", "Google")
+
+	// Make request
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	// Parse response - project ID is returned as plain text
+	return parseProjectIDFromResponse(string(body))
+}
+
+// parseProjectIDFromResponse extracts the project ID from the metadata server response.
+// The response is plain text containing just the project ID.
+// Returns empty string if the response is empty or contains invalid characters.
+func parseProjectIDFromResponse(response string) string {
+	// Trim only trailing newlines/carriage returns
+	response = strings.TrimRight(response, "\n\r")
+
+	// Reject responses with leading or trailing spaces
+	// (only newlines are acceptable for trimming)
+	if strings.TrimSpace(response) != response {
+		return ""
+	}
+
+	// Project ID must not be empty
+	if response == "" {
+		return ""
+	}
+
+	return response
 }
 
 // parseRegionFromResponse extracts the region from the metadata server response.
