@@ -4,10 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   preflight:
+    if: >
+      github.event_name != 'pull_request' ||
+      !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
