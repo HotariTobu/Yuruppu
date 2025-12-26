@@ -1,4 +1,4 @@
-.PHONY: test test-integration check preflight
+.PHONY: test test-integration check compile-all preflight
 
 test:
 	go test ./...
@@ -10,4 +10,9 @@ check:
 	go fmt ./...
 	go vet ./...
 
-preflight: check test
+# Compile all files including integration-tagged test files without running tests.
+# Uses 'go test -run=^$' because 'go build' skips _test.go files.
+compile-all:
+	go test -tags=integration -run='^$$' ./...
+
+preflight: check compile-all test
