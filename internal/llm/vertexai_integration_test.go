@@ -15,26 +15,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// skipIfMissingCredentials skips the test if required GCP credentials are not available.
-// AC-003: Integration tests skip without credentials with descriptive message.
-func skipIfMissingCredentials(t *testing.T) {
+// requireGCPCredentials fails the test if required GCP credentials are not available.
+// AC-002 (fix-integration-test-issues): Fail instead of skip when credentials are missing.
+func requireGCPCredentials(t *testing.T) (projectID, region string) {
 	t.Helper()
-	projectID := os.Getenv("GCP_PROJECT_ID")
+	projectID = os.Getenv("GCP_PROJECT_ID")
 	if projectID == "" {
-		t.Skip("Skipping integration test: GCP_PROJECT_ID environment variable is not set")
+		t.Fatal("GCP_PROJECT_ID environment variable is not set")
 	}
+	region = os.Getenv("GCP_REGION")
+	if region == "" {
+		t.Fatal("GCP_REGION environment variable is not set")
+	}
+	return projectID, region
 }
 
 // TestVertexAI_Integration_NewClient tests that NewVertexAIClient creates a client successfully.
-// AC-002: NewVertexAIClient() creates client successfully with valid credentials.
 func TestVertexAI_Integration_NewClient(t *testing.T) {
-	skipIfMissingCredentials(t)
-
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	region := os.Getenv("GCP_REGION")
-	if region == "" {
-		region = "us-central1"
-	}
+	projectID, region := requireGCPCredentials(t)
 
 	ctx := context.Background()
 
@@ -45,15 +43,8 @@ func TestVertexAI_Integration_NewClient(t *testing.T) {
 }
 
 // TestVertexAI_Integration_GenerateText tests that GenerateText returns a response from Vertex AI.
-// AC-002: GenerateText() returns response from Vertex AI.
 func TestVertexAI_Integration_GenerateText(t *testing.T) {
-	skipIfMissingCredentials(t)
-
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	region := os.Getenv("GCP_REGION")
-	if region == "" {
-		region = "us-central1"
-	}
+	projectID, region := requireGCPCredentials(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
