@@ -1,16 +1,16 @@
 {
-  "phase": "in_progress",
+  "phase": "completed",
   "lastUpdated": "2025-12-26",
   "requirements": [
     { "id": "SC-001", "passes": true },
     { "id": "SC-002", "passes": true },
     { "id": "SC-003", "passes": true },
-    { "id": "SC-004", "passes": false },
+    { "id": "SC-004", "passes": true },
     { "id": "AC-001", "passes": true },
     { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": true },
-    { "id": "AC-004", "passes": false }
+    { "id": "AC-004", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 3 complete: SC-003/AC-003 done. Changes: (1) Moved mock types (mockNetError, mockDNSError) from errors.go to vertexai_test.go with unexported names, (2) Removed MockAPIError and mock-specific check from MapAPIError, (3) Added export_test.go to expose mapHTTPStatusCode for testing, (4) Refactored tests to use MapHTTPStatusCode directly for HTTP status code mapping. Reviewers noted potential improvements (genai.APIError integration tests, url.Error coverage, field naming) but these are enhancements beyond spec scope. All tests pass. Next session should start with SC-004 (consolidate type assertion handling in server.go)."
+  "notes": "All 4 scope items completed. SC-001: Removed init wrapper functions from main.go. SC-002: Extracted fetchMetadata helper in vertexai.go. SC-003: Moved mock types to test file. SC-004: Added extractUserID and extractTextContent helpers to consolidate type assertion handling in server.go. All tests pass. Spec complete - ready for PR."
 }

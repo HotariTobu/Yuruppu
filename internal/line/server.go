@@ -96,29 +96,50 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// extractUserID extracts the user ID from a webhook source.
+// Handles both pointer and value types of UserSource.
+func extractUserID(source webhook.SourceInterface) string {
+	if source == nil {
+		return ""
+	}
+	switch s := source.(type) {
+	case *webhook.UserSource:
+		return s.UserId
+	case webhook.UserSource:
+		return s.UserId
+	default:
+		return ""
+	}
+}
+
+// extractTextContent extracts the text from a TextMessageContent.
+// Handles both pointer and value types.
+func extractTextContent(content webhook.MessageContentInterface) (string, bool) {
+	switch c := content.(type) {
+	case *webhook.TextMessageContent:
+		return c.Text, true
+	case webhook.TextMessageContent:
+		return c.Text, true
+	default:
+		return "", false
+	}
+}
+
 // extractMessage converts a LINE webhook MessageEvent to a line.Message.
 func extractMessage(msgEvent *webhook.MessageEvent) Message {
 	msg := Message{
 		ReplyToken: msgEvent.ReplyToken,
-	}
-
-	// Extract user ID from source
-	if msgEvent.Source != nil {
-		if userSource, ok := msgEvent.Source.(*webhook.UserSource); ok {
-			msg.UserID = userSource.UserId
-		} else if userSource, ok := msgEvent.Source.(webhook.UserSource); ok {
-			msg.UserID = userSource.UserId
-		}
+		UserID:     extractUserID(msgEvent.Source),
 	}
 
 	// Extract message type and text
-	switch content := msgEvent.Message.(type) {
-	case webhook.TextMessageContent:
+	if text, ok := extractTextContent(msgEvent.Message); ok {
 		msg.Type = "text"
-		msg.Text = content.Text
-	case *webhook.TextMessageContent:
-		msg.Type = "text"
-		msg.Text = content.Text
+		msg.Text = text
+		return msg
+	}
+
+	switch msgEvent.Message.(type) {
 	case webhook.ImageMessageContent, *webhook.ImageMessageContent:
 		msg.Type = "image"
 		msg.Text = "[User sent an image]"
