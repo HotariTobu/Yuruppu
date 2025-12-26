@@ -26,11 +26,11 @@ type Config struct {
 }
 
 const (
-	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
-	defaultLLMTimeoutSeconds = 30
-
 	// defaultPort is the default server port.
 	defaultPort = "8080"
+
+	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
+	defaultLLMTimeoutSeconds = 30
 )
 
 // loadConfig loads configuration from environment variables.
