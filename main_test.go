@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -372,11 +373,11 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 	}
 }
 
-// TestInitServer_Success tests successful Server initialization.
+// TestNewServer_Success tests successful Server initialization.
 // AC-003: Given valid credentials are set,
 // when application starts,
 // then line.NewServer() is called and Server instance is created successfully.
-func TestInitServer_Success(t *testing.T) {
+func TestNewServer_Success(t *testing.T) {
 	tests := []struct {
 		name          string
 		channelSecret string
@@ -393,16 +394,11 @@ func TestInitServer_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Valid configuration
-			config := &Config{
-				ChannelSecret: tt.channelSecret,
-			}
-
-			// When: Initialize server
-			s, err := initServer(config, discardLogger())
+			// When: Initialize server directly
+			s, err := line.NewServer(tt.channelSecret, discardLogger())
 
 			// Then: Should succeed without error
-			require.NoError(t, err, "initServer should not return error with valid credentials")
+			require.NoError(t, err, "line.NewServer should not return error with valid credentials")
 
 			// Then: Server instance should not be nil
 			assert.NotNil(t, s, "server instance should not be nil")
@@ -410,33 +406,13 @@ func TestInitServer_Success(t *testing.T) {
 	}
 }
 
-// TestInitServer_NilConfig tests error when config is nil.
-func TestInitServer_NilConfig(t *testing.T) {
-	// When: Initialize server with nil config
-	s, err := initServer(nil, discardLogger())
+// TestNewServer_EmptySecret tests error when channel secret is empty.
+func TestNewServer_EmptySecret(t *testing.T) {
+	// When: Initialize server with empty channel secret
+	s, err := line.NewServer("", discardLogger())
 
 	// Then: Should return error
-	require.Error(t, err, "initServer should return error with nil config")
-
-	// Then: Server instance should be nil
-	assert.Nil(t, s, "server instance should be nil on error")
-
-	// Then: Error message should be descriptive
-	assert.Contains(t, err.Error(), "config", "error message should mention config")
-}
-
-// TestInitServer_EmptySecret tests error when channel secret is empty.
-func TestInitServer_EmptySecret(t *testing.T) {
-	// Given: Configuration with empty channel secret
-	config := &Config{
-		ChannelSecret: "",
-	}
-
-	// When: Initialize server
-	s, err := initServer(config, discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "initServer should return error with empty channel secret")
+	require.Error(t, err, "line.NewServer should return error with empty channel secret")
 
 	// Then: Server instance should be nil
 	assert.Nil(t, s, "server instance should be nil on error")
@@ -445,8 +421,8 @@ func TestInitServer_EmptySecret(t *testing.T) {
 	assert.Contains(t, err.Error(), "channelSecret", "error message should mention channelSecret")
 }
 
-// TestInitClient_Success tests successful Client initialization.
-func TestInitClient_Success(t *testing.T) {
+// TestNewClient_Success tests successful Client initialization.
+func TestNewClient_Success(t *testing.T) {
 	tests := []struct {
 		name               string
 		channelAccessToken string
@@ -463,16 +439,11 @@ func TestInitClient_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Valid configuration
-			config := &Config{
-				ChannelAccessToken: tt.channelAccessToken,
-			}
-
-			// When: Initialize client
-			c, err := initClient(config, discardLogger())
+			// When: Initialize client directly
+			c, err := line.NewClient(tt.channelAccessToken, discardLogger())
 
 			// Then: Should succeed without error
-			require.NoError(t, err, "initClient should not return error with valid credentials")
+			require.NoError(t, err, "line.NewClient should not return error with valid credentials")
 
 			// Then: Client instance should not be nil
 			assert.NotNil(t, c, "client instance should not be nil")
@@ -480,33 +451,13 @@ func TestInitClient_Success(t *testing.T) {
 	}
 }
 
-// TestInitClient_NilConfig tests error when config is nil.
-func TestInitClient_NilConfig(t *testing.T) {
-	// When: Initialize client with nil config
-	c, err := initClient(nil, discardLogger())
+// TestNewClient_EmptyToken tests error when channel access token is empty.
+func TestNewClient_EmptyToken(t *testing.T) {
+	// When: Initialize client with empty channel access token
+	c, err := line.NewClient("", discardLogger())
 
 	// Then: Should return error
-	require.Error(t, err, "initClient should return error with nil config")
-
-	// Then: Client instance should be nil
-	assert.Nil(t, c, "client instance should be nil on error")
-
-	// Then: Error message should be descriptive
-	assert.Contains(t, err.Error(), "config", "error message should mention config")
-}
-
-// TestInitClient_EmptyToken tests error when channel access token is empty.
-func TestInitClient_EmptyToken(t *testing.T) {
-	// Given: Configuration with empty channel access token
-	config := &Config{
-		ChannelAccessToken: "",
-	}
-
-	// When: Initialize client
-	c, err := initClient(config, discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "initClient should return error with empty channel access token")
+	require.Error(t, err, "line.NewClient should return error with empty channel access token")
 
 	// Then: Client instance should be nil
 	assert.Nil(t, c, "client instance should be nil on error")
@@ -515,36 +466,14 @@ func TestInitClient_EmptyToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "channelToken", "error message should mention channelToken")
 }
 
-// TestInitLLM_NilConfig tests error when config is nil.
-func TestInitLLM_NilConfig(t *testing.T) {
-	// When: Initialize LLM with nil config
-	llmProvider, err := initLLM(context.Background(), nil, discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "initLLM should return error with nil config")
-
-	// Then: LLM provider should be nil
-	assert.Nil(t, llmProvider, "llmProvider should be nil on error")
-
-	// Then: Error message should be descriptive
-	assert.Contains(t, err.Error(), "config", "error message should mention config")
-}
-
-// TestInitLLM_EmptyGCPProjectID tests error when GCP_PROJECT_ID is empty.
+// TestNewVertexAIClient_EmptyGCPProjectID tests error when GCP_PROJECT_ID is empty.
 // AC-013: Bot fails to start during initialization if credentials are missing.
-func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
-	// Given: Configuration with empty GCP_PROJECT_ID
-	config := &Config{
-		ChannelSecret:      "test-secret",
-		ChannelAccessToken: "test-token",
-		GCPProjectID:       "",
-	}
-
-	// When: Initialize LLM
-	llmProvider, err := initLLM(context.Background(), config, discardLogger())
+func TestNewVertexAIClient_EmptyGCPProjectID(t *testing.T) {
+	// When: Initialize LLM with empty GCP_PROJECT_ID
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), "", "", discardLogger())
 
 	// Then: Should return error
-	require.Error(t, err, "initLLM should return error with empty GCP_PROJECT_ID")
+	require.Error(t, err, "llm.NewVertexAIClient should return error with empty GCP_PROJECT_ID")
 
 	// Then: LLM provider should be nil
 	assert.Nil(t, llmProvider, "llmProvider should be nil on error")
@@ -562,8 +491,8 @@ func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
 // when application starts,
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
-	// Given: Create a server
-	server, err := initServer(&Config{ChannelSecret: "test-secret"}, discardLogger())
+	// Given: Create a server directly
+	server, err := line.NewServer("test-secret", discardLogger())
 	require.NoError(t, err)
 
 	// When: Create handler
