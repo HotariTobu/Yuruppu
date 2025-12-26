@@ -4,16 +4,16 @@
   "requirements": [
     { "id": "CH-001", "passes": true },
     { "id": "CH-002", "passes": true },
-    { "id": "CH-003", "passes": false },
+    { "id": "CH-003", "passes": true },
     { "id": "CH-004", "passes": true },
     { "id": "CH-005", "passes": false },
     { "id": "AC-001", "passes": true },
     { "id": "AC-002", "passes": true },
-    { "id": "AC-003", "passes": false },
+    { "id": "AC-003", "passes": true },
     { "id": "AC-004", "passes": true },
     { "id": "AC-005", "passes": false },
     { "id": "AC-006", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 2: Improved golangci-lint PATH lookup (uses PATH instead of hardcoded GOPATH/bin). Fixed deprecated goerr113 warning. All code auto-formatted by golangci-lint --fix. Next session should implement CH-003 (govulncheck) then CH-005 (GitHub Actions workflow)."
+  "notes": "Session 3 complete: Added govulncheck to check target. CH-003 and AC-003 now pass. Next session should implement CH-005 (GitHub Actions workflow) - need to add golangci-lint-action and ensure make preflight passes in CI."
 }
