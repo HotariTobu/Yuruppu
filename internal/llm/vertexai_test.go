@@ -714,6 +714,274 @@ func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
 	}
 }
 
+// TestGetProjectID tests project ID determination logic for Cloud Run metadata.
+// FX-001: Add GetProjectID function following the GetRegion() pattern
+// AC-001: Auto-detect project ID on Cloud Run
+// AC-002: Fallback to env var when metadata unavailable
+// AC-003: Error when no project ID available
+// AC-004: Regression - existing functionality preserved
+func TestGetProjectID(t *testing.T) {
+	tests := []struct {
+		name              string
+		metadataServer    *metadataServerMock
+		fallbackProjectID string
+		want              string
+	}{
+		{
+			name: "metadata server returns valid project ID",
+			metadataServer: &metadataServerMock{
+				response:   "my-project-123",
+				statusCode: 200,
+				delay:      0,
+			},
+			fallbackProjectID: "fallback-project",
+			want:              "my-project-123",
+		},
+		{
+			name: "metadata server returns different project ID",
+			metadataServer: &metadataServerMock{
+				response:   "another-gcp-project",
+				statusCode: 200,
+				delay:      0,
+			},
+			fallbackProjectID: "fallback-project",
+			want:              "another-gcp-project",
+		},
+		{
+			name: "metadata server timeout (2s) - fallback to provided project ID",
+			metadataServer: &metadataServerMock{
+				response:   "my-project-123",
+				statusCode: 200,
+				delay:      3000, // 3 seconds - exceeds 2s timeout
+			},
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name: "metadata server unavailable - fallback to provided project ID",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 500,
+				delay:      0,
+			},
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name: "metadata server returns 404 - fallback to provided project ID",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 404,
+				delay:      0,
+			},
+			fallbackProjectID: "my-local-project",
+			want:              "my-local-project",
+		},
+		{
+			name: "empty response - fallback to provided project ID",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 200,
+				delay:      0,
+			},
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name: "metadata unavailable - use provided fallback project ID",
+			metadataServer: &metadataServerMock{
+				response:   "",
+				statusCode: 503,
+				delay:      0,
+			},
+			fallbackProjectID: "my-dev-project",
+			want:              "my-dev-project",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server and fallback project ID
+			server := tt.metadataServer.Start(t)
+			defer server.Close()
+
+			// When: Get project ID with fallback
+			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
+
+			// Then: Should return expected project ID
+			assert.Equal(t, tt.want, got,
+				"project ID should match expected value")
+		})
+	}
+}
+
+// TestGetProjectID_MetadataHeaders tests that metadata server requests include required headers.
+// AC-001: Metadata request requires header: Metadata-Flavor: Google
+func TestGetProjectID_MetadataHeaders(t *testing.T) {
+	t.Run("metadata request includes Metadata-Flavor: Google header", func(t *testing.T) {
+		// Given: Mock metadata server that captures request headers
+		var capturedHeaders http.Header
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedHeaders = r.Header
+			w.WriteHeader(200)
+			w.Write([]byte("my-project-123"))
+		}))
+		defer server.Close()
+
+		// When: Get project ID
+		_ = llm.GetProjectID(server.URL, "fallback-project")
+
+		// Then: Should include Metadata-Flavor header
+		require.NotNil(t, capturedHeaders, "request should have been made")
+		assert.Equal(t, "Google", capturedHeaders.Get("Metadata-Flavor"),
+			"should include Metadata-Flavor: Google header")
+	})
+}
+
+// TestGetProjectID_ProductionEndpoint tests using actual Cloud Run metadata endpoint path.
+// AC-001: Production endpoint format for project ID
+func TestGetProjectID_ProductionEndpoint(t *testing.T) {
+	t.Run("uses correct metadata endpoint path for project ID", func(t *testing.T) {
+		// Given: Mock server that verifies the request path
+		var requestedPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestedPath = r.URL.Path
+			w.WriteHeader(200)
+			w.Write([]byte("my-project-123"))
+		}))
+		defer server.Close()
+
+		// When: Get project ID with base URL (production would use http://metadata.google.internal)
+		_ = llm.GetProjectID(server.URL, "fallback-project")
+
+		// Then: Should request the correct path
+		expectedPath := "/computeMetadata/v1/project/project-id"
+		assert.Equal(t, expectedPath, requestedPath,
+			"should request metadata endpoint path: %s", expectedPath)
+	})
+}
+
+// TestGetProjectID_EdgeCases tests edge cases in project ID extraction.
+// AC-001: Project ID format validation and edge cases
+func TestGetProjectID_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name              string
+		metadataResponse  string
+		fallbackProjectID string
+		want              string
+	}{
+		{
+			name:              "response with trailing newline - trim and use",
+			metadataResponse:  "my-project-123\n",
+			fallbackProjectID: "fallback-project",
+			want:              "my-project-123",
+		},
+		{
+			name:              "response with CRLF - trim and use",
+			metadataResponse:  "my-project-123\r\n",
+			fallbackProjectID: "fallback-project",
+			want:              "my-project-123",
+		},
+		{
+			name:              "response with leading spaces - fallback (malformed)",
+			metadataResponse:  "  my-project-123",
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name:              "response with trailing spaces - fallback (malformed)",
+			metadataResponse:  "my-project-123  ",
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name:              "whitespace only - fallback",
+			metadataResponse:  "   ",
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name:              "empty string - fallback",
+			metadataResponse:  "",
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name:              "newline only - fallback",
+			metadataResponse:  "\n",
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server returning edge case response
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(200)
+				w.Write([]byte(tt.metadataResponse))
+			}))
+			defer server.Close()
+
+			// When: Get project ID with fallback
+			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
+
+			// Then: Should handle edge case correctly
+			assert.Equal(t, tt.want, got,
+				"should handle edge case correctly")
+		})
+	}
+}
+
+// TestGetProjectID_Timeout tests that metadata server request has 2-second timeout.
+// AC-001: Metadata server request has a 2-second timeout
+func TestGetProjectID_Timeout(t *testing.T) {
+	tests := []struct {
+		name              string
+		serverDelay       int // milliseconds
+		fallbackProjectID string
+		want              string
+	}{
+		{
+			name:              "request completes within 1 second - use metadata",
+			serverDelay:       1000,
+			fallbackProjectID: "fallback-project",
+			want:              "my-project-123", // from metadata
+		},
+		{
+			name:              "request takes 2.1 seconds - fallback to provided project ID",
+			serverDelay:       2100,
+			fallbackProjectID: "fallback-project",
+			want:              "fallback-project",
+		},
+		{
+			name:              "request takes 5 seconds - fallback to provided project ID",
+			serverDelay:       5000,
+			fallbackProjectID: "my-dev-project",
+			want:              "my-dev-project",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Mock metadata server with delay
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(time.Duration(tt.serverDelay) * time.Millisecond)
+				w.WriteHeader(200)
+				w.Write([]byte("my-project-123"))
+			}))
+			defer server.Close()
+
+			// When: Get project ID with fallback
+			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
+
+			// Then: Should handle timeout correctly
+			assert.Equal(t, tt.want, got,
+				"should fallback to provided project ID when timeout occurs")
+		})
+	}
+}
+
 // TestNewVertexAIClient_InitializationFailure tests initialization failure scenarios.
 // FR-003: Bot fails to start during initialization if credentials are missing
 func TestNewVertexAIClient_InitializationFailure(t *testing.T) {
