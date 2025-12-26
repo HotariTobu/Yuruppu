@@ -128,7 +128,7 @@ Add DEBUG logs throughout the codebase following the log level guidelines. For c
 ## Implementation Notes
 
 - Use `slog.NewJSONHandler(os.Stdout, nil)` for production
-- For tests, use `slog.New(slog.NewJSONHandler(io.Discard, nil))` to suppress logs
+- For tests, use `slog.New(slog.DiscardHandler)` to suppress logs (Go 1.24+)
 
 ## Change History
 

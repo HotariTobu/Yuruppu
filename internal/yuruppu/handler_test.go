@@ -3,7 +3,6 @@ package yuruppu_test
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"testing"
 	"yuruppu/internal/yuruppu"
@@ -18,7 +17,7 @@ import (
 
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 // mockLLMProvider is a test mock for LLMProvider.

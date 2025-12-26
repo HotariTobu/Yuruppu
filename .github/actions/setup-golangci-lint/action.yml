@@ -21,4 +21,4 @@ runs:
     - name: Install golangci-lint
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ steps.version.outputs.version }}
+      run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ steps.version.outputs.version }}

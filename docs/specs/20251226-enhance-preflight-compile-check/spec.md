@@ -32,7 +32,7 @@ preflight: check test
 ## Proposed Changes
 
 - [ ] CH-001: Add compile check with `-tags=integration` to verify all files compile
-- [ ] CH-002: Add golangci-lint with `enable-all` for comprehensive linting
+- [ ] CH-002: Add golangci-lint with explicit linter list for comprehensive linting
 - [ ] CH-003: Add `govulncheck` for known vulnerability detection
 - [ ] CH-004: Separate `fix` target for auto-formatting
 - [ ] CH-005: Update GitHub Actions workflow to install tools and run new preflight
@@ -111,16 +111,29 @@ test-integration:
 preflight: check compile-all test
 ```
 
-Expected `.golangci.yml`:
+Expected `.golangci.yml` (v2 format):
 
 ```yaml
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+
 linters:
-  enable-all: true
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    # ... 75 linters explicitly listed
 ```
 
 Tool installation (for local development):
 ```bash
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 go install golang.org/x/vuln/cmd/govulncheck@latest
 ```
 
@@ -129,3 +142,4 @@ go install golang.org/x/vuln/cmd/govulncheck@latest
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2025-12-26 | 1.0 | Initial version | - |
+| 2025-12-27 | 1.1 | Upgrade to golangci-lint v2 with explicit linter list | - |
