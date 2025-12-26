@@ -113,7 +113,6 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			// Given: Unset any existing environment variables
 			os.Unsetenv("LINE_CHANNEL_SECRET")
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
-			os.Unsetenv("GCP_PROJECT_ID")
 
 			// Given: Set environment variables (if not empty)
 			if tt.channelSecret != "" && tt.name != "unset channel secret returns error" {
@@ -122,7 +121,6 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			if tt.channelAccessToken != "" {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			}
-			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -176,7 +174,6 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			// Given: Unset any existing environment variables
 			os.Unsetenv("LINE_CHANNEL_SECRET")
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
-			os.Unsetenv("GCP_PROJECT_ID")
 
 			// Given: Set environment variables (if not empty)
 			if tt.channelSecret != "" {
@@ -185,7 +182,6 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			if tt.channelAccessToken != "" && tt.name != "unset channel access token returns error" {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			}
-			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -221,7 +217,6 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 			// Given: Unset all environment variables
 			os.Unsetenv("LINE_CHANNEL_SECRET")
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
-			os.Unsetenv("GCP_PROJECT_ID")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -239,52 +234,24 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 	}
 }
 
-// TestLoadConfig_MissingGCPProjectID tests error when GCP_PROJECT_ID is missing.
-// FR-003, AC-013: Bot fails to start during initialization if credentials are missing
-func TestLoadConfig_MissingGCPProjectID(t *testing.T) {
-	tests := []struct {
-		name         string
-		gcpProjectID string
-		wantErrMsg   string
-	}{
-		{
-			name:         "empty GCP_PROJECT_ID returns error",
-			gcpProjectID: "",
-			wantErrMsg:   "GCP_PROJECT_ID is required",
-		},
-		{
-			name:         "whitespace-only GCP_PROJECT_ID returns error",
-			gcpProjectID: "   ",
-			wantErrMsg:   "GCP_PROJECT_ID is required",
-		},
-	}
+// TestLoadConfig_GCPConfigOptional tests that GCP config is optional in loadConfig.
+// AC-002, AC-003: GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
+func TestLoadConfig_GCPConfigOptional(t *testing.T) {
+	// Given: Set LINE credentials but not GCP config
+	t.Setenv("LINE_CHANNEL_SECRET", "valid-secret")
+	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "valid-token")
+	os.Unsetenv("GCP_PROJECT_ID")
+	os.Unsetenv("GCP_REGION")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials but not GCP_PROJECT_ID
-			t.Setenv("LINE_CHANNEL_SECRET", "valid-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "valid-token")
+	// When: Load configuration
+	config, err := loadConfig()
 
-			if tt.gcpProjectID != "" {
-				t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
-			} else {
-				os.Unsetenv("GCP_PROJECT_ID")
-			}
+	// Then: Should succeed without error
+	require.NoError(t, err, "loadConfig should not return error when GCP config is missing")
 
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should return error
-			require.Error(t, err, "loadConfig should return error when GCP_PROJECT_ID is missing")
-
-			// Then: Config should be nil
-			assert.Nil(t, config, "config should be nil on error")
-
-			// Then: Error message should indicate GCP_PROJECT_ID is required
-			assert.Contains(t, err.Error(), tt.wantErrMsg,
-				"error message should indicate GCP_PROJECT_ID is required")
-		})
-	}
+	// Then: GCPProjectID and GCPRegion should be empty strings
+	assert.Equal(t, "", config.GCPProjectID, "GCPProjectID should be empty string")
+	assert.Equal(t, "", config.GCPRegion, "GCPRegion should be empty string")
 }
 
 // TestLoadConfig_TrimsWhitespace tests that configuration values are trimmed.
@@ -364,7 +331,6 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 			name: "missing secret error mentions LINE_CHANNEL_SECRET",
 			setupEnv: func(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
-				t.Setenv("GCP_PROJECT_ID", "project-id")
 				// LINE_CHANNEL_SECRET is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_SECRET", "required"},
@@ -373,19 +339,9 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 			name: "missing token error mentions LINE_CHANNEL_ACCESS_TOKEN",
 			setupEnv: func(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_SECRET", "secret")
-				t.Setenv("GCP_PROJECT_ID", "project-id")
 				// LINE_CHANNEL_ACCESS_TOKEN is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_ACCESS_TOKEN", "required"},
-		},
-		{
-			name: "missing GCP_PROJECT_ID error mentions GCP_PROJECT_ID",
-			setupEnv: func(t *testing.T) {
-				t.Setenv("LINE_CHANNEL_SECRET", "secret")
-				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
-				// GCP_PROJECT_ID is not set
-			},
-			wantErrContains: []string{"GCP_PROJECT_ID", "required"},
 		},
 	}
 
@@ -394,7 +350,6 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 			// Given: Setup environment
 			os.Unsetenv("LINE_CHANNEL_SECRET")
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
-			os.Unsetenv("GCP_PROJECT_ID")
 			tt.setupEnv(t)
 
 			// When: Load configuration
@@ -775,7 +730,7 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 }
 
 // TestLoadConfig_GCPRegion tests that GCP_REGION is loaded via loadConfig.
-// SC-002, AC-002: GCP_REGION is read and trimmed, defaults to "asia-northeast1" if empty.
+// GCP_REGION is optional (auto-detected on Cloud Run).
 func TestLoadConfig_GCPRegion(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -783,9 +738,9 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 		expectedRegion string
 	}{
 		{
-			name:           "default region is asia-northeast1 when not set",
+			name:           "empty string when not set",
 			gcpRegionEnv:   "",
-			expectedRegion: "asia-northeast1",
+			expectedRegion: "",
 		},
 		{
 			name:           "custom region from environment variable",
@@ -809,7 +764,6 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 
 			if tt.gcpRegionEnv != "" {
 				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
@@ -831,7 +785,7 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 }
 
 // TestLoadConfig_GCPRegion_TrimsWhitespace tests that GCP_REGION value is trimmed.
-// SC-002, AC-002: GCP_REGION environment variable is read and trimmed.
+// GCP_REGION environment variable is read and trimmed.
 func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -854,9 +808,9 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			expectedRegion: "asia-northeast1",
 		},
 		{
-			name:           "whitespace only defaults to asia-northeast1",
+			name:           "whitespace only results in empty string",
 			gcpRegionEnv:   "   ",
-			expectedRegion: "asia-northeast1",
+			expectedRegion: "",
 		},
 	}
 
@@ -865,7 +819,6 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 
 			// When: Load configuration

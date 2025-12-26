@@ -37,26 +37,28 @@ type vertexAIClient struct {
 // The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (optional on Cloud Run).
 // The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
 // On Cloud Run, project ID and region are auto-detected from metadata server.
-// Returns an error if project ID cannot be determined from either metadata or fallback.
+// Returns an error if project ID or region cannot be determined from either metadata or fallback.
 func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string) (Provider, error) {
+	// Handle nil context gracefully (SDK may require non-nil context)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Determine project ID from Cloud Run metadata, with fallback to provided project ID
-	// FX-001: Auto-detect project ID on Cloud Run
 	projectID := GetProjectID(metadataServerURL, fallbackProjectID)
+
+	// Determine region from Cloud Run metadata, with fallback to provided region
+	region := GetRegion(metadataServerURL, fallbackRegion)
 
 	// Validate projectID is not empty or whitespace
 	if strings.TrimSpace(projectID) == "" {
 		return nil, errors.New("GCP_PROJECT_ID is missing or empty")
 	}
 
-	// Handle nil context gracefully (SDK may require non-nil context)
-	if ctx == nil {
-		ctx = context.Background()
+	// Validate region is not empty or whitespace
+	if strings.TrimSpace(region) == "" {
+		return nil, errors.New("GCP_REGION is missing or empty")
 	}
-
-	// Determine region from Cloud Run metadata, with fallback to provided region
-	// AC-001: Region derived from Cloud Run metadata
-	// SC-003: Fallback region is passed as parameter
-	region := GetRegion(metadataServerURL, fallbackRegion)
 
 	// Create Vertex AI client
 	// ADR: 20251224-llm-provider.md - Uses Application Default Credentials (ADC)

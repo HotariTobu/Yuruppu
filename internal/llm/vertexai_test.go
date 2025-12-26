@@ -1017,3 +1017,55 @@ func TestNewVertexAIClient_InitializationFailure(t *testing.T) {
 		})
 	}
 }
+
+// TestNewVertexAIClient_EmptyGCPRegion tests that client initialization fails when GCP_REGION is missing.
+// AC-005: Add new test for empty GCP_REGION validation
+// AC-007: Error is returned when GCP_REGION is empty and metadata unavailable
+func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
+	tests := []struct {
+		name       string
+		region     string
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:       "empty region returns error",
+			region:     "",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
+		},
+		{
+			name:       "whitespace-only region returns error",
+			region:     "   ",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
+		},
+		{
+			name:       "whitespace with tabs region returns error",
+			region:     "\t\n  ",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Valid project ID but empty/whitespace region
+			// When: Attempt to create Vertex AI client
+			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region)
+
+			// Then: Should return error indicating missing GCP_REGION
+			if tt.wantErr {
+				require.Error(t, err,
+					"should return error when GCP_REGION is missing")
+				assert.Nil(t, client,
+					"client should be nil when initialization fails")
+				assert.Contains(t, err.Error(), tt.wantErrMsg,
+					"error message should indicate GCP_REGION is missing or empty")
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, client)
+			}
+		})
+	}
+}
