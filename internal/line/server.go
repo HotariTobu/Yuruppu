@@ -33,8 +33,9 @@ type Server struct {
 
 // NewServer creates a new LINE webhook server.
 // channelSecret is the LINE channel secret for signature verification.
+// logger is the structured logger for the server.
 // Returns an error if channelSecret is empty.
-func NewServer(channelSecret string) (*Server, error) {
+func NewServer(channelSecret string, logger *slog.Logger) (*Server, error) {
 	channelSecret = strings.TrimSpace(channelSecret)
 	if channelSecret == "" {
 		return nil, &ConfigError{Variable: "channelSecret"}
@@ -43,13 +44,8 @@ func NewServer(channelSecret string) (*Server, error) {
 	return &Server{
 		channelSecret:   channelSecret,
 		callbackTimeout: defaultCallbackTimeout,
+		logger:          logger,
 	}, nil
-}
-
-// SetLogger sets the logger for the server.
-// If nil, no logging is performed.
-func (s *Server) SetLogger(logger *slog.Logger) {
-	s.logger = logger
 }
 
 // SetCallbackTimeout sets the timeout for callback execution.
@@ -73,11 +69,9 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Parse webhook request using LINE SDK (includes signature verification)
 	cb, err := webhook.ParseRequest(s.channelSecret, r)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Error("webhook parsing failed",
-				slog.Any("error", err),
-			)
-		}
+		s.logger.Error("webhook parsing failed",
+			slog.Any("error", err),
+		)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
@@ -159,13 +153,11 @@ func (s *Server) invokeCallback(msg Message) {
 		// Panic recovery (AC-008)
 		defer func() {
 			if r := recover(); r != nil {
-				if s.logger != nil {
-					s.logger.Error("callback panicked",
-						slog.String("replyToken", msg.ReplyToken),
-						slog.String("userID", msg.UserID),
-						slog.Any("panic", r),
-					)
-				}
+				s.logger.Error("callback panicked",
+					slog.String("replyToken", msg.ReplyToken),
+					slog.String("userID", msg.UserID),
+					slog.Any("panic", r),
+				)
 			}
 		}()
 
@@ -175,13 +167,11 @@ func (s *Server) invokeCallback(msg Message) {
 
 		// Invoke callback
 		if err := s.callback(ctx, msg); err != nil {
-			if s.logger != nil {
-				s.logger.Error("callback failed",
-					slog.String("replyToken", msg.ReplyToken),
-					slog.String("userID", msg.UserID),
-					slog.Any("error", err),
-				)
-			}
+			s.logger.Error("callback failed",
+				slog.String("replyToken", msg.ReplyToken),
+				slog.String("userID", msg.UserID),
+				slog.Any("error", err),
+			)
 		}
 	}()
 }

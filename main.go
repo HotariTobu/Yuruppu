@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -82,34 +81,34 @@ func loadConfig() (*Config, error) {
 
 // initServer initializes a LINE webhook server using the provided configuration.
 // Returns the Server instance or an error if initialization fails.
-func initServer(config *Config) (*line.Server, error) {
+func initServer(config *Config, logger *slog.Logger) (*line.Server, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	return line.NewServer(config.ChannelSecret)
+	return line.NewServer(config.ChannelSecret, logger)
 }
 
 // initClient initializes a LINE messaging client using the provided configuration.
 // Returns the Client instance or an error if initialization fails.
-func initClient(config *Config) (*line.Client, error) {
+func initClient(config *Config, logger *slog.Logger) (*line.Client, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	return line.NewClient(config.ChannelAccessToken)
+	return line.NewClient(config.ChannelAccessToken, logger)
 }
 
 // initLLM initializes an LLM provider using the provided configuration.
 // Returns the LLM provider or an error if initialization fails.
 // FR-003: Bot fails to start during initialization if credentials are missing
 // SC-003: Pass GCPRegion to NewVertexAIClient as fallback region
-func initLLM(ctx context.Context, config *Config) (llm.Provider, error) {
+func initLLM(ctx context.Context, config *Config, logger *slog.Logger) (llm.Provider, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	return llm.NewVertexAIClient(ctx, config.GCPProjectID, config.GCPRegion)
+	return llm.NewVertexAIClient(ctx, config.GCPProjectID, config.GCPRegion, logger)
 }
 
 // createMessageCallback creates a callback that adapts line.Message to yuruppu.Message.
@@ -136,35 +135,38 @@ func createHandler(server *line.Server) http.Handler {
 }
 
 func main() {
+	// Create logger with JSON handler for structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	// Load configuration
 	config, err := loadConfig()
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("failed to load configuration", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
-
-	// Create logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Initialize components
-	server, err := initServer(config)
+	server, err := initServer(config, logger)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("failed to initialize server", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
-	client, err := initClient(config)
+	client, err := initClient(config, logger)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("failed to initialize client", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
-	llmProvider, err := initLLM(context.Background(), config)
+	llmProvider, err := initLLM(context.Background(), config, logger)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	// Configure server
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
 	server.SetCallbackTimeout(llmTimeout)
-	server.SetLogger(logger)
 
 	// Create yuruppu handler and register callback
 	yHandler := yuruppu.NewHandler(llmProvider, client, logger)
@@ -172,8 +174,9 @@ func main() {
 
 	// Start HTTP server
 	handler := createHandler(server)
-	log.Printf("Server listening on port %s", config.Port)
+	logger.Info("server starting", slog.String("port", config.Port))
 	if err := http.ListenAndServe(":"+config.Port, handler); err != nil {
-		log.Fatal(err)
+		logger.Error("server failed", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 }
