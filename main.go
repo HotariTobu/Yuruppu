@@ -35,16 +35,18 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, LLM_TIMEOUT_SECONDS, PORT, and GCP_REGION from environment.
+// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, and LLM_TIMEOUT_SECONDS from environment.
 // Returns error if required LINE environment variables are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 func loadConfig() (*Config, error) {
-	// Load and trim environment variables
+	// Load and trim environment variables (order matches Config struct)
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = defaultPort
+	}
+
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
 	channelAccessToken := strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"))
-	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
-	port := strings.TrimSpace(os.Getenv("PORT"))
-	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
 
 	// Validate LINE_CHANNEL_SECRET
 	if channelSecret == "" {
@@ -56,6 +58,9 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("LINE_CHANNEL_ACCESS_TOKEN is required")
 	}
 
+	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
+	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
+
 	// Parse LLM timeout
 	llmTimeoutSeconds := defaultLLMTimeoutSeconds
 	if llmTimeoutEnv := os.Getenv("LLM_TIMEOUT_SECONDS"); llmTimeoutEnv != "" {
@@ -63,11 +68,6 @@ func loadConfig() (*Config, error) {
 			llmTimeoutSeconds = parsed
 		}
 		// Invalid values fall back to default
-	}
-
-	// Default PORT to 8080 if empty
-	if port == "" {
-		port = defaultPort
 	}
 
 	return &Config{
@@ -145,38 +145,34 @@ func main() {
 	// Create logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Initialize LINE server (webhook handler)
+	// Initialize components
 	server, err := initServer(config)
 	if err != nil {
 		log.Fatal(err)
 	}
-	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	server.SetCallbackTimeout(llmTimeout)
-	server.SetLogger(logger)
 
-	// Initialize LINE client (message sender)
 	client, err := initClient(config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Initialize LLM provider (FR-003)
 	llmProvider, err := initLLM(context.Background(), config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Configure server
+	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
+	server.SetCallbackTimeout(llmTimeout)
+	server.SetLogger(logger)
+
 	// Create yuruppu handler and register callback
 	yHandler := yuruppu.NewHandler(llmProvider, client, logger)
 	server.OnMessage(createMessageCallback(yHandler))
 
-	// Create HTTP handler and start server
-	handler := createHandler(server)
-
-	// Log startup message
-	log.Printf("Server listening on port %s", config.Port)
-
 	// Start HTTP server
+	handler := createHandler(server)
+	log.Printf("Server listening on port %s", config.Port)
 	if err := http.ListenAndServe(":"+config.Port, handler); err != nil {
 		log.Fatal(err)
 	}
