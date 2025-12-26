@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,7 @@ const testTimeout = 30 * time.Second
 
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 // computeSignature computes the LINE webhook signature for a given body and secret.

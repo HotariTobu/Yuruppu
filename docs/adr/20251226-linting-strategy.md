@@ -1,7 +1,7 @@
 # ADR: Linting Strategy
 
 > Date: 2025-12-26
-> Status: **Adopted**
+> Status: **Amended** (2025-12-27)
 
 <!--
 ADR records decisions only. Do NOT add:
@@ -28,28 +28,33 @@ golangci-lint is the de facto standard for Go linting, aggregating 100+ linters 
 - **Option 1:** Enable-all approach (enable all linters, disable specific problematic ones)
 - **Option 2:** Selective approach (start with defaults, enable specific linters deliberately)
 - **Option 3:** Preset approach (use `standard` preset with minimal customization)
+- **Option 4:** Explicit comprehensive approach (explicitly list all desired linters)
 
 ## Evaluation
 
-| Criterion | Weight | Enable-all | Selective | Preset |
-|-----------|--------|------------|-----------|--------|
-| Functional Fit | 25% | 5 (1.25) | 3 (0.75) | 3 (0.75) |
-| Go Compatibility | 20% | 5 (1.00) | 5 (1.00) | 5 (1.00) |
-| Lightweight | 15% | 2 (0.30) | 4 (0.60) | 4 (0.60) |
-| Security | 15% | 5 (0.75) | 3 (0.45) | 3 (0.45) |
-| Documentation | 15% | 4 (0.60) | 4 (0.60) | 5 (0.75) |
-| Ecosystem | 10% | 4 (0.40) | 4 (0.40) | 4 (0.40) |
-| **Total** | 100% | **4.30** | **3.80** | **3.95** |
+| Criterion | Weight | Enable-all | Selective | Preset | Explicit |
+|-----------|--------|------------|-----------|--------|----------|
+| Functional Fit | 25% | 5 (1.25) | 3 (0.75) | 3 (0.75) | 5 (1.25) |
+| Go Compatibility | 20% | 5 (1.00) | 5 (1.00) | 5 (1.00) | 5 (1.00) |
+| Lightweight | 15% | 2 (0.30) | 4 (0.60) | 4 (0.60) | 2 (0.30) |
+| Security | 15% | 5 (0.75) | 3 (0.45) | 3 (0.45) | 5 (0.75) |
+| Documentation | 15% | 4 (0.60) | 4 (0.60) | 5 (0.75) | 5 (0.75) |
+| Ecosystem | 10% | 4 (0.40) | 4 (0.40) | 4 (0.40) | 5 (0.50) |
+| **Total** | 100% | **4.30** | **3.80** | **3.95** | **4.55** |
 
-**Functional Fit:** Enable-all ensures no valuable linter is overlooked. Selective/Preset risk missing important checks.
+**Functional Fit:** Enable-all and Explicit ensure no valuable linter is overlooked. Selective/Preset risk missing important checks.
 
-**Lightweight:** Enable-all runs all linters, slower execution. Selective/Preset are faster.
+**Lightweight:** Enable-all and Explicit run all linters, slower execution. Selective/Preset are faster.
 
-**Security:** Enable-all includes security-focused linters like gosec by default. Others may miss them.
+**Security:** Enable-all and Explicit include security-focused linters like gosec. Others may miss them.
+
+**Ecosystem:** Explicit approach aligns with golangci-lint v2's recommended configuration pattern.
 
 ## Decision
 
-Adopt **Enable-all approach** with golangci-lint.
+~~Adopt **Enable-all approach** with golangci-lint.~~ (Original)
+
+**Amended:** Adopt **Explicit comprehensive approach** with golangci-lint v2.
 
 ## Rationale
 
@@ -57,24 +62,28 @@ Adopt **Enable-all approach** with golangci-lint.
 
 2. **No legacy burden:** With only 15 Go files and no existing technical debt, addressing all issues immediately is feasible.
 
-3. **Learning opportunity:** Enable-all surfaces linters and best practices that selective approaches might miss entirely.
+3. **Learning opportunity:** Comprehensive linting surfaces linters and best practices that selective approaches might miss entirely.
 
-4. **Explicit disables:** When specific linters are too strict or impractical, disabling them explicitly documents the decision (vs never knowing they existed).
+4. **Explicit configuration:** When specific linters are too strict or impractical, the explicit list documents exactly which linters are enabled and why others are excluded.
+
+5. **Predictable updates:** Unlike enable-all, new linters added in future golangci-lint releases won't automatically break CI. Linter additions are deliberate.
 
 ## Consequences
 
 **Positive:**
 - Comprehensive code quality coverage from day one
 - No risk of missing valuable linters
-- Explicit documentation of any disabled linters
+- Explicit documentation of enabled linters
+- Predictable behavior across golangci-lint version upgrades
 
 **Negative:**
-- Initial setup requires reviewing all linter output and deciding what to disable
+- Initial setup requires reviewing all linter output and curating the list
 - Slower lint execution compared to selective approaches
-- May need to disable linters that conflict or are overly strict
+- Longer configuration file with explicit linter list
 
 **Risks:**
-- Some linters may produce excessive false positives - mitigated by explicitly disabling them with comments explaining why
+- Some linters may produce excessive false positives - mitigated by removing them from the enable list with comments explaining why
+- New useful linters may be missed - mitigated by periodic review of available linters
 
 ## Related Decisions
 
@@ -91,3 +100,16 @@ Adopt **Enable-all approach** with golangci-lint.
 - [golangci-lint Configuration Guide](https://golangci-lint.run/docs/configuration/)
 - [Golden config for golangci-lint](https://gist.github.com/maratori/47a4d00457a92aa426dbd48a18776322)
 - [Go linters configuration, the right version](https://olegk.dev/go-linters-configuration-the-right-version)
+
+## Amendment (2025-12-27)
+
+**Trigger:** golangci-lint v2 release changed configuration best practices.
+
+**Change:** Migrated from enable-all approach (Option 1) to explicit comprehensive approach (Option 4).
+
+**Reason:**
+- golangci-lint v2 introduced new configuration format requiring migration
+- Explicit list provides predictable behavior - new linters won't auto-enable on upgrades
+- Better alignment with v2 best practices while maintaining comprehensive linting philosophy
+
+The core philosophy (comprehensive linting) remains unchanged; only the implementation approach changed to align with v2 best practices.

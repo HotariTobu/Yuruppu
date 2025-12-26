@@ -1,7 +1,6 @@
 package line_test
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 	"yuruppu/internal/line"
@@ -37,7 +36,7 @@ func (m *mockMessagingAPI) ReplyMessage(req *messaging_api.ReplyMessageRequest) 
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	tests := []struct {
 		name         string
@@ -98,7 +97,7 @@ func TestNewClient(t *testing.T) {
 func TestNewClient_TrimSpace(t *testing.T) {
 	t.Parallel()
 
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	// Create client with leading/trailing whitespace
 	client, err := line.NewClient("  valid-token  ", logger)
@@ -118,7 +117,7 @@ func TestNewClient_TrimSpace(t *testing.T) {
 func TestClient_SendReply(t *testing.T) {
 	t.Parallel()
 
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	tests := []struct {
 		name       string
@@ -192,7 +191,7 @@ func TestClient_SendReply_APICall(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	mock := &mockMessagingAPI{}
 	client := line.NewClientWithAPI(mock, logger)
 
@@ -222,7 +221,7 @@ func TestClient_SendReply_APIError(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	mock := &mockMessagingAPI{
 		replyMessageError: assert.AnError,
 	}
@@ -242,7 +241,7 @@ func TestClient_SendReply_EmptyReplyToken(t *testing.T) {
 	t.Parallel()
 
 	// Setup with mock
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	mock := &mockMessagingAPI{}
 	client := line.NewClientWithAPI(mock, logger)
 
@@ -262,7 +261,7 @@ func TestClient_SendReply_MultipleCalls(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	mock := &mockMessagingAPI{}
 	client := line.NewClientWithAPI(mock, logger)
 
