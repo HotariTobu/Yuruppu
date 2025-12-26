@@ -1,0 +1,24 @@
+name: Setup govulncheck
+description: Install govulncheck with caching
+
+runs:
+  using: composite
+  steps:
+    - name: Get latest version
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(curl -s https://api.github.com/repos/golang/vuln/releases/latest | jq -r .tag_name)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Cache govulncheck
+      id: cache
+      uses: actions/cache@v5
+      with:
+        path: ~/go/bin/govulncheck
+        key: ${{ runner.os }}-govulncheck-${{ steps.version.outputs.version }}
+
+    - name: Install govulncheck
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: go install golang.org/x/vuln/cmd/govulncheck@${{ steps.version.outputs.version }}

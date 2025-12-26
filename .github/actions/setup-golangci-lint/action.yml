@@ -1,0 +1,24 @@
+name: Setup golangci-lint
+description: Install golangci-lint with caching
+
+runs:
+  using: composite
+  steps:
+    - name: Get latest version
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest | jq -r .tag_name)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Cache golangci-lint
+      id: cache
+      uses: actions/cache@v5
+      with:
+        path: ~/go/bin/golangci-lint
+        key: ${{ runner.os }}-golangci-lint-${{ steps.version.outputs.version }}
+
+    - name: Install golangci-lint
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ steps.version.outputs.version }}
