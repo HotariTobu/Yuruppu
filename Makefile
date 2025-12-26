@@ -11,6 +11,7 @@ test-integration:
 
 check:
 	golangci-lint run ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 # Compile all files including integration-tagged test files without running tests.
 # Uses 'go test -run=^$' because 'go build' skips _test.go files.
