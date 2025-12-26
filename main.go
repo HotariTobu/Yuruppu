@@ -18,35 +18,26 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
+	Port               string // Server port (default: 8080)
 	ChannelSecret      string
 	ChannelAccessToken string
-	GCPProjectID       string
-	LLMTimeoutSeconds  int    // NFR-001: LLM API timeout in seconds (default: 30)
-	Port               string // SC-001: Server port (default: 8080)
-	GCPRegion          string // SC-002: GCP region for Vertex AI (default: asia-northeast1)
+	GCPProjectID       string // Optional: auto-detected on Cloud Run
+	GCPRegion          string // Optional: auto-detected on Cloud Run
+	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
 }
 
 const (
 	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
-	// NFR-001: LLM API total request timeout should be configurable (default: 30 seconds)
 	defaultLLMTimeoutSeconds = 30
 
 	// defaultPort is the default server port.
-	// SC-001: Server reads PORT from environment with 8080 as default.
 	defaultPort = "8080"
-
-	// defaultRegion is the default GCP region for Vertex AI API calls.
-	// SC-002: GCP_REGION is read from environment with asia-northeast1 as default.
-	defaultRegion = "asia-northeast1"
 )
 
 // loadConfig loads configuration from environment variables.
 // It reads LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, LLM_TIMEOUT_SECONDS, PORT, and GCP_REGION from environment.
-// Returns error if any required environment variable is missing or empty after trimming whitespace.
-// FR-003: Load LLM API credentials from environment variables
-// NFR-001: Load LLM timeout configuration
-// SC-001: Load PORT configuration
-// SC-002: Load GCP_REGION configuration
+// Returns error if required LINE environment variables are missing or empty after trimming whitespace.
+// GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables
 	channelSecret := strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET"))
@@ -55,7 +46,7 @@ func loadConfig() (*Config, error) {
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
 
-	// Validate LINE_CHANNEL_SECRET first
+	// Validate LINE_CHANNEL_SECRET
 	if channelSecret == "" {
 		return nil, errors.New("LINE_CHANNEL_SECRET is required")
 	}
@@ -65,12 +56,7 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("LINE_CHANNEL_ACCESS_TOKEN is required")
 	}
 
-	// Validate GCP_PROJECT_ID (FR-003)
-	if gcpProjectID == "" {
-		return nil, errors.New("GCP_PROJECT_ID is required")
-	}
-
-	// Parse LLM timeout (NFR-001)
+	// Parse LLM timeout
 	llmTimeoutSeconds := defaultLLMTimeoutSeconds
 	if llmTimeoutEnv := os.Getenv("LLM_TIMEOUT_SECONDS"); llmTimeoutEnv != "" {
 		if parsed, err := strconv.Atoi(llmTimeoutEnv); err == nil && parsed > 0 {
@@ -79,23 +65,18 @@ func loadConfig() (*Config, error) {
 		// Invalid values fall back to default
 	}
 
-	// SC-001: Default PORT to 8080 if empty
+	// Default PORT to 8080 if empty
 	if port == "" {
 		port = defaultPort
 	}
 
-	// SC-002: Default GCP_REGION to asia-northeast1 if empty
-	if gcpRegion == "" {
-		gcpRegion = defaultRegion
-	}
-
 	return &Config{
+		Port:               port,
 		ChannelSecret:      channelSecret,
 		ChannelAccessToken: channelAccessToken,
 		GCPProjectID:       gcpProjectID,
-		LLMTimeoutSeconds:  llmTimeoutSeconds,
-		Port:               port,
 		GCPRegion:          gcpRegion,
+		LLMTimeoutSeconds:  llmTimeoutSeconds,
 	}, nil
 }
 
