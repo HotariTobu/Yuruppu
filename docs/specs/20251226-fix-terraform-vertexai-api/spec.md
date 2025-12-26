@@ -22,8 +22,8 @@ Vertex AI integration was added after the initial Terraform configuration was cr
 
 ## Proposed Fix
 
-- [ ] FX-001: Add `aiplatform.googleapis.com` to `google_project_service.apis`
-- [ ] FX-002: Add `roles/aiplatform.user` IAM role to Cloud Run service account
+- [x] FX-001: Add `aiplatform.googleapis.com` to `google_project_service.apis`
+- [x] FX-002: Add `roles/aiplatform.user` IAM role to Cloud Run service account
 
 ## Acceptance Criteria
 

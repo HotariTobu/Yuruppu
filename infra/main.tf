@@ -98,6 +98,12 @@ resource "google_project_iam_member" "cloudbuild_logs" {
   member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
+resource "google_project_iam_member" "cloudrun_vertex_ai" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.cloudrun.email}"
+}
+
 # Cloud Build 2nd gen connection and repository are created via gcloud
 # See docs/deployment.md for setup instructions
 locals {
