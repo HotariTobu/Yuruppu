@@ -1,7 +1,10 @@
-.PHONY: test check preflight
+.PHONY: test test-integration check preflight
 
 test:
 	go test ./...
+
+test-integration:
+	go test -tags=integration ./...
 
 check:
 	go fmt ./...
