@@ -3,7 +3,7 @@
   "lastUpdated": "2025-12-26",
   "requirements": [
     { "id": "SC-001", "passes": true },
-    { "id": "SC-002", "passes": false },
+    { "id": "SC-002", "passes": true },
     { "id": "SC-003", "passes": false },
     { "id": "SC-004", "passes": false },
     { "id": "SC-005", "passes": false },
@@ -19,5 +19,5 @@
     { "id": "AC-008", "passes": false }
   ],
   "blockers": [],
-  "notes": "SC-001 complete: Created internal/yuruppu package with Handler, SystemPrompt, and tests. Next: SC-002 or SC-003 to create line package."
+  "notes": "SC-002 complete: Created internal/line package with Server (webhook handling), types.go (Message, MessageHandler), and comprehensive tests. Server implements async callback pattern per AC-002. Code reviewers found suggestions (race condition docs, panic log sanitization) but no critical blockers. Next session should start with SC-003: Create line.Client for SendReply functionality."
 }
