@@ -1,6 +1,8 @@
 package line_test
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 
 	"yuruppu/internal/line"
@@ -31,6 +33,8 @@ func (m *mockMessagingAPI) ReplyMessage(req *messaging_api.ReplyMessageRequest) 
 // SC-003: Client should validate channelToken
 func TestNewClient(t *testing.T) {
 	t.Parallel()
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 	tests := []struct {
 		name         string
@@ -66,7 +70,7 @@ func TestNewClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := line.NewClient(tt.channelToken)
+			client, err := line.NewClient(tt.channelToken, logger)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -90,6 +94,8 @@ func TestNewClient(t *testing.T) {
 // SC-003: Client.SendReply should call LINE ReplyMessage API
 func TestClient_SendReply(t *testing.T) {
 	t.Parallel()
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 	tests := []struct {
 		name       string
@@ -135,7 +141,7 @@ func TestClient_SendReply(t *testing.T) {
 
 			// Create client with mock API
 			mock := &mockMessagingAPI{}
-			client := line.NewClientWithAPI(mock)
+			client := line.NewClientWithAPI(mock, logger)
 
 			err := client.SendReply(tt.replyToken, tt.text)
 
@@ -163,8 +169,9 @@ func TestClient_SendReply_APICall(t *testing.T) {
 	t.Parallel()
 
 	// Setup
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	mock := &mockMessagingAPI{}
-	client := line.NewClientWithAPI(mock)
+	client := line.NewClientWithAPI(mock, logger)
 
 	replyToken := "test-reply-token-123"
 	messageText := "Hello, World!"
@@ -192,10 +199,11 @@ func TestClient_SendReply_APIError(t *testing.T) {
 	t.Parallel()
 
 	// Setup
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	mock := &mockMessagingAPI{
 		replyMessageError: assert.AnError,
 	}
-	client := line.NewClientWithAPI(mock)
+	client := line.NewClientWithAPI(mock, logger)
 
 	// Act
 	err := client.SendReply("test-token", "Hello")
@@ -211,8 +219,9 @@ func TestClient_SendReply_EmptyReplyToken(t *testing.T) {
 	t.Parallel()
 
 	// Setup with mock
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	mock := &mockMessagingAPI{}
-	client := line.NewClientWithAPI(mock)
+	client := line.NewClientWithAPI(mock, logger)
 
 	// Empty reply token - LINE API will reject this, but Client should call it
 	// Client is not responsible for validating business logic, just making the API call
@@ -230,8 +239,9 @@ func TestClient_SendReply_MultipleCalls(t *testing.T) {
 	t.Parallel()
 
 	// Setup
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	mock := &mockMessagingAPI{}
-	client := line.NewClientWithAPI(mock)
+	client := line.NewClientWithAPI(mock, logger)
 
 	// Act - send multiple replies
 	err1 := client.SendReply("token-1", "Message 1")
@@ -266,8 +276,10 @@ func TestConfigError_Message(t *testing.T) {
 func TestNewClient_TrimSpace(t *testing.T) {
 	t.Parallel()
 
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
 	// Create client with leading/trailing whitespace
-	client, err := line.NewClient("  valid-token  ")
+	client, err := line.NewClient("  valid-token  ", logger)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 

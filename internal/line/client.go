@@ -1,6 +1,7 @@
 package line
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
@@ -14,13 +15,15 @@ type MessagingAPI interface {
 
 // Client sends messages via LINE Messaging API.
 type Client struct {
-	api MessagingAPI
+	api    MessagingAPI
+	logger *slog.Logger
 }
 
 // NewClient creates a new LINE messaging client.
 // channelToken is the LINE channel access token for API calls.
+// logger is the structured logger for the client.
 // Returns an error if channelToken is empty after trimming whitespace.
-func NewClient(channelToken string) (*Client, error) {
+func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 	channelToken = strings.TrimSpace(channelToken)
 	if channelToken == "" {
 		return nil, &ConfigError{Variable: "channelToken"}
@@ -33,15 +36,17 @@ func NewClient(channelToken string) (*Client, error) {
 	}
 
 	return &Client{
-		api: api,
+		api:    api,
+		logger: logger,
 	}, nil
 }
 
 // NewClientWithAPI creates a new LINE messaging client with a custom API implementation.
 // This is used for testing with mock API implementations.
-func NewClientWithAPI(api MessagingAPI) *Client {
+func NewClientWithAPI(api MessagingAPI, logger *slog.Logger) *Client {
 	return &Client{
-		api: api,
+		api:    api,
+		logger: logger,
 	}
 }
 
@@ -50,6 +55,11 @@ func NewClientWithAPI(api MessagingAPI) *Client {
 // text is the message text to send.
 // Returns any error encountered during the API call.
 func (c *Client) SendReply(replyToken string, text string) error {
+	c.logger.Debug("sending reply",
+		slog.String("replyToken", replyToken),
+		slog.Int("textLength", len(text)),
+	)
+
 	// Create text message
 	textMessage := messaging_api.TextMessage{
 		Text: text,
@@ -65,5 +75,16 @@ func (c *Client) SendReply(replyToken string, text string) error {
 
 	// Call LINE ReplyMessage API
 	_, err := c.api.ReplyMessage(request)
-	return err
+	if err != nil {
+		c.logger.Error("reply failed",
+			slog.String("replyToken", replyToken),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	c.logger.Debug("reply sent successfully",
+		slog.String("replyToken", replyToken),
+	)
+	return nil
 }

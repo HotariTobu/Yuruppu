@@ -3,6 +3,8 @@ package llm_test
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// discardLogger returns a logger that discards all output.
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+}
 
 // TestNewVertexAIClient_MissingProjectID tests that client initialization fails when GCP_PROJECT_ID is missing.
 // AC-013: Bot fails to start during initialization if credentials are missing
@@ -57,7 +64,7 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 
 			// When: Attempt to create Vertex AI client
 			// SC-003: Pass fallback region as parameter
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
 
 			// Then: Should return error indicating missing GCP_PROJECT_ID
 			if tt.wantErr {
@@ -119,7 +126,7 @@ func TestNewVertexAIClient_ErrorMessage(t *testing.T) {
 			// Given: Invalid project ID
 			// When: Attempt to create client
 			// SC-003: Pass fallback region as parameter
-			_, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
+			_, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
 
 			// Then: Error message should be clear
 			require.Error(t, err)
@@ -155,7 +162,7 @@ func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
 
 		// When: Attempt to create client
 		// SC-003: Pass fallback region as parameter
-		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1")
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1", discardLogger())
 
 		// Then: Should return error
 		require.Error(t, err,
@@ -1006,7 +1013,7 @@ func TestNewVertexAIClient_InitializationFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// When: Create client with invalid configuration
 			// SC-003: Pass fallback region as parameter
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1")
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
 
 			// Then: Should return error for invalid configuration
 			require.Error(t, err,
@@ -1052,7 +1059,7 @@ func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID but empty/whitespace region
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region)
+			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region, discardLogger())
 
 			// Then: Should return error indicating missing GCP_REGION
 			if tt.wantErr {

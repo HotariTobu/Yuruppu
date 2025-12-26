@@ -47,13 +47,11 @@ func NewHandler(llm LLMProvider, client Replier, logger *slog.Logger) *Handler {
 // Returns an error if LLM call or reply sending fails.
 func (h *Handler) HandleMessage(ctx context.Context, msg Message) error {
 	// Log incoming message at DEBUG level
-	if h.logger != nil {
-		h.logger.DebugContext(ctx, "handling message",
-			slog.String("userID", msg.UserID),
-			slog.String("type", msg.Type),
-			slog.String("text", msg.Text),
-		)
-	}
+	h.logger.DebugContext(ctx, "handling message",
+		slog.String("userID", msg.UserID),
+		slog.String("type", msg.Type),
+		slog.String("text", msg.Text),
+	)
 
 	// Format user message based on type
 	userMessage := msg.Text
@@ -64,32 +62,26 @@ func (h *Handler) HandleMessage(ctx context.Context, msg Message) error {
 	// Call LLM to generate response
 	response, err := h.llm.GenerateText(ctx, SystemPrompt, userMessage)
 	if err != nil {
-		if h.logger != nil {
-			h.logger.ErrorContext(ctx, "LLM call failed",
-				slog.String("userID", msg.UserID),
-				slog.String("replyToken", msg.ReplyToken),
-				slog.Any("error", err),
-			)
-		}
+		h.logger.ErrorContext(ctx, "LLM call failed",
+			slog.String("userID", msg.UserID),
+			slog.String("replyToken", msg.ReplyToken),
+			slog.Any("error", err),
+		)
 		return err
 	}
 
 	// Log LLM response at DEBUG level
-	if h.logger != nil {
-		h.logger.DebugContext(ctx, "LLM response",
-			slog.String("response", response),
-		)
-	}
+	h.logger.DebugContext(ctx, "LLM response",
+		slog.String("response", response),
+	)
 
 	// Send reply
 	if err := h.client.SendReply(msg.ReplyToken, response); err != nil {
-		if h.logger != nil {
-			h.logger.ErrorContext(ctx, "failed to send reply",
-				slog.String("userID", msg.UserID),
-				slog.String("replyToken", msg.ReplyToken),
-				slog.Any("error", err),
-			)
-		}
+		h.logger.ErrorContext(ctx, "failed to send reply",
+			slog.String("userID", msg.UserID),
+			slog.String("replyToken", msg.ReplyToken),
+			slog.Any("error", err),
+		)
 		return err
 	}
 

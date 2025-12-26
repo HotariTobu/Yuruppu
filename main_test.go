@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -10,6 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// discardLogger returns a logger that discards all output.
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+}
 
 // mockLLMProvider is a mock implementation of llm.Provider for testing.
 type mockLLMProvider struct{}
@@ -392,7 +399,7 @@ func TestInitServer_Success(t *testing.T) {
 			}
 
 			// When: Initialize server
-			s, err := initServer(config)
+			s, err := initServer(config, discardLogger())
 
 			// Then: Should succeed without error
 			require.NoError(t, err, "initServer should not return error with valid credentials")
@@ -406,7 +413,7 @@ func TestInitServer_Success(t *testing.T) {
 // TestInitServer_NilConfig tests error when config is nil.
 func TestInitServer_NilConfig(t *testing.T) {
 	// When: Initialize server with nil config
-	s, err := initServer(nil)
+	s, err := initServer(nil, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initServer should return error with nil config")
@@ -426,7 +433,7 @@ func TestInitServer_EmptySecret(t *testing.T) {
 	}
 
 	// When: Initialize server
-	s, err := initServer(config)
+	s, err := initServer(config, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initServer should return error with empty channel secret")
@@ -462,7 +469,7 @@ func TestInitClient_Success(t *testing.T) {
 			}
 
 			// When: Initialize client
-			c, err := initClient(config)
+			c, err := initClient(config, discardLogger())
 
 			// Then: Should succeed without error
 			require.NoError(t, err, "initClient should not return error with valid credentials")
@@ -476,7 +483,7 @@ func TestInitClient_Success(t *testing.T) {
 // TestInitClient_NilConfig tests error when config is nil.
 func TestInitClient_NilConfig(t *testing.T) {
 	// When: Initialize client with nil config
-	c, err := initClient(nil)
+	c, err := initClient(nil, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initClient should return error with nil config")
@@ -496,7 +503,7 @@ func TestInitClient_EmptyToken(t *testing.T) {
 	}
 
 	// When: Initialize client
-	c, err := initClient(config)
+	c, err := initClient(config, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initClient should return error with empty channel access token")
@@ -511,7 +518,7 @@ func TestInitClient_EmptyToken(t *testing.T) {
 // TestInitLLM_NilConfig tests error when config is nil.
 func TestInitLLM_NilConfig(t *testing.T) {
 	// When: Initialize LLM with nil config
-	llmProvider, err := initLLM(context.Background(), nil)
+	llmProvider, err := initLLM(context.Background(), nil, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initLLM should return error with nil config")
@@ -534,7 +541,7 @@ func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
 	}
 
 	// When: Initialize LLM
-	llmProvider, err := initLLM(context.Background(), config)
+	llmProvider, err := initLLM(context.Background(), config, discardLogger())
 
 	// Then: Should return error
 	require.Error(t, err, "initLLM should return error with empty GCP_PROJECT_ID")
@@ -556,7 +563,7 @@ func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
 	// Given: Create a server
-	server, err := initServer(&Config{ChannelSecret: "test-secret"})
+	server, err := initServer(&Config{ChannelSecret: "test-secret"}, discardLogger())
 	require.NoError(t, err)
 
 	// When: Create handler

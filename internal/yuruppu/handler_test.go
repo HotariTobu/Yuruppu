@@ -3,6 +3,7 @@ package yuruppu_test
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"testing"
 
@@ -11,6 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// discardLogger returns a logger that discards all output.
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+}
 
 // mockLLMProvider is a test mock for LLMProvider.
 type mockLLMProvider struct {
@@ -44,21 +50,11 @@ func (m *mockReplier) SendReply(replyToken string, text string) error {
 func TestNewHandler_CreatesHandler(t *testing.T) {
 	llm := &mockLLMProvider{}
 	client := &mockReplier{}
-	logger := slog.Default()
+	logger := discardLogger()
 
 	handler := yuruppu.NewHandler(llm, client, logger)
 
 	assert.NotNil(t, handler, "handler should not be nil")
-}
-
-// TestNewHandler_WithNilLogger tests Handler creation with nil logger.
-func TestNewHandler_WithNilLogger(t *testing.T) {
-	llm := &mockLLMProvider{}
-	client := &mockReplier{}
-
-	handler := yuruppu.NewHandler(llm, client, nil)
-
-	assert.NotNil(t, handler, "handler should work with nil logger")
 }
 
 // TestHandler_HandleMessage_Success tests successful message handling.
@@ -66,7 +62,7 @@ func TestNewHandler_WithNilLogger(t *testing.T) {
 func TestHandler_HandleMessage_Success(t *testing.T) {
 	llm := &mockLLMProvider{response: "Hello from Yuruppu!"}
 	client := &mockReplier{}
-	handler := yuruppu.NewHandler(llm, client, nil)
+	handler := yuruppu.NewHandler(llm, client, discardLogger())
 
 	msg := yuruppu.Message{
 		ReplyToken: "test-reply-token",
@@ -89,7 +85,7 @@ func TestHandler_HandleMessage_LLMError(t *testing.T) {
 	llmErr := errors.New("LLM service unavailable")
 	llm := &mockLLMProvider{err: llmErr}
 	client := &mockReplier{}
-	handler := yuruppu.NewHandler(llm, client, nil)
+	handler := yuruppu.NewHandler(llm, client, discardLogger())
 
 	msg := yuruppu.Message{
 		ReplyToken: "test-reply-token",
@@ -110,7 +106,7 @@ func TestHandler_HandleMessage_SendReplyError(t *testing.T) {
 	replyErr := errors.New("reply token expired")
 	llm := &mockLLMProvider{response: "Hello!"}
 	client := &mockReplier{err: replyErr}
-	handler := yuruppu.NewHandler(llm, client, nil)
+	handler := yuruppu.NewHandler(llm, client, discardLogger())
 
 	msg := yuruppu.Message{
 		ReplyToken: "expired-token",
@@ -172,7 +168,7 @@ func TestHandler_HandleMessage_NonTextMessage(t *testing.T) {
 			}
 
 			client := &mockReplier{}
-			handler := yuruppu.NewHandler(originalLLM, client, nil)
+			handler := yuruppu.NewHandler(originalLLM, client, discardLogger())
 
 			msg := yuruppu.Message{
 				ReplyToken: "test-token",
@@ -199,7 +195,7 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 
 	llm := &mockLLMProvider{err: context.Canceled}
 	client := &mockReplier{}
-	handler := yuruppu.NewHandler(llm, client, nil)
+	handler := yuruppu.NewHandler(llm, client, discardLogger())
 
 	msg := yuruppu.Message{
 		ReplyToken: "test-token",

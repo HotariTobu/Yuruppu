@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ const (
 type vertexAIClient struct {
 	client    *genai.Client
 	projectID string
+	logger    *slog.Logger
 }
 
 // NewVertexAIClient creates a new Vertex AI client.
@@ -36,9 +38,10 @@ type vertexAIClient struct {
 //
 // The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (optional on Cloud Run).
 // The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
+// logger is the structured logger for the client.
 // On Cloud Run, project ID and region are auto-detected from metadata server.
 // Returns an error if project ID or region cannot be determined from either metadata or fallback.
-func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string) (Provider, error) {
+func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string, logger *slog.Logger) (Provider, error) {
 	// Handle nil context gracefully (SDK may require non-nil context)
 	if ctx == nil {
 		ctx = context.Background()
@@ -74,6 +77,7 @@ func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRe
 	return &vertexAIClient{
 		client:    client,
 		projectID: projectID,
+		logger:    logger,
 	}, nil
 }
 
@@ -83,6 +87,11 @@ func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRe
 // The context can be used for timeout and cancellation.
 // NFR-001: LLM API total request timeout should be configurable via context
 func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	v.logger.Debug("generating text",
+		slog.String("model", geminiModel),
+		slog.Int("userMessageLength", len(userMessage)),
+	)
+
 	// Configure generation with system instruction
 	// ADR: 20251225-gemini-model-selection.md - Gemini 2.5 Flash-Lite
 	config := &genai.GenerateContentConfig{
@@ -94,24 +103,42 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	// Generate content
 	resp, err := v.client.Models.GenerateContent(ctx, geminiModel, genai.Text(userMessage), config)
 	if err != nil {
+		v.logger.Error("LLM API call failed",
+			slog.String("model", geminiModel),
+			slog.Any("error", err),
+		)
 		// FR-004: Map specific errors to custom error types
 		return "", MapAPIError(err)
 	}
 
 	// Extract text from response
 	if len(resp.Candidates) == 0 {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "no candidates in response"),
+		)
 		return "", &LLMResponseError{Message: "no candidates in response"}
 	}
 
 	if resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "no content parts in response"),
+		)
 		return "", &LLMResponseError{Message: "no content parts in response"}
 	}
 
 	// Extract text from first part
 	text := resp.Candidates[0].Content.Parts[0].Text
 	if text == "" {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "response part has no text"),
+		)
 		return "", &LLMResponseError{Message: "response part has no text"}
 	}
+
+	v.logger.Debug("text generated successfully",
+		slog.String("model", geminiModel),
+		slog.Int("responseLength", len(text)),
+	)
 
 	return text, nil
 }
