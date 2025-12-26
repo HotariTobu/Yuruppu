@@ -169,17 +169,10 @@ var (
 	messageSender   MessageSender
 )
 
-// LLMProvider is an interface for LLM operations.
-// This allows mocking in tests while using the real client in production.
-// TR-002: Abstraction layer for LLM providers
-type LLMProvider interface {
-	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
-}
-
 // Package-level LLM provider for HandleWebhook
 var (
 	llmProviderMu sync.RWMutex
-	llmProvider   LLMProvider
+	llmProvider   llm.Provider
 )
 
 // defaultLLMTimeout is the default timeout for LLM API calls.
@@ -217,7 +210,7 @@ func getLLMTimeout() time.Duration {
 // SetDefaultLLMProvider sets the package-level LLM provider for HandleWebhook.
 // This function is safe for concurrent use.
 // FR-003: LLM provider must be set during initialization
-func SetDefaultLLMProvider(p LLMProvider) {
+func SetDefaultLLMProvider(p llm.Provider) {
 	llmProviderMu.Lock()
 	defer llmProviderMu.Unlock()
 	llmProvider = p
@@ -225,7 +218,7 @@ func SetDefaultLLMProvider(p LLMProvider) {
 
 // getDefaultLLMProvider returns the package-level LLM provider.
 // This function is safe for concurrent use.
-func getDefaultLLMProvider() LLMProvider {
+func getDefaultLLMProvider() llm.Provider {
 	llmProviderMu.RLock()
 	defer llmProviderMu.RUnlock()
 	return llmProvider
