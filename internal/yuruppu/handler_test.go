@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -20,11 +24,15 @@ func discardLogger() *slog.Logger {
 
 // mockLLMProvider is a test mock for LLMProvider.
 type mockLLMProvider struct {
-	response string
-	err      error
+	response            string
+	err                 error
+	capturedSystemPrompt string
+	capturedUserMessage  string
 }
 
 func (m *mockLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	m.capturedSystemPrompt = systemPrompt
+	m.capturedUserMessage = userMessage
 	if m.err != nil {
 		return "", m.err
 	}
@@ -46,6 +54,10 @@ func (m *mockReplier) SendReply(replyToken string, text string) error {
 	return m.err
 }
 
+// =============================================================================
+// Handler Creation Tests
+// =============================================================================
+
 // TestNewHandler_CreatesHandler tests Handler creation.
 func TestNewHandler_CreatesHandler(t *testing.T) {
 	llm := &mockLLMProvider{}
@@ -56,6 +68,10 @@ func TestNewHandler_CreatesHandler(t *testing.T) {
 
 	assert.NotNil(t, handler, "handler should not be nil")
 }
+
+// =============================================================================
+// Message Handling Tests
+// =============================================================================
 
 // TestHandler_HandleMessage_Success tests successful message handling.
 // AC-003: Handler receives message, calls LLM, sends reply.
@@ -77,7 +93,70 @@ func TestHandler_HandleMessage_Success(t *testing.T) {
 	assert.True(t, client.called, "SendReply should be called")
 	assert.Equal(t, "test-reply-token", client.replyToken, "reply token should match")
 	assert.Equal(t, "Hello from Yuruppu!", client.text, "reply text should be LLM response")
+	assert.Equal(t, "Hello", llm.capturedUserMessage, "user message should be passed to LLM")
 }
+
+// TestHandler_HandleMessage_NonTextMessage tests handling of non-text messages.
+// FR-008: For non-text messages, use format "[User sent a {type}]"
+func TestHandler_HandleMessage_NonTextMessage(t *testing.T) {
+	tests := []struct {
+		name           string
+		messageType    string
+		expectedPrompt string
+	}{
+		{
+			name:           "image message",
+			messageType:    "image",
+			expectedPrompt: "[User sent an image]",
+		},
+		{
+			name:           "sticker message",
+			messageType:    "sticker",
+			expectedPrompt: "[User sent a sticker]",
+		},
+		{
+			name:           "video message",
+			messageType:    "video",
+			expectedPrompt: "[User sent a video]",
+		},
+		{
+			name:           "audio message",
+			messageType:    "audio",
+			expectedPrompt: "[User sent an audio]",
+		},
+		{
+			name:           "location message",
+			messageType:    "location",
+			expectedPrompt: "[User sent a location]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			llm := &mockLLMProvider{response: "Response"}
+			client := &mockReplier{}
+			handler := yuruppu.NewHandler(llm, client, discardLogger())
+
+			msg := yuruppu.Message{
+				ReplyToken: "test-token",
+				Type:       tt.messageType,
+				Text:       "", // Non-text messages have empty text
+				UserID:     "user123",
+			}
+
+			err := handler.HandleMessage(context.Background(), msg)
+
+			require.NoError(t, err)
+			assert.True(t, client.called, "SendReply should be called")
+			assert.Equal(t, tt.expectedPrompt, llm.capturedUserMessage,
+				"user message should be formatted for non-text type")
+		})
+	}
+}
+
+// =============================================================================
+// Error Handling Tests
+// =============================================================================
 
 // TestHandler_HandleMessage_LLMError tests error handling when LLM fails.
 // AC-008: On LLM error, error is returned, no reply is sent.
@@ -122,72 +201,6 @@ func TestHandler_HandleMessage_SendReplyError(t *testing.T) {
 	assert.True(t, client.called, "SendReply should be called")
 }
 
-// TestHandler_HandleMessage_NonTextMessage tests handling of non-text messages.
-// FR-008: For non-text messages, use format "[User sent a {type}]"
-func TestHandler_HandleMessage_NonTextMessage(t *testing.T) {
-	tests := []struct {
-		name           string
-		messageType    string
-		expectedPrompt string
-	}{
-		{
-			name:           "image message",
-			messageType:    "image",
-			expectedPrompt: "[User sent an image]",
-		},
-		{
-			name:           "sticker message",
-			messageType:    "sticker",
-			expectedPrompt: "[User sent a sticker]",
-		},
-		{
-			name:           "video message",
-			messageType:    "video",
-			expectedPrompt: "[User sent a video]",
-		},
-		{
-			name:           "audio message",
-			messageType:    "audio",
-			expectedPrompt: "[User sent an audio]",
-		},
-		{
-			name:           "location message",
-			messageType:    "location",
-			expectedPrompt: "[User sent a location]",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var capturedUserMessage string
-			llm := &mockLLMProvider{response: "Response to " + tt.messageType}
-			// Override GenerateText to capture the user message
-			originalLLM := llm
-			llm = &mockLLMProvider{
-				response: "Response",
-			}
-
-			client := &mockReplier{}
-			handler := yuruppu.NewHandler(originalLLM, client, discardLogger())
-
-			msg := yuruppu.Message{
-				ReplyToken: "test-token",
-				Type:       tt.messageType,
-				Text:       "", // Non-text messages have empty text
-				UserID:     "user123",
-			}
-
-			err := handler.HandleMessage(context.Background(), msg)
-
-			require.NoError(t, err)
-			assert.True(t, client.called, "SendReply should be called")
-			// We can't directly verify the prompt passed to LLM with current mock
-			// but we verify the handler doesn't error
-			_ = capturedUserMessage
-		})
-	}
-}
-
 // TestHandler_HandleMessage_ContextCancellation tests context cancellation.
 func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -209,6 +222,10 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
+
+// =============================================================================
+// SystemPrompt Tests
+// =============================================================================
 
 // TestSystemPrompt_Exists verifies SystemPrompt constant exists and is non-empty.
 func TestSystemPrompt_Exists(t *testing.T) {
