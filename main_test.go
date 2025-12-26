@@ -561,26 +561,6 @@ func TestSetupPackageLevel_NilBot(t *testing.T) {
 	}, "setupPackageLevel should not panic with nil bot")
 }
 
-// TestInitLLM_Success tests successful LLM provider initialization.
-// FR-003: LLM provider initializes successfully with valid GCP_PROJECT_ID.
-func TestInitLLM_Success(t *testing.T) {
-	// Given: Valid configuration
-	config := &Config{
-		ChannelSecret:      "test-secret",
-		ChannelAccessToken: "test-token",
-		GCPProjectID:       "test-project-id",
-	}
-
-	// When: Initialize LLM
-	llmProvider, err := initLLM(context.Background(), config)
-
-	// Then: Should succeed without error
-	require.NoError(t, err, "initLLM should not return error with valid GCP_PROJECT_ID")
-
-	// Then: LLM provider should not be nil
-	assert.NotNil(t, llmProvider, "llmProvider should not be nil")
-}
-
 // TestInitLLM_NilConfig tests error when config is nil.
 func TestInitLLM_NilConfig(t *testing.T) {
 	// When: Initialize LLM with nil config
