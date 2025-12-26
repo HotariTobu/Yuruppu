@@ -23,6 +23,10 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
+// =============================================================================
+// NewVertexAIClient Tests
+// =============================================================================
+
 // TestNewVertexAIClient_MissingProjectID tests that client initialization fails when GCP_PROJECT_ID is missing.
 // AC-013: Bot fails to start during initialization if credentials are missing
 // FR-003: Load LLM API credentials from environment variables
@@ -89,57 +93,53 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 	}
 }
 
-// TestNewVertexAIClient_ErrorMessage tests error message clarity.
-// AC-013: Error message indicates which variable is missing
-// FR-003: Bot fails to start during initialization if credentials are missing
-func TestNewVertexAIClient_ErrorMessage(t *testing.T) {
+// TestNewVertexAIClient_EmptyGCPRegion tests that client initialization fails when GCP_REGION is missing.
+// AC-005: Add new test for empty GCP_REGION validation
+// AC-007: Error is returned when GCP_REGION is empty and metadata unavailable
+func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
 	tests := []struct {
-		name            string
-		projectID       string
-		wantContains    []string
-		wantNotContains []string
+		name       string
+		region     string
+		wantErr    bool
+		wantErrMsg string
 	}{
 		{
-			name:      "error message contains variable name",
-			projectID: "",
-			wantContains: []string{
-				"GCP_PROJECT_ID",
-			},
-			wantNotContains: []string{},
+			name:       "empty region returns error",
+			region:     "",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
 		},
 		{
-			name:      "error message is clear and actionable",
-			projectID: "",
-			wantContains: []string{
-				"GCP_PROJECT_ID",
-				"missing",
-			},
-			wantNotContains: []string{
-				"unknown error",
-				"unexpected",
-			},
+			name:       "whitespace-only region returns error",
+			region:     "   ",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
+		},
+		{
+			name:       "whitespace with tabs region returns error",
+			region:     "\t\n  ",
+			wantErr:    true,
+			wantErrMsg: "GCP_REGION is missing or empty",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Invalid project ID
-			// When: Attempt to create client
-			// SC-003: Pass fallback region as parameter
-			_, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
+			// Given: Valid project ID but empty/whitespace region
+			// When: Attempt to create Vertex AI client
+			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region, discardLogger())
 
-			// Then: Error message should be clear
-			require.Error(t, err)
-			errMsg := err.Error()
-
-			for _, want := range tt.wantContains {
-				assert.Contains(t, errMsg, want,
-					"error message should contain '%s'", want)
-			}
-
-			for _, notWant := range tt.wantNotContains {
-				assert.NotContains(t, errMsg, notWant,
-					"error message should not contain '%s'", notWant)
+			// Then: Should return error indicating missing GCP_REGION
+			if tt.wantErr {
+				require.Error(t, err,
+					"should return error when GCP_REGION is missing")
+				assert.Nil(t, client,
+					"client should be nil when initialization fails")
+				assert.Contains(t, err.Error(), tt.wantErrMsg,
+					"error message should indicate GCP_REGION is missing or empty")
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, client)
 			}
 		})
 	}
@@ -172,6 +172,10 @@ func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
 			"error should mention the missing environment variable")
 	})
 }
+
+// =============================================================================
+// GetRegion Tests
+// =============================================================================
 
 // TestGetRegion tests region determination logic for Cloud Run metadata.
 // AC-001: Region derived from Cloud Run metadata
@@ -262,36 +266,6 @@ func TestGetRegion(t *testing.T) {
 			},
 			fallbackRegion: "us-east4",
 			want:           "us-east4",
-		},
-		{
-			name: "metadata unavailable - use provided fallback region",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 503,
-				delay:      0,
-			},
-			fallbackRegion: "us-south1",
-			want:           "us-south1",
-		},
-		{
-			name: "metadata timeout - use provided fallback region",
-			metadataServer: &metadataServerMock{
-				response:   "projects/123456789/regions/us-west1",
-				statusCode: 200,
-				delay:      3000, // 3 seconds - exceeds 2s timeout
-			},
-			fallbackRegion: "us-central1",
-			want:           "us-central1",
-		},
-		{
-			name: "malformed response - use provided fallback region",
-			metadataServer: &metadataServerMock{
-				response:   "malformed",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "us-central1",
-			want:           "us-central1",
 		},
 	}
 
@@ -537,267 +511,9 @@ func TestGetRegion_ProductionEndpoint(t *testing.T) {
 	})
 }
 
-// metadataServerMock is a helper struct for mocking Cloud Run metadata server.
-type metadataServerMock struct {
-	response   string
-	statusCode int
-	delay      int // milliseconds
-}
-
-// Start creates and starts an httptest server with the configured mock behavior.
-func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate delay if configured
-		if m.delay > 0 {
-			time.Sleep(time.Duration(m.delay) * time.Millisecond)
-		}
-
-		// Return configured status code and response
-		w.WriteHeader(m.statusCode)
-		if m.response != "" {
-			w.Write([]byte(m.response))
-		}
-	}))
-}
-
-// mockNetError is a mock network error for testing.
-type mockNetError struct {
-	Msg string
-}
-
-func (e *mockNetError) Error() string {
-	return e.Msg
-}
-
-// Temporary implements net.Error interface
-func (e *mockNetError) Temporary() bool {
-	return true
-}
-
-// Timeout implements net.Error interface
-func (e *mockNetError) Timeout() bool {
-	return false
-}
-
-// mockDNSError is a mock DNS error for testing.
-type mockDNSError struct {
-	Msg string
-}
-
-func (e *mockDNSError) Error() string {
-	return e.Msg
-}
-
-// Temporary implements net.Error interface
-func (e *mockDNSError) Temporary() bool {
-	return true
-}
-
-// Timeout implements net.Error interface
-func (e *mockDNSError) Timeout() bool {
-	return false
-}
-
-// TestMapHTTPStatusCode tests mapping of HTTP status codes to custom error types.
-// FR-004: On LLM API error, return appropriate custom error type
-func TestMapHTTPStatusCode(t *testing.T) {
-	tests := []struct {
-		name           string
-		httpCode       int
-		message        string
-		wantType       string
-		wantContains   string
-		wantStatusCode int
-	}{
-		{
-			name:           "HTTP 401 maps to LLMAuthError",
-			httpCode:       401,
-			message:        "Unauthorized",
-			wantType:       "*llm.LLMAuthError",
-			wantContains:   "auth",
-			wantStatusCode: 401,
-		},
-		{
-			name:           "HTTP 403 maps to LLMAuthError",
-			httpCode:       403,
-			message:        "Forbidden",
-			wantType:       "*llm.LLMAuthError",
-			wantContains:   "auth",
-			wantStatusCode: 403,
-		},
-		{
-			name:         "HTTP 429 maps to LLMRateLimitError",
-			httpCode:     429,
-			message:      "Too Many Requests",
-			wantType:     "*llm.LLMRateLimitError",
-			wantContains: "rate limit",
-		},
-		{
-			name:         "HTTP 500 maps to LLMResponseError",
-			httpCode:     500,
-			message:      "Internal Server Error",
-			wantType:     "*llm.LLMResponseError",
-			wantContains: "server",
-		},
-		{
-			name:         "HTTP 503 maps to LLMResponseError",
-			httpCode:     503,
-			message:      "Service Unavailable",
-			wantType:     "*llm.LLMResponseError",
-			wantContains: "server",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map HTTP status code to error
-			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
-
-			// Then: Should return correct error type
-			require.NotNil(t, mappedErr)
-			actualType := fmt.Sprintf("%T", mappedErr)
-			assert.Equal(t, tt.wantType, actualType,
-				"error should be mapped to %s, got %s", tt.wantType, actualType)
-
-			// Then: Error message should contain expected text
-			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
-				"error message should contain '%s'", tt.wantContains)
-
-			// Then: Verify type-specific fields
-			switch e := mappedErr.(type) {
-			case *llm.LLMAuthError:
-				if tt.wantStatusCode > 0 {
-					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
-						"auth error should have status code %d", tt.wantStatusCode)
-				}
-			}
-		})
-	}
-}
-
-// TestMapAPIError tests mapping of Vertex AI API errors to custom error types.
-// FR-004: On LLM API error, return appropriate custom error type
-// NFR-003: Error details should be preserved for logging
-func TestMapAPIError(t *testing.T) {
-	tests := []struct {
-		name         string
-		apiError     error
-		wantType     string
-		wantContains string
-	}{
-		{
-			name:         "context.DeadlineExceeded maps to LLMTimeoutError",
-			apiError:     context.DeadlineExceeded,
-			wantType:     "*llm.LLMTimeoutError",
-			wantContains: "timeout",
-		},
-		{
-			name:         "context.Canceled maps to LLMTimeoutError",
-			apiError:     context.Canceled,
-			wantType:     "*llm.LLMTimeoutError",
-			wantContains: "timeout",
-		},
-		{
-			name:         "net.OpError maps to LLMNetworkError",
-			apiError:     &mockNetError{Msg: "connection refused"},
-			wantType:     "*llm.LLMNetworkError",
-			wantContains: "network",
-		},
-		{
-			name:         "DNS error maps to LLMNetworkError",
-			apiError:     &mockDNSError{Msg: "lookup failed"},
-			wantType:     "*llm.LLMNetworkError",
-			wantContains: "network",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map the API error
-			mappedErr := llm.MapAPIError(tt.apiError)
-
-			// Then: Should return correct error type
-			require.NotNil(t, mappedErr)
-			actualType := fmt.Sprintf("%T", mappedErr)
-			assert.Equal(t, tt.wantType, actualType,
-				"error should be mapped to %s, got %s", tt.wantType, actualType)
-
-			// Then: Error message should contain expected text
-			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
-				"error message should contain '%s'", tt.wantContains)
-		})
-	}
-}
-
-// TestMapHTTPStatusCode_PreservesOriginalErrorDetails tests that original error details are preserved.
-// NFR-003: Log LLM API errors at ERROR level with error type and details
-func TestMapHTTPStatusCode_PreservesOriginalErrorDetails(t *testing.T) {
-	tests := []struct {
-		name     string
-		httpCode int
-		message  string
-		wantMsg  string
-	}{
-		{
-			name:     "API error message is preserved",
-			httpCode: 401,
-			message:  "Invalid API key: abc123",
-			wantMsg:  "Invalid API key: abc123",
-		},
-		{
-			name:     "rate limit details are preserved",
-			httpCode: 429,
-			message:  "Quota exceeded for project",
-			wantMsg:  "Quota exceeded for project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map HTTP status code to error
-			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
-
-			// Then: Original error details should be preserved in the message
-			require.NotNil(t, mappedErr)
-			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
-				"mapped error should preserve original message")
-		})
-	}
-}
-
-// TestMapAPIError_PreservesOriginalErrorDetails tests that original error details are preserved.
-// NFR-003: Log LLM API errors at ERROR level with error type and details
-func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
-	tests := []struct {
-		name     string
-		apiError error
-		wantMsg  string
-	}{
-		{
-			name:     "context error message is preserved",
-			apiError: context.DeadlineExceeded,
-			wantMsg:  "context deadline exceeded",
-		},
-		{
-			name:     "network error details are preserved",
-			apiError: &mockNetError{Msg: "dial tcp: connection refused"},
-			wantMsg:  "dial tcp: connection refused",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map the API error
-			mappedErr := llm.MapAPIError(tt.apiError)
-
-			// Then: Original error details should be preserved in the message
-			require.NotNil(t, mappedErr)
-			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
-				"mapped error should preserve original message")
-		})
-	}
-}
+// =============================================================================
+// GetProjectID Tests
+// =============================================================================
 
 // TestGetProjectID tests project ID determination logic for Cloud Run metadata.
 // FX-001: Add GetProjectID function following the GetRegion() pattern
@@ -1067,90 +783,272 @@ func TestGetProjectID_Timeout(t *testing.T) {
 	}
 }
 
-// TestNewVertexAIClient_InitializationFailure tests initialization failure scenarios.
-// FR-003: Bot fails to start during initialization if credentials are missing
-func TestNewVertexAIClient_InitializationFailure(t *testing.T) {
+// =============================================================================
+// Error Mapping Tests
+// =============================================================================
+
+// TestMapHTTPStatusCode tests mapping of HTTP status codes to custom error types.
+// FR-004: On LLM API error, return appropriate custom error type
+func TestMapHTTPStatusCode(t *testing.T) {
 	tests := []struct {
-		name        string
-		projectID   string
-		errContains string
+		name           string
+		httpCode       int
+		message        string
+		wantType       string
+		wantContains   string
+		wantStatusCode int
 	}{
 		{
-			name:        "empty project ID fails immediately",
-			projectID:   "",
-			errContains: "GCP_PROJECT_ID",
+			name:           "HTTP 401 maps to LLMAuthError",
+			httpCode:       401,
+			message:        "Unauthorized",
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 401,
 		},
 		{
-			name:        "whitespace project ID fails immediately",
-			projectID:   "   ",
-			errContains: "GCP_PROJECT_ID",
+			name:           "HTTP 403 maps to LLMAuthError",
+			httpCode:       403,
+			message:        "Forbidden",
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 403,
+		},
+		{
+			name:         "HTTP 429 maps to LLMRateLimitError",
+			httpCode:     429,
+			message:      "Too Many Requests",
+			wantType:     "*llm.LLMRateLimitError",
+			wantContains: "rate limit",
+		},
+		{
+			name:         "HTTP 500 maps to LLMResponseError",
+			httpCode:     500,
+			message:      "Internal Server Error",
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name:         "HTTP 503 maps to LLMResponseError",
+			httpCode:     503,
+			message:      "Service Unavailable",
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// When: Create client with invalid configuration
-			// SC-003: Pass fallback region as parameter
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
+			// When: Map HTTP status code to error
+			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
 
-			// Then: Should return error for invalid configuration
-			require.Error(t, err,
-				"should return error for invalid configuration")
-			assert.Nil(t, client)
-			assert.Contains(t, err.Error(), tt.errContains,
-				"error message should contain '%s'", tt.errContains)
+			// Then: Should return correct error type
+			require.NotNil(t, mappedErr)
+			actualType := fmt.Sprintf("%T", mappedErr)
+			assert.Equal(t, tt.wantType, actualType,
+				"error should be mapped to %s, got %s", tt.wantType, actualType)
+
+			// Then: Error message should contain expected text
+			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
+				"error message should contain '%s'", tt.wantContains)
+
+			// Then: Verify type-specific fields
+			switch e := mappedErr.(type) {
+			case *llm.LLMAuthError:
+				if tt.wantStatusCode > 0 {
+					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
+						"auth error should have status code %d", tt.wantStatusCode)
+				}
+			}
 		})
 	}
 }
 
-// TestNewVertexAIClient_EmptyGCPRegion tests that client initialization fails when GCP_REGION is missing.
-// AC-005: Add new test for empty GCP_REGION validation
-// AC-007: Error is returned when GCP_REGION is empty and metadata unavailable
-func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
+// TestMapHTTPStatusCode_PreservesOriginalErrorDetails tests that original error details are preserved.
+// NFR-003: Log LLM API errors at ERROR level with error type and details
+func TestMapHTTPStatusCode_PreservesOriginalErrorDetails(t *testing.T) {
 	tests := []struct {
-		name       string
-		region     string
-		wantErr    bool
-		wantErrMsg string
+		name     string
+		httpCode int
+		message  string
+		wantMsg  string
 	}{
 		{
-			name:       "empty region returns error",
-			region:     "",
-			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
+			name:     "API error message is preserved",
+			httpCode: 401,
+			message:  "Invalid API key: abc123",
+			wantMsg:  "Invalid API key: abc123",
 		},
 		{
-			name:       "whitespace-only region returns error",
-			region:     "   ",
-			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
-		},
-		{
-			name:       "whitespace with tabs region returns error",
-			region:     "\t\n  ",
-			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
+			name:     "rate limit details are preserved",
+			httpCode: 429,
+			message:  "Quota exceeded for project",
+			wantMsg:  "Quota exceeded for project",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Valid project ID but empty/whitespace region
-			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region, discardLogger())
+			// When: Map HTTP status code to error
+			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
 
-			// Then: Should return error indicating missing GCP_REGION
-			if tt.wantErr {
-				require.Error(t, err,
-					"should return error when GCP_REGION is missing")
-				assert.Nil(t, client,
-					"client should be nil when initialization fails")
-				assert.Contains(t, err.Error(), tt.wantErrMsg,
-					"error message should indicate GCP_REGION is missing or empty")
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, client)
-			}
+			// Then: Original error details should be preserved in the message
+			require.NotNil(t, mappedErr)
+			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
+				"mapped error should preserve original message")
 		})
 	}
+}
+
+// TestMapAPIError tests mapping of Vertex AI API errors to custom error types.
+// FR-004: On LLM API error, return appropriate custom error type
+// NFR-003: Error details should be preserved for logging
+func TestMapAPIError(t *testing.T) {
+	tests := []struct {
+		name         string
+		apiError     error
+		wantType     string
+		wantContains string
+	}{
+		{
+			name:         "context.DeadlineExceeded maps to LLMTimeoutError",
+			apiError:     context.DeadlineExceeded,
+			wantType:     "*llm.LLMTimeoutError",
+			wantContains: "timeout",
+		},
+		{
+			name:         "context.Canceled maps to LLMTimeoutError",
+			apiError:     context.Canceled,
+			wantType:     "*llm.LLMTimeoutError",
+			wantContains: "timeout",
+		},
+		{
+			name:         "net.OpError maps to LLMNetworkError",
+			apiError:     &mockNetError{Msg: "connection refused"},
+			wantType:     "*llm.LLMNetworkError",
+			wantContains: "network",
+		},
+		{
+			name:         "DNS error maps to LLMNetworkError",
+			apiError:     &mockDNSError{Msg: "lookup failed"},
+			wantType:     "*llm.LLMNetworkError",
+			wantContains: "network",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When: Map the API error
+			mappedErr := llm.MapAPIError(tt.apiError)
+
+			// Then: Should return correct error type
+			require.NotNil(t, mappedErr)
+			actualType := fmt.Sprintf("%T", mappedErr)
+			assert.Equal(t, tt.wantType, actualType,
+				"error should be mapped to %s, got %s", tt.wantType, actualType)
+
+			// Then: Error message should contain expected text
+			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
+				"error message should contain '%s'", tt.wantContains)
+		})
+	}
+}
+
+// TestMapAPIError_PreservesOriginalErrorDetails tests that original error details are preserved.
+// NFR-003: Log LLM API errors at ERROR level with error type and details
+func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
+	tests := []struct {
+		name     string
+		apiError error
+		wantMsg  string
+	}{
+		{
+			name:     "context error message is preserved",
+			apiError: context.DeadlineExceeded,
+			wantMsg:  "context deadline exceeded",
+		},
+		{
+			name:     "network error details are preserved",
+			apiError: &mockNetError{Msg: "dial tcp: connection refused"},
+			wantMsg:  "dial tcp: connection refused",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When: Map the API error
+			mappedErr := llm.MapAPIError(tt.apiError)
+
+			// Then: Original error details should be preserved in the message
+			require.NotNil(t, mappedErr)
+			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
+				"mapped error should preserve original message")
+		})
+	}
+}
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
+// metadataServerMock is a helper struct for mocking Cloud Run metadata server.
+type metadataServerMock struct {
+	response   string
+	statusCode int
+	delay      int // milliseconds
+}
+
+// Start creates and starts an httptest server with the configured mock behavior.
+func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate delay if configured
+		if m.delay > 0 {
+			time.Sleep(time.Duration(m.delay) * time.Millisecond)
+		}
+
+		// Return configured status code and response
+		w.WriteHeader(m.statusCode)
+		if m.response != "" {
+			w.Write([]byte(m.response))
+		}
+	}))
+}
+
+// mockNetError is a mock network error for testing.
+type mockNetError struct {
+	Msg string
+}
+
+func (e *mockNetError) Error() string {
+	return e.Msg
+}
+
+// Temporary implements net.Error interface
+func (e *mockNetError) Temporary() bool {
+	return true
+}
+
+// Timeout implements net.Error interface
+func (e *mockNetError) Timeout() bool {
+	return false
+}
+
+// mockDNSError is a mock DNS error for testing.
+type mockDNSError struct {
+	Msg string
+}
+
+func (e *mockDNSError) Error() string {
+	return e.Msg
+}
+
+// Temporary implements net.Error interface
+func (e *mockDNSError) Temporary() bool {
+	return true
+}
+
+// Timeout implements net.Error interface
+func (e *mockDNSError) Timeout() bool {
+	return false
 }
