@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// =============================================================================
+// Provider Interface Tests
+// =============================================================================
+
 // TestProvider_InterfaceExists tests that the Provider interface exists with expected method signature.
 // TR-002: Create an abstraction layer (interface) for LLM providers
 func TestProvider_InterfaceExists(t *testing.T) {
@@ -169,6 +173,10 @@ func TestProvider_ContextCancellation(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Error Types Tests
+// =============================================================================
+
 // TestLLMTimeoutError tests the LLMTimeoutError type.
 // Error Handling Table: LLMTimeoutError - LLM API call exceeds configured timeout
 func TestLLMTimeoutError(t *testing.T) {
@@ -281,7 +289,6 @@ func TestLLMRateLimitError(t *testing.T) {
 			"should match LLMRateLimitError type with errors.As")
 		assert.Equal(t, rateLimitErr.Message, target.Message)
 	})
-
 }
 
 // TestLLMNetworkError tests the LLMNetworkError type.
@@ -514,6 +521,10 @@ func TestLLMAuthError(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Error Type Distinction Tests
+// =============================================================================
+
 // TestErrorTypes_Distinction tests that different error types can be distinguished.
 // TR-002: Define error types for different failure scenarios
 func TestErrorTypes_Distinction(t *testing.T) {
@@ -526,11 +537,11 @@ func TestErrorTypes_Distinction(t *testing.T) {
 		authErr := &llm.LLMAuthError{Message: "auth"}
 
 		// When: Check each error type
-		errors := []error{timeoutErr, rateLimitErr, networkErr, responseErr, authErr}
+		errs := []error{timeoutErr, rateLimitErr, networkErr, responseErr, authErr}
 
 		// Then: Each should be distinguishable
-		for i, err1 := range errors {
-			for j, err2 := range errors {
+		for i, err1 := range errs {
+			for j, err2 := range errs {
 				if i == j {
 					assert.Equal(t, err1, err2,
 						"same index should have equal errors")
@@ -595,6 +606,10 @@ func TestErrorTypes_Distinction(t *testing.T) {
 		})
 	})
 }
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
 
 // mockProvider is a test implementation of the Provider interface.
 // This verifies that the Provider interface can be implemented.
