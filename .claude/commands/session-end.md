@@ -5,6 +5,15 @@ allowed-tools: Bash(git *), Bash(make preflight), Read, Edit, Write, Glob, TodoW
 
 # End Session
 
+## MANDATORY - DO NOT SKIP
+
+**Step 2 (Review changes) is MANDATORY.**
+
+- You MUST run reviewer-* agents before proceeding to Step 3
+- Skipping reviews to "save time" is PROHIBITED
+- If you skip reviews, you are violating user instructions
+- Short session-end times indicate you skipped reviews - this is unacceptable
+
 ## Task
 
 End the current coding session with progress update and structured commit.
