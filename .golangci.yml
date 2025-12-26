@@ -1,0 +1,69 @@
+linters:
+  enable-all: true
+  disable:
+    # Deprecated linters
+    - tenv  # Replaced by usetesting (since v1.64.0)
+
+    # Overly strict / opinionated linters that reduce readability
+    - varnamelen       # Short variable names like 'w', 'r', 'mu' are idiomatic in Go
+    - wsl              # Whitespace style rules too strict
+    - wrapcheck        # Not all external errors need wrapping
+    - err113           # Dynamic errors are fine in tests and simple cases
+    - exhaustruct      # Zero values are intentional in Go
+    - nlreturn         # Blank line before return is not always needed
+    - gochecknoglobals # Globals are sometimes appropriate
+    - depguard         # No package restrictions needed
+
+    # Test-specific linters that are too noisy
+    - dupl             # Test code often has similar structure
+    - funlen           # Test functions can be long
+    - maintidx         # Test complexity is fine
+    - cyclop           # Test cyclomatic complexity is fine
+    - gocognit         # Test cognitive complexity is fine
+    - testpackage      # Testing in same package is fine
+    - thelper          # Not all test functions need t.Helper()
+
+    # Other noisy linters
+    - ireturn          # Returning interfaces is sometimes appropriate
+    - lll              # Line length limits are handled by editors
+    - godox            # TODO/FIXME comments are fine during development
+    - tagliatelle      # JSON/YAML tag style preferences
+    - paralleltest     # Not all tests need to be parallel
+    - noctx            # Context not always needed for HTTP requests in tests
+    - forcetypeassert  # Type assertions in tests are fine without checks
+    - mnd              # Magic numbers are fine in simple contexts
+    - goconst          # Duplicate strings in tests are fine
+    - unparam          # Parameters with constant values can be intentional
+    - usetesting       # context.Background() is clearer than t.Context()
+    - usestdlibvars    # Numeric status codes are sometimes clearer
+    - godot            # Comment punctuation is not critical
+    - perfsprint       # Minor performance optimization, not needed
+    - fatcontext       # Context assignment in closures is fine for tests
+    - contextcheck     # Context is passed correctly in practice
+    - gci              # Import order handled by gofumpt
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (io.Closer).Close
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
+      - name: context-keys-type
+        disabled: true
+  gosec:
+    excludes:
+      - G114  # http.ListenAndServe timeout - acceptable for this project
+
+issues:
+  exclude-rules:
+    # Relax rules for test files
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - bodyclose
+        - errorlint
+        - testifylint
+        - staticcheck

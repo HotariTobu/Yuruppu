@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"

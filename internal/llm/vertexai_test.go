@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -853,8 +852,7 @@ func TestMapHTTPStatusCode(t *testing.T) {
 				"error message should contain '%s'", tt.wantContains)
 
 			// Then: Verify type-specific fields
-			switch e := mappedErr.(type) {
-			case *llm.LLMAuthError:
+			if e, ok := mappedErr.(*llm.LLMAuthError); ok {
 				if tt.wantStatusCode > 0 {
 					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
 						"auth error should have status code %d", tt.wantStatusCode)

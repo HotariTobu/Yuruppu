@@ -13,7 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
 	"yuruppu/internal/line"
 
 	"github.com/stretchr/testify/assert"
