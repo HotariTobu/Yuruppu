@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"yuruppu/internal/bot"
+	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
+	"yuruppu/internal/yuruppu"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -97,14 +99,24 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
-// initBot initializes a Bot instance using the provided configuration.
-// Returns the Bot instance or an error if initialization fails.
-func initBot(config *Config) (*bot.Bot, error) {
+// initServer initializes a LINE webhook server using the provided configuration.
+// Returns the Server instance or an error if initialization fails.
+func initServer(config *Config) (*line.Server, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	return bot.NewBot(config.ChannelSecret, config.ChannelAccessToken)
+	return line.NewServer(config.ChannelSecret)
+}
+
+// initClient initializes a LINE messaging client using the provided configuration.
+// Returns the Client instance or an error if initialization fails.
+func initClient(config *Config) (*line.Client, error) {
+	if config == nil {
+		return nil, errors.New("config is required")
+	}
+
+	return line.NewClient(config.ChannelAccessToken)
 }
 
 // initLLM initializes an LLM provider using the provided configuration.
@@ -119,41 +131,26 @@ func initLLM(ctx context.Context, config *Config) (llm.Provider, error) {
 	return llm.NewVertexAIClient(ctx, config.GCPProjectID, config.GCPRegion)
 }
 
-// stdLogger implements bot.Logger interface using standard log package.
-type stdLogger struct{}
-
-func (l *stdLogger) Info(format string, args ...interface{}) {
-	log.Printf("[INFO] "+format, args...)
-}
-
-func (l *stdLogger) Debug(format string, args ...interface{}) {
-	log.Printf("[DEBUG] "+format, args...)
-}
-
-func (l *stdLogger) Warn(format string, args ...interface{}) {
-	log.Printf("[WARN] "+format, args...)
-}
-
-func (l *stdLogger) Error(format string, args ...interface{}) {
-	log.Printf("[ERROR] "+format, args...)
-}
-
-// setupPackageLevel sets up package-level Bot, Logger, LLM provider, and timeout instances.
-// AC-007: bot.SetDefaultBot() and bot.SetLogger() are called.
-// FR-003: LLM provider is set during initialization.
-// NFR-001: LLM timeout is set during initialization.
-func setupPackageLevel(b *bot.Bot, llmProvider llm.Provider, llmTimeout time.Duration) {
-	bot.SetDefaultBot(b)
-	bot.SetLogger(&stdLogger{})
-	bot.SetDefaultLLMProvider(llmProvider)
-	bot.SetLLMTimeout(llmTimeout)
+// createMessageCallback creates a callback that adapts line.Message to yuruppu.Message.
+// This adapter bridges the line and yuruppu packages without creating circular imports.
+func createMessageCallback(handler *yuruppu.Handler) line.MessageHandler {
+	return func(ctx context.Context, msg line.Message) error {
+		// Convert line.Message to yuruppu.Message
+		yMsg := yuruppu.Message{
+			ReplyToken: msg.ReplyToken,
+			Type:       msg.Type,
+			Text:       msg.Text,
+			UserID:     msg.UserID,
+		}
+		return handler.HandleMessage(ctx, yMsg)
+	}
 }
 
 // createHandler creates and returns an http.Handler with registered routes.
-// AC-004: /webhook endpoint is registered with bot.HandleWebhook.
-func createHandler() http.Handler {
+// AC-004: /webhook endpoint is registered with server.HandleWebhook.
+func createHandler(server *line.Server) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", bot.HandleWebhook)
+	mux.HandleFunc("/webhook", server.HandleWebhook)
 	return mux
 }
 
@@ -164,8 +161,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Initialize bot
-	b, err := initBot(config)
+	// Create logger
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Initialize LINE server (webhook handler)
+	server, err := initServer(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
+	server.SetCallbackTimeout(llmTimeout)
+	server.SetLogger(logger)
+
+	// Initialize LINE client (message sender)
+	client, err := initClient(config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -176,19 +185,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Setup package-level bot, logger, LLM provider, and timeout (NFR-001)
-	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	setupPackageLevel(b, llmProvider, llmTimeout)
+	// Create yuruppu handler and register callback
+	yHandler := yuruppu.NewHandler(llmProvider, client, logger)
+	server.OnMessage(createMessageCallback(yHandler))
 
 	// Create HTTP handler and start server
-	handler := createHandler()
+	handler := createHandler(server)
 
-	// AC-004: Log startup message
-	// SC-006: Use config.Port instead of getPort()
+	// Log startup message
 	log.Printf("Server listening on port %s", config.Port)
 
 	// Start HTTP server
-	// SC-006: Use config.Port instead of getPort()
 	if err := http.ListenAndServe(":"+config.Port, handler); err != nil {
 		log.Fatal(err)
 	}
