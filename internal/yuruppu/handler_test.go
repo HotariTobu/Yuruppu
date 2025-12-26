@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"testing"
-
 	"yuruppu/internal/yuruppu"
 
 	"github.com/stretchr/testify/assert"
@@ -24,8 +23,8 @@ func discardLogger() *slog.Logger {
 
 // mockLLMProvider is a test mock for LLMProvider.
 type mockLLMProvider struct {
-	response            string
-	err                 error
+	response             string
+	err                  error
 	capturedSystemPrompt string
 	capturedUserMessage  string
 }

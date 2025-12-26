@@ -3,17 +3,17 @@
   "lastUpdated": "2025-12-26",
   "requirements": [
     { "id": "CH-001", "passes": true },
-    { "id": "CH-002", "passes": false },
+    { "id": "CH-002", "passes": true },
     { "id": "CH-003", "passes": false },
-    { "id": "CH-004", "passes": false },
+    { "id": "CH-004", "passes": true },
     { "id": "CH-005", "passes": false },
     { "id": "AC-001", "passes": true },
-    { "id": "AC-002", "passes": false },
+    { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": false },
-    { "id": "AC-004", "passes": false },
+    { "id": "AC-004", "passes": true },
     { "id": "AC-005", "passes": false },
     { "id": "AC-006", "passes": true }
   ],
   "blockers": [],
-  "notes": "CH-001/AC-001 implemented using 'go test -tags=integration -run='^$' ./...' to compile all files including integration-tagged test files. AC-006 verified: existing test and test-integration targets unchanged. Next session should start with CH-002 (golangci-lint integration)."
+  "notes": "Session 2: Improved golangci-lint PATH lookup (uses PATH instead of hardcoded GOPATH/bin). Fixed deprecated goerr113 warning. All code auto-formatted by golangci-lint --fix. Next session should implement CH-003 (govulncheck) then CH-005 (GitHub Actions workflow)."
 }

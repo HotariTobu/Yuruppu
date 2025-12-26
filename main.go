@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
 	"yuruppu/internal/yuruppu"
