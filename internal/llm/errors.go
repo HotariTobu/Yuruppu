@@ -10,55 +10,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// MockAPIError is a mock implementation of an API error for testing.
-// It mimics the genai.APIError structure.
-type MockAPIError struct {
-	HTTPCode int
-	Msg      string
-}
-
-func (e *MockAPIError) Error() string {
-	return e.Msg
-}
-
-// MockNetError is a mock network error for testing.
-type MockNetError struct {
-	Msg string
-}
-
-func (e *MockNetError) Error() string {
-	return e.Msg
-}
-
-// Temporary implements net.Error interface
-func (e *MockNetError) Temporary() bool {
-	return true
-}
-
-// Timeout implements net.Error interface
-func (e *MockNetError) Timeout() bool {
-	return false
-}
-
-// MockDNSError is a mock DNS error for testing.
-type MockDNSError struct {
-	Msg string
-}
-
-func (e *MockDNSError) Error() string {
-	return e.Msg
-}
-
-// Temporary implements net.Error interface
-func (e *MockDNSError) Temporary() bool {
-	return true
-}
-
-// Timeout implements net.Error interface
-func (e *MockDNSError) Timeout() bool {
-	return false
-}
-
 // MapAPIError maps Vertex AI API errors to custom LLM error types.
 // FR-004: On LLM API error, return appropriate custom error type
 // NFR-003: Error details are preserved for logging
@@ -79,12 +30,6 @@ func MapAPIError(err error) error {
 	var apiErr genai.APIError
 	if errors.As(err, &apiErr) {
 		return mapHTTPStatusCode(apiErr.Code, apiErr.Message)
-	}
-
-	// Check for mock API errors (for testing)
-	var mockAPIErr *MockAPIError
-	if errors.As(err, &mockAPIErr) {
-		return mapHTTPStatusCode(mockAPIErr.HTTPCode, mockAPIErr.Msg)
 	}
 
 	// Check for network errors
