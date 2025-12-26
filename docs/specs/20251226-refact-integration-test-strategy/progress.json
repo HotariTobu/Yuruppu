@@ -2,17 +2,17 @@
   "phase": "in_progress",
   "lastUpdated": "2025-12-26",
   "requirements": [
-    { "id": "SC-001", "passes": false },
+    { "id": "SC-001", "passes": true },
     { "id": "SC-002", "passes": false },
     { "id": "SC-003", "passes": true },
     { "id": "SC-004", "passes": false },
     { "id": "AC-001", "passes": false },
-    { "id": "AC-002", "passes": false },
+    { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": false },
     { "id": "AC-004", "passes": false },
     { "id": "AC-005", "passes": true },
     { "id": "AC-006", "passes": false }
   ],
   "blockers": [],
-  "notes": "Session 1: Completed SC-003 (Makefile targets). Next: SC-001 (Vertex AI integration tests)."
+  "notes": "Session 2: Completed SC-001 (Vertex AI integration tests), AC-002 (verified Vertex AI). Next: SC-002 (LINE API integration tests), then SC-004/AC-001 verification."
 }
