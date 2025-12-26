@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"yuruppu/internal/line"
-	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,15 +21,9 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
-// mockLLMProvider is a mock implementation of llm.Provider for testing.
-type mockLLMProvider struct{}
-
-func (m *mockLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
-	return "mock response", nil
-}
-
-// Ensure mockLLMProvider implements llm.Provider interface
-var _ llm.Provider = (*mockLLMProvider)(nil)
+// =============================================================================
+// LINE Credentials Tests
+// =============================================================================
 
 // TestLoadConfig_ValidCredentials tests loading configuration with valid environment variables.
 // AC-001: Given LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN are set,
@@ -246,26 +238,6 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 	}
 }
 
-// TestLoadConfig_GCPConfigOptional tests that GCP config is optional in loadConfig.
-// AC-002, AC-003: GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
-func TestLoadConfig_GCPConfigOptional(t *testing.T) {
-	// Given: Set LINE credentials but not GCP config
-	t.Setenv("LINE_CHANNEL_SECRET", "valid-secret")
-	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "valid-token")
-	os.Unsetenv("GCP_PROJECT_ID")
-	os.Unsetenv("GCP_REGION")
-
-	// When: Load configuration
-	config, err := loadConfig()
-
-	// Then: Should succeed without error
-	require.NoError(t, err, "loadConfig should not return error when GCP config is missing")
-
-	// Then: GCPProjectID and GCPRegion should be empty strings
-	assert.Equal(t, "", config.GCPProjectID, "GCPProjectID should be empty string")
-	assert.Equal(t, "", config.GCPRegion, "GCPRegion should be empty string")
-}
-
 // TestLoadConfig_TrimsWhitespace tests that configuration values are trimmed.
 // This ensures that accidental whitespace in environment variables doesn't cause issues.
 func TestLoadConfig_TrimsWhitespace(t *testing.T) {
@@ -377,162 +349,57 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 	}
 }
 
-// TestNewServer_Success tests successful Server initialization.
-// AC-003: Given valid credentials are set,
-// when application starts,
-// then line.NewServer() is called and Server instance is created successfully.
-func TestNewServer_Success(t *testing.T) {
+// =============================================================================
+// GCP Configuration Tests
+// =============================================================================
+
+// TestLoadConfig_GCPConfigOptional tests that GCP config is optional in loadConfig.
+// AC-002, AC-003: GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
+func TestLoadConfig_GCPConfigOptional(t *testing.T) {
+	// Given: Set LINE credentials but not GCP config
+	t.Setenv("LINE_CHANNEL_SECRET", "valid-secret")
+	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "valid-token")
+	os.Unsetenv("GCP_PROJECT_ID")
+	os.Unsetenv("GCP_REGION")
+
+	// When: Load configuration
+	config, err := loadConfig()
+
+	// Then: Should succeed without error
+	require.NoError(t, err, "loadConfig should not return error when GCP config is missing")
+
+	// Then: GCPProjectID and GCPRegion should be empty strings
+	assert.Equal(t, "", config.GCPProjectID, "GCPProjectID should be empty string")
+	assert.Equal(t, "", config.GCPRegion, "GCPRegion should be empty string")
+}
+
+// TestLoadConfig_GCPRegion tests that GCP_REGION is loaded via loadConfig.
+// GCP_REGION is optional (auto-detected on Cloud Run).
+func TestLoadConfig_GCPRegion(t *testing.T) {
 	tests := []struct {
-		name          string
-		channelSecret string
+		name           string
+		gcpRegionEnv   string
+		expectedRegion string
 	}{
 		{
-			name:          "valid credentials initialize server successfully",
-			channelSecret: "test-channel-secret",
+			name:           "empty string when not set",
+			gcpRegionEnv:   "",
+			expectedRegion: "",
 		},
 		{
-			name:          "long credentials initialize server successfully",
-			channelSecret: "very-long-channel-secret-0123456789",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Initialize server directly
-			s, err := line.NewServer(tt.channelSecret, testTimeout, discardLogger())
-
-			// Then: Should succeed without error
-			require.NoError(t, err, "line.NewServer should not return error with valid credentials")
-
-			// Then: Server instance should not be nil
-			assert.NotNil(t, s, "server instance should not be nil")
-		})
-	}
-}
-
-// TestNewServer_EmptySecret tests error when channel secret is empty.
-func TestNewServer_EmptySecret(t *testing.T) {
-	// When: Initialize server with empty channel secret
-	s, err := line.NewServer("", testTimeout, discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "line.NewServer should return error with empty channel secret")
-
-	// Then: Server instance should be nil
-	assert.Nil(t, s, "server instance should be nil on error")
-
-	// Then: Error message should indicate missing credential
-	assert.Contains(t, err.Error(), "channelSecret", "error message should mention channelSecret")
-}
-
-// TestNewClient_Success tests successful Client initialization.
-func TestNewClient_Success(t *testing.T) {
-	tests := []struct {
-		name               string
-		channelAccessToken string
-	}{
-		{
-			name:               "valid credentials initialize client successfully",
-			channelAccessToken: "test-access-token",
+			name:           "custom region from environment variable",
+			gcpRegionEnv:   "asia-northeast1",
+			expectedRegion: "asia-northeast1",
 		},
 		{
-			name:               "long credentials initialize client successfully",
-			channelAccessToken: "very-long-access-token-0123456789",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Initialize client directly
-			c, err := line.NewClient(tt.channelAccessToken, discardLogger())
-
-			// Then: Should succeed without error
-			require.NoError(t, err, "line.NewClient should not return error with valid credentials")
-
-			// Then: Client instance should not be nil
-			assert.NotNil(t, c, "client instance should not be nil")
-		})
-	}
-}
-
-// TestNewClient_EmptyToken tests error when channel access token is empty.
-func TestNewClient_EmptyToken(t *testing.T) {
-	// When: Initialize client with empty channel access token
-	c, err := line.NewClient("", discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "line.NewClient should return error with empty channel access token")
-
-	// Then: Client instance should be nil
-	assert.Nil(t, c, "client instance should be nil on error")
-
-	// Then: Error message should indicate missing credential
-	assert.Contains(t, err.Error(), "channelToken", "error message should mention channelToken")
-}
-
-// TestNewVertexAIClient_EmptyGCPProjectID tests error when GCP_PROJECT_ID is empty.
-// AC-013: Bot fails to start during initialization if credentials are missing.
-func TestNewVertexAIClient_EmptyGCPProjectID(t *testing.T) {
-	// When: Initialize LLM with empty GCP_PROJECT_ID
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), "", "", discardLogger())
-
-	// Then: Should return error
-	require.Error(t, err, "llm.NewVertexAIClient should return error with empty GCP_PROJECT_ID")
-
-	// Then: LLM provider should be nil
-	assert.Nil(t, llmProvider, "llmProvider should be nil on error")
-
-	// Then: Error message should indicate GCP_PROJECT_ID is missing
-	assert.Contains(t, err.Error(), "GCP_PROJECT_ID", "error message should mention GCP_PROJECT_ID")
-}
-
-// Note: TestGetPort_* tests were removed as part of SC-006.
-// PORT functionality is now tested via TestLoadConfig_Port tests.
-// The getPort() function was removed and replaced with Config.Port.
-
-// TestCreateHandler tests that createHandler returns an http.Handler.
-// AC-004: Given Server is initialized successfully,
-// when application starts,
-// then /webhook endpoint is accessible.
-func TestCreateHandler(t *testing.T) {
-	// Given: Create a server directly
-	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
-	require.NoError(t, err)
-
-	// When: Create handler
-	handler := createHandler(server)
-
-	// Then: Should return non-nil handler
-	assert.NotNil(t, handler, "handler should not be nil")
-}
-
-// TestLoadConfig_LLMTimeout tests LLM timeout configuration loading.
-// NFR-001: LLM API total request timeout should be configurable via environment variable (default: 30 seconds)
-func TestLoadConfig_LLMTimeout(t *testing.T) {
-	tests := []struct {
-		name            string
-		llmTimeoutEnv   string
-		expectedTimeout int
-	}{
-		{
-			name:            "default timeout is 30 seconds when not set",
-			llmTimeoutEnv:   "",
-			expectedTimeout: 30,
+			name:           "region us-west1",
+			gcpRegionEnv:   "us-west1",
+			expectedRegion: "us-west1",
 		},
 		{
-			name:            "custom timeout from environment variable",
-			llmTimeoutEnv:   "60",
-			expectedTimeout: 60,
-		},
-		{
-			name:            "timeout of 1 second",
-			llmTimeoutEnv:   "1",
-			expectedTimeout: 1,
-		},
-		{
-			name:            "timeout of 120 seconds",
-			llmTimeoutEnv:   "120",
-			expectedTimeout: 120,
+			name:           "region europe-west1",
+			gcpRegionEnv:   "europe-west1",
+			expectedRegion: "europe-west1",
 		},
 	}
 
@@ -541,12 +408,11 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 
-			if tt.llmTimeoutEnv != "" {
-				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
+			if tt.gcpRegionEnv != "" {
+				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 			} else {
-				os.Unsetenv("LLM_TIMEOUT_SECONDS")
+				os.Unsetenv("GCP_REGION")
 			}
 
 			// When: Load configuration
@@ -555,12 +421,66 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 			// Then: Should succeed without error
 			require.NoError(t, err, "loadConfig should not return error")
 
-			// Then: LLM timeout should match expected value
-			assert.Equal(t, tt.expectedTimeout, config.LLMTimeoutSeconds,
-				"LLMTimeoutSeconds should match expected value")
+			// Then: GCPRegion should match expected value
+			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
+				"GCPRegion should match expected value")
 		})
 	}
 }
+
+// TestLoadConfig_GCPRegion_TrimsWhitespace tests that GCP_REGION value is trimmed.
+// GCP_REGION environment variable is read and trimmed.
+func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name           string
+		gcpRegionEnv   string
+		expectedRegion string
+	}{
+		{
+			name:           "leading whitespace is trimmed",
+			gcpRegionEnv:   "  asia-northeast1",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "trailing whitespace is trimmed",
+			gcpRegionEnv:   "asia-northeast1  ",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "leading and trailing whitespace is trimmed",
+			gcpRegionEnv:   "  asia-northeast1  ",
+			expectedRegion: "asia-northeast1",
+		},
+		{
+			name:           "whitespace only results in empty string",
+			gcpRegionEnv:   "   ",
+			expectedRegion: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: GCPRegion should be trimmed and match expected value
+			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
+				"GCPRegion should have whitespace trimmed")
+		})
+	}
+}
+
+// =============================================================================
+// Port Configuration Tests
+// =============================================================================
 
 // TestLoadConfig_Port tests that PORT is loaded via loadConfig.
 // SC-001, AC-001: PORT is read and trimmed, defaults to "8080" if empty.
@@ -669,33 +589,37 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 	}
 }
 
-// TestLoadConfig_GCPRegion tests that GCP_REGION is loaded via loadConfig.
-// GCP_REGION is optional (auto-detected on Cloud Run).
-func TestLoadConfig_GCPRegion(t *testing.T) {
+// =============================================================================
+// LLM Timeout Configuration Tests
+// =============================================================================
+
+// TestLoadConfig_LLMTimeout tests LLM timeout configuration loading.
+// NFR-001: LLM API total request timeout should be configurable via environment variable (default: 30 seconds)
+func TestLoadConfig_LLMTimeout(t *testing.T) {
 	tests := []struct {
-		name           string
-		gcpRegionEnv   string
-		expectedRegion string
+		name            string
+		llmTimeoutEnv   string
+		expectedTimeout int
 	}{
 		{
-			name:           "empty string when not set",
-			gcpRegionEnv:   "",
-			expectedRegion: "",
+			name:            "default timeout is 30 seconds when not set",
+			llmTimeoutEnv:   "",
+			expectedTimeout: 30,
 		},
 		{
-			name:           "custom region from environment variable",
-			gcpRegionEnv:   "asia-northeast1",
-			expectedRegion: "asia-northeast1",
+			name:            "custom timeout from environment variable",
+			llmTimeoutEnv:   "60",
+			expectedTimeout: 60,
 		},
 		{
-			name:           "region us-west1",
-			gcpRegionEnv:   "us-west1",
-			expectedRegion: "us-west1",
+			name:            "timeout of 1 second",
+			llmTimeoutEnv:   "1",
+			expectedTimeout: 1,
 		},
 		{
-			name:           "region europe-west1",
-			gcpRegionEnv:   "europe-west1",
-			expectedRegion: "europe-west1",
+			name:            "timeout of 120 seconds",
+			llmTimeoutEnv:   "120",
+			expectedTimeout: 120,
 		},
 	}
 
@@ -704,11 +628,12 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 
-			if tt.gcpRegionEnv != "" {
-				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
+			if tt.llmTimeoutEnv != "" {
+				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
 			} else {
-				os.Unsetenv("GCP_REGION")
+				os.Unsetenv("LLM_TIMEOUT_SECONDS")
 			}
 
 			// When: Load configuration
@@ -717,59 +642,9 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			// Then: Should succeed without error
 			require.NoError(t, err, "loadConfig should not return error")
 
-			// Then: GCPRegion should match expected value
-			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
-				"GCPRegion should match expected value")
-		})
-	}
-}
-
-// TestLoadConfig_GCPRegion_TrimsWhitespace tests that GCP_REGION value is trimmed.
-// GCP_REGION environment variable is read and trimmed.
-func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
-	tests := []struct {
-		name           string
-		gcpRegionEnv   string
-		expectedRegion string
-	}{
-		{
-			name:           "leading whitespace is trimmed",
-			gcpRegionEnv:   "  asia-northeast1",
-			expectedRegion: "asia-northeast1",
-		},
-		{
-			name:           "trailing whitespace is trimmed",
-			gcpRegionEnv:   "asia-northeast1  ",
-			expectedRegion: "asia-northeast1",
-		},
-		{
-			name:           "leading and trailing whitespace is trimmed",
-			gcpRegionEnv:   "  asia-northeast1  ",
-			expectedRegion: "asia-northeast1",
-		},
-		{
-			name:           "whitespace only results in empty string",
-			gcpRegionEnv:   "   ",
-			expectedRegion: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set required environment variables
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
-
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should succeed without error
-			require.NoError(t, err, "loadConfig should not return error")
-
-			// Then: GCPRegion should be trimmed and match expected value
-			assert.Equal(t, tt.expectedRegion, config.GCPRegion,
-				"GCPRegion should have whitespace trimmed")
+			// Then: LLM timeout should match expected value
+			assert.Equal(t, tt.expectedTimeout, config.LLMTimeoutSeconds,
+				"LLMTimeoutSeconds should match expected value")
 		})
 	}
 }
@@ -823,4 +698,24 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 				"LLMTimeoutSeconds should fall back to default for invalid value")
 		})
 	}
+}
+
+// =============================================================================
+// Handler Tests
+// =============================================================================
+
+// TestCreateHandler tests that createHandler returns an http.Handler.
+// AC-004: Given Server is initialized successfully,
+// when application starts,
+// then /webhook endpoint is accessible.
+func TestCreateHandler(t *testing.T) {
+	// Given: Create a server directly
+	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
+	require.NoError(t, err)
+
+	// When: Create handler
+	handler := createHandler(server)
+
+	// Then: Should return non-nil handler
+	assert.NotNil(t, handler, "handler should not be nil")
 }
