@@ -25,9 +25,10 @@ provider "google" {
 # Enable required APIs
 resource "google_project_service" "apis" {
   for_each = toset([
-    "run.googleapis.com",
-    "cloudbuild.googleapis.com",
+    "aiplatform.googleapis.com",
     "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "run.googleapis.com",
     "secretmanager.googleapis.com",
   ])
 
