@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"yuruppu/internal/llm"
 
@@ -411,24 +410,91 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 	}
 }
 
-// TestInitBot_Success tests successful Bot initialization.
+// TestInitServer_Success tests successful Server initialization.
 // AC-003: Given valid credentials are set,
 // when application starts,
-// then bot.NewBot() is called and Bot instance is created successfully.
-func TestInitBot_Success(t *testing.T) {
+// then line.NewServer() is called and Server instance is created successfully.
+func TestInitServer_Success(t *testing.T) {
+	tests := []struct {
+		name          string
+		channelSecret string
+	}{
+		{
+			name:          "valid credentials initialize server successfully",
+			channelSecret: "test-channel-secret",
+		},
+		{
+			name:          "long credentials initialize server successfully",
+			channelSecret: "very-long-channel-secret-0123456789",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Valid configuration
+			config := &Config{
+				ChannelSecret: tt.channelSecret,
+			}
+
+			// When: Initialize server
+			s, err := initServer(config)
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "initServer should not return error with valid credentials")
+
+			// Then: Server instance should not be nil
+			assert.NotNil(t, s, "server instance should not be nil")
+		})
+	}
+}
+
+// TestInitServer_NilConfig tests error when config is nil.
+func TestInitServer_NilConfig(t *testing.T) {
+	// When: Initialize server with nil config
+	s, err := initServer(nil)
+
+	// Then: Should return error
+	require.Error(t, err, "initServer should return error with nil config")
+
+	// Then: Server instance should be nil
+	assert.Nil(t, s, "server instance should be nil on error")
+
+	// Then: Error message should be descriptive
+	assert.Contains(t, err.Error(), "config", "error message should mention config")
+}
+
+// TestInitServer_EmptySecret tests error when channel secret is empty.
+func TestInitServer_EmptySecret(t *testing.T) {
+	// Given: Configuration with empty channel secret
+	config := &Config{
+		ChannelSecret: "",
+	}
+
+	// When: Initialize server
+	s, err := initServer(config)
+
+	// Then: Should return error
+	require.Error(t, err, "initServer should return error with empty channel secret")
+
+	// Then: Server instance should be nil
+	assert.Nil(t, s, "server instance should be nil on error")
+
+	// Then: Error message should indicate missing credential
+	assert.Contains(t, err.Error(), "channelSecret", "error message should mention channelSecret")
+}
+
+// TestInitClient_Success tests successful Client initialization.
+func TestInitClient_Success(t *testing.T) {
 	tests := []struct {
 		name               string
-		channelSecret      string
 		channelAccessToken string
 	}{
 		{
-			name:               "valid credentials initialize bot successfully",
-			channelSecret:      "test-channel-secret",
+			name:               "valid credentials initialize client successfully",
 			channelAccessToken: "test-access-token",
 		},
 		{
-			name:               "long credentials initialize bot successfully",
-			channelSecret:      "very-long-channel-secret-0123456789",
+			name:               "long credentials initialize client successfully",
 			channelAccessToken: "very-long-access-token-0123456789",
 		},
 	}
@@ -437,128 +503,54 @@ func TestInitBot_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid configuration
 			config := &Config{
-				ChannelSecret:      tt.channelSecret,
 				ChannelAccessToken: tt.channelAccessToken,
 			}
 
-			// When: Initialize bot
-			b, err := initBot(config)
+			// When: Initialize client
+			c, err := initClient(config)
 
 			// Then: Should succeed without error
-			require.NoError(t, err, "initBot should not return error with valid credentials")
+			require.NoError(t, err, "initClient should not return error with valid credentials")
 
-			// Then: Bot instance should not be nil
-			assert.NotNil(t, b, "bot instance should not be nil")
+			// Then: Client instance should not be nil
+			assert.NotNil(t, c, "client instance should not be nil")
 		})
 	}
 }
 
-// TestInitBot_NilConfig tests error when config is nil.
-// FR-002: Bot initialization should handle edge cases gracefully.
-func TestInitBot_NilConfig(t *testing.T) {
-	// When: Initialize bot with nil config
-	b, err := initBot(nil)
+// TestInitClient_NilConfig tests error when config is nil.
+func TestInitClient_NilConfig(t *testing.T) {
+	// When: Initialize client with nil config
+	c, err := initClient(nil)
 
 	// Then: Should return error
-	require.Error(t, err, "initBot should return error with nil config")
+	require.Error(t, err, "initClient should return error with nil config")
 
-	// Then: Bot instance should be nil
-	assert.Nil(t, b, "bot instance should be nil on error")
+	// Then: Client instance should be nil
+	assert.Nil(t, c, "client instance should be nil on error")
 
 	// Then: Error message should be descriptive
 	assert.Contains(t, err.Error(), "config", "error message should mention config")
 }
 
-// TestInitBot_EmptyCredentials tests error when credentials are empty.
-// FR-002: Bot initialization should fail when credentials are empty.
-func TestInitBot_EmptyCredentials(t *testing.T) {
-	tests := []struct {
-		name               string
-		channelSecret      string
-		channelAccessToken string
-		wantErrContains    string
-	}{
-		{
-			name:               "empty channel secret fails initialization",
-			channelSecret:      "",
-			channelAccessToken: "valid-token",
-			wantErrContains:    "LINE_CHANNEL_SECRET",
-		},
-		{
-			name:               "empty channel access token fails initialization",
-			channelSecret:      "valid-secret",
-			channelAccessToken: "",
-			wantErrContains:    "LINE_CHANNEL_ACCESS_TOKEN",
-		},
-		{
-			name:               "both credentials empty fails initialization",
-			channelSecret:      "",
-			channelAccessToken: "",
-			wantErrContains:    "LINE_CHANNEL_SECRET",
-		},
+// TestInitClient_EmptyToken tests error when channel access token is empty.
+func TestInitClient_EmptyToken(t *testing.T) {
+	// Given: Configuration with empty channel access token
+	config := &Config{
+		ChannelAccessToken: "",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Configuration with empty credentials
-			config := &Config{
-				ChannelSecret:      tt.channelSecret,
-				ChannelAccessToken: tt.channelAccessToken,
-			}
+	// When: Initialize client
+	c, err := initClient(config)
 
-			// When: Initialize bot
-			b, err := initBot(config)
+	// Then: Should return error
+	require.Error(t, err, "initClient should return error with empty channel access token")
 
-			// Then: Should return error
-			require.Error(t, err, "initBot should return error with empty credentials")
+	// Then: Client instance should be nil
+	assert.Nil(t, c, "client instance should be nil on error")
 
-			// Then: Bot instance should be nil
-			assert.Nil(t, b, "bot instance should be nil on error")
-
-			// Then: Error message should indicate which credential is missing
-			assert.Contains(t, err.Error(), tt.wantErrContains,
-				"error message should indicate missing credential")
-		})
-	}
-}
-
-// TestSetupPackageLevel tests package-level configuration.
-// AC-007: Given Bot is initialized successfully,
-// when application starts,
-// then bot.SetDefaultBot(), bot.SetLogger(), bot.SetDefaultLLMProvider(), and bot.SetLLMTimeout() are called.
-func TestSetupPackageLevel(t *testing.T) {
-	// Given: Valid configuration
-	t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-	t.Setenv("GCP_PROJECT_ID", "test-project-id")
-
-	config, err := loadConfig()
-	require.NoError(t, err)
-
-	b, err := initBot(config)
-	require.NoError(t, err)
-
-	// Given: Mock LLM provider (since we can't initialize real Vertex AI in tests)
-	llmProvider := &mockLLMProvider{}
-
-	// Given: LLM timeout
-	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-
-	// When: Setup package-level configuration
-	setupPackageLevel(b, llmProvider, llmTimeout)
-
-	// Then: Function should complete without panic
-	// (The actual verification of SetDefaultBot/SetLogger/SetDefaultLLMProvider/SetLLMTimeout is done by the bot package tests)
-}
-
-// TestSetupPackageLevel_NilBot tests package-level configuration with nil bot.
-// FR-004: Package-level settings should handle edge cases gracefully.
-func TestSetupPackageLevel_NilBot(t *testing.T) {
-	// When: Setup package-level configuration with nil bot
-	// Then: Should not panic
-	assert.NotPanics(t, func() {
-		setupPackageLevel(nil, nil, 0)
-	}, "setupPackageLevel should not panic with nil bot")
+	// Then: Error message should indicate missing credential
+	assert.Contains(t, err.Error(), "channelToken", "error message should mention channelToken")
 }
 
 // TestInitLLM_NilConfig tests error when config is nil.
@@ -604,12 +596,16 @@ func TestInitLLM_EmptyGCPProjectID(t *testing.T) {
 // The getPort() function was removed and replaced with Config.Port.
 
 // TestCreateHandler tests that createHandler returns an http.Handler.
-// AC-004: Given Bot is initialized successfully,
+// AC-004: Given Server is initialized successfully,
 // when application starts,
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
+	// Given: Create a server
+	server, err := initServer(&Config{ChannelSecret: "test-secret"})
+	require.NoError(t, err)
+
 	// When: Create handler
-	handler := createHandler()
+	handler := createHandler(server)
 
 	// Then: Should return non-nil handler
 	assert.NotNil(t, handler, "handler should not be nil")
