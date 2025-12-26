@@ -20,7 +20,9 @@ End the current coding session with progress update and structured commit.
    git status
    git diff --staged
    ```
-   Select relevant `reviewer-*` agents based on their descriptions and run in parallel.
+   Select relevant `reviewer-*` agents based on their descriptions.
+   **Declare which agents will be used before launching them.**
+   Run selected agents in parallel.
    Fix critical issues before proceeding.
 
 3. **Update progress.json**
