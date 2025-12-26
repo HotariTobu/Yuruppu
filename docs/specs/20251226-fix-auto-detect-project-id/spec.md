@@ -27,8 +27,7 @@ http://metadata.google.internal/computeMetadata/v1/project/project-id
 
 ## Proposed Fix
 
-- [ ] FX-001: Add `GetProjectID` function in `internal/llm/vertexai.go` following the `GetRegion()` pattern
-- [ ] FX-002: Update `loadConfig()` in `main.go` to use metadata-based project ID detection
+- [ ] FX-001: Add `GetProjectID` function following the `GetRegion()` pattern and use it in `NewVertexAIClient`
 
 ## Acceptance Criteria
 
@@ -49,15 +48,13 @@ http://metadata.google.internal/computeMetadata/v1/project/project-id
   - Project ID from env var is used
   - Application starts successfully
 
-### AC-003: Error when no project ID available [Linked to FX-002]
+### AC-003: Error when no project ID available [Linked to FX-001]
 
 - **Given**: Application running locally without metadata server
-- **When**: `loadConfig()` is called without `GCP_PROJECT_ID` env var
-- **Then**:
-  - Application fails with error message: `GCP_PROJECT_ID is required`
-  - Consistent with existing error message format in codebase
+- **When**: Application starts without `GCP_PROJECT_ID` env var
+- **Then**: Application fails with appropriate error message
 
-### AC-004: Regression - existing functionality preserved [Linked to FX-001, FX-002]
+### AC-004: Regression - existing functionality preserved [Linked to FX-001]
 
 - **Given**: `GCP_PROJECT_ID` env var is set
 - **When**: Application starts (regardless of metadata server availability)
@@ -68,15 +65,11 @@ http://metadata.google.internal/computeMetadata/v1/project/project-id
 ## Implementation Notes
 
 - Follow existing pattern from `GetRegion()` in `internal/llm/vertexai.go`
-- Metadata endpoint: `http://metadata.google.internal/computeMetadata/v1/project/project-id`
-- Requires `Metadata-Flavor: Google` header
-- Use 2-second timeout for metadata request (same as region detection)
 - Project ID response is plain text (no path parsing needed, unlike region)
-- Response should be trimmed of trailing newlines like the region response
-- `GetProjectID` should be exported (public) for consistency with `GetRegion()`
 
 ## Change History
 
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2025-12-26 | 1.0 | Initial version | - |
+| 2025-12-26 | 1.1 | Remove FX-002 (main.go change unnecessary), simplify implementation notes | - |
