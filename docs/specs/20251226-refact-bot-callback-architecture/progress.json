@@ -5,7 +5,7 @@
     { "id": "SC-001", "passes": true },
     { "id": "SC-002", "passes": true },
     { "id": "SC-003", "passes": true },
-    { "id": "SC-004", "passes": false },
+    { "id": "SC-004", "passes": true },
     { "id": "SC-005", "passes": false },
     { "id": "SC-006", "passes": false },
     { "id": "SC-007", "passes": false },
@@ -19,5 +19,5 @@
     { "id": "AC-008", "passes": false }
   ],
   "blockers": [],
-  "notes": "SC-003 complete: Created line.Client with NewClient(channelToken) constructor and SendReply(replyToken, text) method. Added MessagingAPI interface and NewClientWithAPI for dependency injection in tests. Client follows same patterns as Server (ConfigError, whitespace trimming). All 8 client tests pass. Code reviewed by correctness, testing, architecture, and readability reviewers - no critical issues found. Next session should continue with SC-004: Remove duplicate LLMProvider interface from bot."
+  "notes": "SC-004 complete: Removed duplicate bot.LLMProvider interface. SetDefaultLLMProvider() and getDefaultLLMProvider() now use llm.Provider directly. All bot tests pass (preflight green). Code reviewed by correctness, architecture, and testing reviewers - no critical issues. yuruppu.LLMProvider remains intentionally as Anti-Corruption Layer to avoid circular imports. Next session should continue with SC-005: Delete internal/llm/prompt.go (SystemPrompt already moved to yuruppu in SC-001)."
 }
