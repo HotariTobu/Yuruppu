@@ -24,7 +24,7 @@ type Config struct {
 	GCPMetadataTimeoutSeconds int    // GCP metadata server timeout in seconds (default: 2)
 	GCPProjectID              string // Optional: auto-detected on Cloud Run
 	GCPRegion                 string // Optional: auto-detected on Cloud Run
-	LLMModel                  string // Required: LLM model name (e.g., "gemini-2.5-flash-lite")
+	LLMModel                  string // Required: LLM model name
 	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
 }
 

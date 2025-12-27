@@ -33,6 +33,6 @@ variable "github_app_installation_id" {
 }
 
 variable "llm_model" {
-  description = "LLM model name (e.g., gemini-2.5-flash-lite)"
+  description = "LLM model name"
   type        = string
 }

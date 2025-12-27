@@ -26,7 +26,7 @@ type vertexAIClient struct {
 // The projectID, region, and model parameters must be pre-resolved by the caller.
 // Use gcp.MetadataClient to resolve projectID and region from Cloud Run metadata server
 // with fallback to environment variables before calling this function.
-// model is the Gemini model name to use (e.g., "gemini-2.5-flash-lite").
+// model is the Gemini model name to use.
 // logger is the structured logger for the client.
 // Returns an error if projectID, region, or model is empty or whitespace-only.
 func NewVertexAIClient(ctx context.Context, projectID string, region string, model string, logger *slog.Logger) (Provider, error) {
