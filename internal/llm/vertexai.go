@@ -18,14 +18,15 @@ const DefaultCacheTTL = 60 * time.Minute
 
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
 type vertexAIClient struct {
-	client       *genai.Client
-	projectID    string
-	model        string
-	logger       *slog.Logger
-	closed       bool
-	mu           sync.RWMutex // Protects closed and cacheName fields
-	systemPrompt string       // CH-001: System prompt for caching and fallback
-	cacheName    string       // CH-001: Name of cached content (empty if caching not used)
+	client        *genai.Client
+	projectID     string
+	model         string
+	logger        *slog.Logger
+	closed        bool
+	mu            sync.RWMutex // Protects closed and cacheName fields
+	systemPrompt  string       // CH-001: System prompt for caching and fallback
+	cacheName     string       // CH-001: Name of cached content (empty if caching not used)
+	cacheRecreate sync.Mutex   // Protects cache recreation to prevent concurrent recreation
 }
 
 // NewVertexAIClient creates a new Vertex AI client.
@@ -208,7 +209,7 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 
 	// AC-006: Handle cache expiration - check for cache-related errors and retry
 	if err != nil && cacheName != "" && v.isCacheError(err) {
-		resp, err = v.handleCacheErrorAndRetry(ctx, err, systemPrompt, userMessage)
+		resp, err = v.handleCacheErrorAndRetry(ctx, err, cacheName, systemPrompt, userMessage)
 	}
 
 	if err != nil {
@@ -257,8 +258,15 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 
 // buildGenerateConfig creates the GenerateContentConfig for API calls.
 // AC-002: Uses cached content when available, otherwise uses system instruction.
+// AC-003: Disables thinking mode to reduce latency.
 func (v *vertexAIClient) buildGenerateConfig(cacheName, systemPrompt string) *genai.GenerateContentConfig {
-	config := &genai.GenerateContentConfig{}
+	// AC-003: Disable thinking mode by setting budget to 0
+	thinkingBudget := int32(0)
+	config := &genai.GenerateContentConfig{
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
+	}
 
 	if cacheName != "" {
 		// AC-002: Use cached content
@@ -297,10 +305,34 @@ func (v *vertexAIClient) isCacheError(err error) bool {
 
 // handleCacheErrorAndRetry attempts to recreate the cache and retry the request.
 // AC-006: Cache is recreated automatically when expired or deleted.
-func (v *vertexAIClient) handleCacheErrorAndRetry(ctx context.Context, originalErr error, systemPrompt, userMessage string) (*genai.GenerateContentResponse, error) {
+// This method is thread-safe and prevents concurrent cache recreation attempts.
+//
+// The failedCacheName parameter is the cache name that caused the error.
+// This is used to detect if another goroutine has already handled the cache error.
+func (v *vertexAIClient) handleCacheErrorAndRetry(ctx context.Context, originalErr error, failedCacheName, systemPrompt, userMessage string) (*genai.GenerateContentResponse, error) {
 	v.logger.Warn("cache error detected, attempting to recreate cache",
 		slog.Any("error", originalErr),
+		slog.String("failedCacheName", failedCacheName),
 	)
+
+	// Use cacheRecreate mutex to prevent concurrent cache recreation
+	v.cacheRecreate.Lock()
+	defer v.cacheRecreate.Unlock()
+
+	// Check if another goroutine already recreated the cache or switched to fallback
+	v.mu.RLock()
+	currentCacheName := v.cacheName
+	v.mu.RUnlock()
+
+	// If cache name has changed, another goroutine already handled the error
+	// This allows cache recreation to happen again after subsequent expirations
+	if currentCacheName != failedCacheName {
+		v.logger.Debug("cache already updated by another goroutine",
+			slog.String("currentCacheName", currentCacheName),
+		)
+		config := v.buildGenerateConfig(currentCacheName, systemPrompt)
+		return v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+	}
 
 	// Try to recreate cache
 	newCacheName, cacheErr := v.createCache(ctx)

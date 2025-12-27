@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"yuruppu/internal/gcp"
 	"yuruppu/internal/line"
@@ -160,7 +162,8 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, config.LLMModel, logger)
+	// CH-001: Use NewVertexAIClientWithCache for system prompt caching
+	llmProvider, err := llm.NewVertexAIClientWithCache(context.Background(), projectID, region, config.LLMModel, yuruppu.SystemPrompt, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -170,11 +173,44 @@ func main() {
 	yHandler := yuruppu.NewHandler(llmProvider, client, logger)
 	server.OnMessage(createMessageCallback(yHandler))
 
-	// Start HTTP server
+	// Create HTTP server with graceful shutdown support
 	handler := createHandler(server)
-	logger.Info("server starting", slog.String("port", config.Port))
-	if err := http.ListenAndServe(":"+config.Port, handler); err != nil {
-		logger.Error("server failed", slog.String("error", err.Error()))
-		os.Exit(1)
+	httpServer := &http.Server{
+		Addr:              ":" + config.Port,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second, // Prevent Slowloris attacks
 	}
+
+	// Setup signal handling for graceful shutdown
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	// Start HTTP server in a goroutine
+	go func() {
+		logger.Info("server starting", slog.String("port", config.Port))
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-shutdown
+	logger.Info("shutdown signal received, initiating graceful shutdown")
+
+	// Create context with timeout for graceful shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Shutdown HTTP server gracefully
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("failed to shutdown HTTP server gracefully", slog.String("error", err.Error()))
+	}
+
+	// Close LLM provider to clean up resources (cache, connections)
+	if err := llmProvider.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close LLM provider", slog.String("error", err.Error()))
+	}
+
+	logger.Info("graceful shutdown completed")
 }
