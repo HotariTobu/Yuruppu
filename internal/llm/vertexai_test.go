@@ -61,7 +61,7 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 			// (projectID is set via function parameter, not env var for test isolation)
 
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "test-region", discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "test-region", "test-model", discardLogger())
 
 			// Then: Should return error indicating missing projectID
 			if tt.wantErr {
@@ -120,7 +120,7 @@ func TestNewVertexAIClient_EmptyRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID but empty/whitespace region
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", tt.region, discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", tt.region, "test-model", discardLogger())
 
 			// Then: Should return error indicating missing region
 			if tt.wantErr {
@@ -130,6 +130,57 @@ func TestNewVertexAIClient_EmptyRegion(t *testing.T) {
 					"client should be nil when initialization fails")
 				assert.Contains(t, err.Error(), tt.wantErrMsg,
 					"error message should indicate region is required")
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, client)
+			}
+		})
+	}
+}
+
+// TestNewVertexAIClient_EmptyModel tests that client initialization fails when model is missing.
+// FX-003: Add model parameter to NewVertexAIClient()
+func TestNewVertexAIClient_EmptyModel(t *testing.T) {
+	tests := []struct {
+		name       string
+		model      string
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:       "empty model returns error",
+			model:      "",
+			wantErr:    true,
+			wantErrMsg: "model is required",
+		},
+		{
+			name:       "whitespace-only model returns error",
+			model:      "   ",
+			wantErr:    true,
+			wantErrMsg: "model is required",
+		},
+		{
+			name:       "whitespace with tabs model returns error",
+			model:      "\t\n  ",
+			wantErr:    true,
+			wantErrMsg: "model is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Valid project ID and region but empty/whitespace model
+			// When: Attempt to create Vertex AI client
+			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", "test-region", tt.model, discardLogger())
+
+			// Then: Should return error indicating missing model
+			if tt.wantErr {
+				require.Error(t, err,
+					"should return error when model is missing")
+				assert.Nil(t, client,
+					"client should be nil when initialization fails")
+				assert.Contains(t, err.Error(), tt.wantErrMsg,
+					"error message should indicate model is required")
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, client)

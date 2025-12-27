@@ -160,7 +160,7 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, logger)
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, config.LLMModel, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)
