@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -40,6 +41,7 @@ const (
 // It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, and LLM_TIMEOUT_SECONDS from environment.
 // Returns error if required LINE environment variables are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
+// Returns error if timeout values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables (order matches Config struct)
 	port := strings.TrimSpace(os.Getenv("PORT"))
@@ -63,10 +65,11 @@ func loadConfig() (*Config, error) {
 	// Parse GCP metadata timeout
 	gcpMetadataTimeoutSeconds := defaultGCPMetadataTimeoutSeconds
 	if env := os.Getenv("GCP_METADATA_TIMEOUT_SECONDS"); env != "" {
-		if parsed, err := strconv.Atoi(env); err == nil && parsed > 0 {
-			gcpMetadataTimeoutSeconds = parsed
+		parsed, err := strconv.Atoi(env)
+		if err != nil || parsed <= 0 {
+			return nil, fmt.Errorf("GCP_METADATA_TIMEOUT_SECONDS must be a positive integer: %s", env)
 		}
-		// Invalid values fall back to default
+		gcpMetadataTimeoutSeconds = parsed
 	}
 
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
@@ -74,11 +77,12 @@ func loadConfig() (*Config, error) {
 
 	// Parse LLM timeout
 	llmTimeoutSeconds := defaultLLMTimeoutSeconds
-	if llmTimeoutEnv := os.Getenv("LLM_TIMEOUT_SECONDS"); llmTimeoutEnv != "" {
-		if parsed, err := strconv.Atoi(llmTimeoutEnv); err == nil && parsed > 0 {
-			llmTimeoutSeconds = parsed
+	if env := os.Getenv("LLM_TIMEOUT_SECONDS"); env != "" {
+		parsed, err := strconv.Atoi(env)
+		if err != nil || parsed <= 0 {
+			return nil, fmt.Errorf("LLM_TIMEOUT_SECONDS must be a positive integer: %s", env)
 		}
-		// Invalid values fall back to default
+		llmTimeoutSeconds = parsed
 	}
 
 	return &Config{

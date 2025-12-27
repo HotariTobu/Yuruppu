@@ -195,10 +195,13 @@ func GetRegion(metadataServerURL string, fallbackRegion string) string {
 
 // fetchMetadata fetches a value from the Cloud Run metadata server.
 // Returns empty string on any failure (timeout, HTTP error, malformed response).
+// Errors are logged at error level.
 // The parser function is applied to the response body to extract the desired value.
 func fetchMetadata(baseURL string, endpoint string, parser func(string) string) string {
-	req, err := http.NewRequest("GET", baseURL+endpoint, nil)
+	url := baseURL + endpoint
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		slog.Error("failed to create metadata request", slog.String("url", url), slog.Any("error", err))
 		return ""
 	}
 
@@ -206,16 +209,19 @@ func fetchMetadata(baseURL string, endpoint string, parser func(string) string) 
 
 	resp, err := metadataHTTPClient.Do(req)
 	if err != nil {
+		slog.Error("metadata request failed", slog.String("url", url), slog.Any("error", err))
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		slog.Error("metadata server returned non-OK status", slog.String("url", url), slog.Int("status", resp.StatusCode))
 		return ""
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Error("failed to read metadata response", slog.String("url", url), slog.Any("error", err))
 		return ""
 	}
 

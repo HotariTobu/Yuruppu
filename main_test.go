@@ -645,32 +645,32 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 }
 
 // TestLoadConfig_LLMTimeout_InvalidValue tests error handling for invalid timeout values.
-// NFR-001: Invalid timeout values should fall back to default
+// NFR-001: Invalid timeout values should return error
 func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 	tests := []struct {
-		name            string
-		llmTimeoutEnv   string
-		expectedTimeout int
+		name          string
+		llmTimeoutEnv string
+		wantErrMsg    string
 	}{
 		{
-			name:            "non-numeric value falls back to default",
-			llmTimeoutEnv:   "abc",
-			expectedTimeout: 30,
+			name:          "non-numeric value returns error",
+			llmTimeoutEnv: "abc",
+			wantErrMsg:    "LLM_TIMEOUT_SECONDS must be a positive integer",
 		},
 		{
-			name:            "negative value falls back to default",
-			llmTimeoutEnv:   "-5",
-			expectedTimeout: 30,
+			name:          "negative value returns error",
+			llmTimeoutEnv: "-5",
+			wantErrMsg:    "LLM_TIMEOUT_SECONDS must be a positive integer",
 		},
 		{
-			name:            "zero value falls back to default",
-			llmTimeoutEnv:   "0",
-			expectedTimeout: 30,
+			name:          "zero value returns error",
+			llmTimeoutEnv: "0",
+			wantErrMsg:    "LLM_TIMEOUT_SECONDS must be a positive integer",
 		},
 		{
-			name:            "float value uses integer part",
-			llmTimeoutEnv:   "45.5",
-			expectedTimeout: 30, // strconv.Atoi doesn't parse floats, falls back to default
+			name:          "float value returns error",
+			llmTimeoutEnv: "45.5",
+			wantErrMsg:    "LLM_TIMEOUT_SECONDS must be a positive integer",
 		},
 	}
 
@@ -685,12 +685,100 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 			// When: Load configuration
 			config, err := loadConfig()
 
-			// Then: Should succeed (invalid values fall back to default)
-			require.NoError(t, err, "loadConfig should not return error for invalid timeout")
+			// Then: Should return error for invalid values
+			require.Error(t, err, "loadConfig should return error for invalid timeout")
+			assert.Nil(t, config, "config should be nil on error")
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate invalid timeout value")
+		})
+	}
+}
 
-			// Then: LLM timeout should fall back to default
-			assert.Equal(t, tt.expectedTimeout, config.LLMTimeoutSeconds,
-				"LLMTimeoutSeconds should fall back to default for invalid value")
+// TestLoadConfig_GCPMetadataTimeout tests GCP metadata timeout configuration loading.
+func TestLoadConfig_GCPMetadataTimeout(t *testing.T) {
+	tests := []struct {
+		name            string
+		timeoutEnv      string
+		expectedTimeout int
+	}{
+		{
+			name:            "default timeout is 2 seconds when not set",
+			timeoutEnv:      "",
+			expectedTimeout: 2,
+		},
+		{
+			name:            "custom timeout from environment variable",
+			timeoutEnv:      "5",
+			expectedTimeout: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+
+			if tt.timeoutEnv != "" {
+				t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
+			} else {
+				os.Unsetenv("GCP_METADATA_TIMEOUT_SECONDS")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: GCP metadata timeout should match expected value
+			assert.Equal(t, tt.expectedTimeout, config.GCPMetadataTimeoutSeconds,
+				"GCPMetadataTimeoutSeconds should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_GCPMetadataTimeout_InvalidValue tests error handling for invalid timeout values.
+func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
+	tests := []struct {
+		name       string
+		timeoutEnv string
+		wantErrMsg string
+	}{
+		{
+			name:       "non-numeric value returns error",
+			timeoutEnv: "abc",
+			wantErrMsg: "GCP_METADATA_TIMEOUT_SECONDS must be a positive integer",
+		},
+		{
+			name:       "negative value returns error",
+			timeoutEnv: "-5",
+			wantErrMsg: "GCP_METADATA_TIMEOUT_SECONDS must be a positive integer",
+		},
+		{
+			name:       "zero value returns error",
+			timeoutEnv: "0",
+			wantErrMsg: "GCP_METADATA_TIMEOUT_SECONDS must be a positive integer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error for invalid values
+			require.Error(t, err, "loadConfig should return error for invalid timeout")
+			assert.Nil(t, config, "config should be nil on error")
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate invalid timeout value")
 		})
 	}
 }
