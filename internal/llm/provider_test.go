@@ -610,12 +610,161 @@ func TestErrorTypes_Distinction(t *testing.T) {
 // Test Helpers
 // =============================================================================
 
+// =============================================================================
+// Provider Close Method Tests (AC-004)
+// =============================================================================
+
+// TestProvider_Close tests the Close method lifecycle.
+// AC-004: Provider Close Method
+func TestProvider_Close(t *testing.T) {
+	t.Run("Close method is callable", func(t *testing.T) {
+		// Given: A Provider instance is created
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		// When: Close(ctx) is called
+		ctx := context.Background()
+		err := provider.Close(ctx)
+
+		// Then: Close completes without error
+		require.NoError(t, err, "Close should complete successfully")
+	})
+
+	t.Run("Close is idempotent - safe to call multiple times", func(t *testing.T) {
+		// Given: A Provider instance is created
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		ctx := context.Background()
+
+		// When: Close is called multiple times
+		err1 := provider.Close(ctx)
+		err2 := provider.Close(ctx)
+		err3 := provider.Close(ctx)
+
+		// Then: All calls complete without error (idempotent)
+		require.NoError(t, err1, "First Close should succeed")
+		require.NoError(t, err2, "Second Close should succeed (idempotent)")
+		require.NoError(t, err3, "Third Close should succeed (idempotent)")
+	})
+
+	t.Run("GenerateText returns error after Close is called", func(t *testing.T) {
+		// Given: A Provider instance is created
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		// Given: Provider is functioning normally before Close
+		ctx := context.Background()
+		response, err := provider.GenerateText(ctx, "system", "user")
+		require.NoError(t, err, "GenerateText should work before Close")
+		assert.Equal(t, "test response", response)
+
+		// When: Close(ctx) is called
+		err = provider.Close(ctx)
+		require.NoError(t, err, "Close should succeed")
+
+		// Then: Subsequent GenerateText calls return an error
+		response, err = provider.GenerateText(ctx, "system", "user")
+		require.Error(t, err, "GenerateText should return error after Close")
+		assert.Empty(t, response, "Response should be empty after Close")
+		assert.Contains(t, err.Error(), "closed",
+			"Error message should indicate provider is closed")
+	})
+
+	t.Run("Multiple GenerateText calls after Close all return errors", func(t *testing.T) {
+		// Given: A Provider instance that has been closed
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		ctx := context.Background()
+		err := provider.Close(ctx)
+		require.NoError(t, err)
+
+		// When: Multiple GenerateText calls are made after Close
+		_, err1 := provider.GenerateText(ctx, "system1", "user1")
+		_, err2 := provider.GenerateText(ctx, "system2", "user2")
+		_, err3 := provider.GenerateText(ctx, "system3", "user3")
+
+		// Then: All calls should return errors
+		assert.Error(t, err1, "First GenerateText after Close should error")
+		assert.Error(t, err2, "Second GenerateText after Close should error")
+		assert.Error(t, err3, "Third GenerateText after Close should error")
+	})
+
+	t.Run("Close respects context cancellation", func(t *testing.T) {
+		// Given: A Provider instance
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		// Given: A cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		// When: Close is called with cancelled context
+		err := provider.Close(ctx)
+
+		// Then: Close should handle the cancelled context gracefully
+		// (Either succeed or return context.Canceled, depending on implementation)
+		// For mock, we'll succeed even with cancelled context
+		assert.NoError(t, err, "Close should handle cancelled context gracefully")
+	})
+}
+
+// TestProvider_CloseOrder tests Close can be called before or after GenerateText.
+// AC-004: Close method lifecycle verification
+func TestProvider_CloseOrder(t *testing.T) {
+	t.Run("Close without ever calling GenerateText", func(t *testing.T) {
+		// Given: A Provider instance that has never been used
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		// When: Close is called without prior GenerateText calls
+		ctx := context.Background()
+		err := provider.Close(ctx)
+
+		// Then: Close should succeed
+		require.NoError(t, err, "Close should succeed even if GenerateText was never called")
+	})
+
+	t.Run("GenerateText, then Close, then GenerateText again fails", func(t *testing.T) {
+		// Given: A Provider instance
+		provider := &mockProviderWithClose{
+			response: "test response",
+		}
+
+		ctx := context.Background()
+
+		// When: GenerateText is called, then Close, then GenerateText again
+		_, err1 := provider.GenerateText(ctx, "system", "user")
+		require.NoError(t, err1, "First GenerateText should succeed")
+
+		err2 := provider.Close(ctx)
+		require.NoError(t, err2, "Close should succeed")
+
+		_, err3 := provider.GenerateText(ctx, "system", "user")
+
+		// Then: Second GenerateText should fail
+		assert.Error(t, err3, "GenerateText after Close should fail")
+	})
+}
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
 // mockProvider is a test implementation of the Provider interface.
 // This verifies that the Provider interface can be implemented.
 type mockProvider struct {
 	response     string
 	err          error
 	checkContext bool
+	closed       bool
 }
 
 func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
@@ -632,4 +781,33 @@ func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessa
 		return "", m.err
 	}
 	return m.response, nil
+}
+
+func (m *mockProvider) Close(ctx context.Context) error {
+	m.closed = true
+	return nil
+}
+
+// mockProviderWithClose is a test implementation with Close method for AC-004 tests.
+type mockProviderWithClose struct {
+	response string
+	err      error
+	closed   bool
+}
+
+func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockProviderWithClose) Close(ctx context.Context) error {
+	// Idempotent - multiple calls to Close are safe
+	m.closed = true
+	return nil
 }

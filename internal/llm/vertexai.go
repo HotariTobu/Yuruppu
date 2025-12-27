@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"google.golang.org/genai"
 )
@@ -16,6 +17,8 @@ type vertexAIClient struct {
 	projectID string
 	model     string
 	logger    *slog.Logger
+	closed    bool
+	mu        sync.RWMutex // Protects closed field
 }
 
 // NewVertexAIClient creates a new Vertex AI client.
@@ -77,6 +80,14 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, mod
 // The context can be used for timeout and cancellation.
 // NFR-001: LLM API total request timeout should be configurable via context
 func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	// AC-004: Check if provider is closed before generating text
+	v.mu.RLock()
+	if v.closed {
+		v.mu.RUnlock()
+		return "", &LLMClosedError{Message: "provider is closed"}
+	}
+	v.mu.RUnlock()
+
 	v.logger.Debug("generating text",
 		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
@@ -132,4 +143,23 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	)
 
 	return text, nil
+}
+
+// Close releases any resources held by the client.
+// AC-004: Provider lifecycle management
+// - Close is idempotent (safe to call multiple times)
+// - After Close, subsequent GenerateText calls return an error
+func (v *vertexAIClient) Close(ctx context.Context) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	// Idempotent: if already closed, return immediately without error
+	if v.closed {
+		return nil
+	}
+
+	v.closed = true
+	v.logger.Debug("provider closed")
+
+	return nil
 }

@@ -8,6 +8,12 @@ type Provider interface {
 	// GenerateText generates a text response given a system prompt and user message.
 	// The context can be used for timeout and cancellation.
 	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
+
+	// Close releases any resources held by the provider.
+	// AC-004: Provider lifecycle management
+	// - Close is idempotent (safe to call multiple times)
+	// - After Close, subsequent GenerateText calls return an error
+	Close(ctx context.Context) error
 }
 
 // LLMTimeoutError represents an LLM API timeout error.
@@ -58,5 +64,15 @@ type LLMAuthError struct {
 }
 
 func (e *LLMAuthError) Error() string {
+	return e.Message
+}
+
+// LLMClosedError represents an error when using a closed provider.
+// AC-004: Provider Close Method - GenerateText returns error after Close
+type LLMClosedError struct {
+	Message string
+}
+
+func (e *LLMClosedError) Error() string {
 	return e.Message
 }
