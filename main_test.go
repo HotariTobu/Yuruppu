@@ -11,9 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testTimeout is the default timeout for tests.
-const testTimeout = 30 * time.Second
-
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
@@ -42,15 +39,15 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 		},
 		{
 			name:               "long credentials are accepted",
-			channelSecret:      "very-long-channel-secret-with-many-characters-0123456789",
-			channelAccessToken: "very-long-access-token-with-many-characters-0123456789",
-			gcpProjectID:       "very-long-project-id-with-many-characters-0123456789",
+			channelSecret:      "test-long-secret",
+			channelAccessToken: "test-long-token",
+			gcpProjectID:       "test-long-project-id",
 		},
 		{
 			name:               "credentials with special characters are accepted",
 			channelSecret:      "secret-with-special!@#$%^&*()_+-=[]{}|;:,.<>?",
 			channelAccessToken: "token-with-special!@#$%^&*()_+-=[]{}|;:,.<>?",
-			gcpProjectID:       "project-id-with-hyphens-and-numbers-123",
+			gcpProjectID:       "test-project-id-hyphenated",
 		},
 	}
 
@@ -93,19 +90,19 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 		{
 			name:               "empty channel secret returns error",
 			channelSecret:      "",
-			channelAccessToken: "valid-access-token",
+			channelAccessToken: "test-access-token",
 			wantErrMsg:         "LINE_CHANNEL_SECRET is required",
 		},
 		{
 			name:               "unset channel secret returns error",
 			channelSecret:      "", // Will not be set in environment
-			channelAccessToken: "valid-access-token",
+			channelAccessToken: "test-access-token",
 			wantErrMsg:         "LINE_CHANNEL_SECRET is required",
 		},
 		{
 			name:               "whitespace-only channel secret returns error",
 			channelSecret:      "   ",
-			channelAccessToken: "valid-access-token",
+			channelAccessToken: "test-access-token",
 			wantErrMsg:         "LINE_CHANNEL_SECRET is required",
 		},
 	}
@@ -153,19 +150,19 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 	}{
 		{
 			name:               "empty channel access token returns error",
-			channelSecret:      "valid-channel-secret",
+			channelSecret:      "test-channel-secret",
 			channelAccessToken: "",
 			wantErrMsg:         "LINE_CHANNEL_ACCESS_TOKEN is required",
 		},
 		{
 			name:               "unset channel access token returns error",
-			channelSecret:      "valid-channel-secret",
+			channelSecret:      "test-channel-secret",
 			channelAccessToken: "", // Will not be set in environment
 			wantErrMsg:         "LINE_CHANNEL_ACCESS_TOKEN is required",
 		},
 		{
 			name:               "whitespace-only channel access token returns error",
-			channelSecret:      "valid-channel-secret",
+			channelSecret:      "test-channel-secret",
 			channelAccessToken: "   ",
 			wantErrMsg:         "LINE_CHANNEL_ACCESS_TOKEN is required",
 		},
@@ -252,28 +249,28 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			name:                  "leading whitespace is trimmed",
 			channelSecret:         "  secret",
 			channelAccessToken:    "  token",
-			gcpProjectID:          "  project-id",
+			gcpProjectID:          "  test-project-id",
 			expectedChannelSecret: "secret",
 			expectedAccessToken:   "token",
-			expectedProjectID:     "project-id",
+			expectedProjectID:     "test-project-id",
 		},
 		{
 			name:                  "trailing whitespace is trimmed",
 			channelSecret:         "secret  ",
 			channelAccessToken:    "token  ",
-			gcpProjectID:          "project-id  ",
+			gcpProjectID:          "test-project-id  ",
 			expectedChannelSecret: "secret",
 			expectedAccessToken:   "token",
-			expectedProjectID:     "project-id",
+			expectedProjectID:     "test-project-id",
 		},
 		{
 			name:                  "leading and trailing whitespace is trimmed",
 			channelSecret:         "  secret  ",
 			channelAccessToken:    "  token  ",
-			gcpProjectID:          "  project-id  ",
+			gcpProjectID:          "  test-project-id  ",
 			expectedChannelSecret: "secret",
 			expectedAccessToken:   "token",
-			expectedProjectID:     "project-id",
+			expectedProjectID:     "test-project-id",
 		},
 	}
 
@@ -355,8 +352,8 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 // AC-002, AC-003: GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	// Given: Set LINE credentials but not GCP config
-	t.Setenv("LINE_CHANNEL_SECRET", "valid-secret")
-	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "valid-token")
+	t.Setenv("LINE_CHANNEL_SECRET", "test-valid-secret")
+	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
 	os.Unsetenv("GCP_PROJECT_ID")
 	os.Unsetenv("GCP_REGION")
 
@@ -386,8 +383,8 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 		},
 		{
 			name:           "custom region from environment variable",
-			gcpRegionEnv:   "asia-northeast1",
-			expectedRegion: "asia-northeast1",
+			gcpRegionEnv:   "test-region",
+			expectedRegion: "test-region",
 		},
 		{
 			name:           "region test-region",
@@ -395,9 +392,9 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			expectedRegion: "test-region",
 		},
 		{
-			name:           "region europe-west1",
-			gcpRegionEnv:   "europe-west1",
-			expectedRegion: "europe-west1",
+			name:           "region test-region-eu",
+			gcpRegionEnv:   "test-region-eu",
+			expectedRegion: "test-region-eu",
 		},
 	}
 
@@ -436,18 +433,18 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 	}{
 		{
 			name:           "leading whitespace is trimmed",
-			gcpRegionEnv:   "  asia-northeast1",
-			expectedRegion: "asia-northeast1",
+			gcpRegionEnv:   "  test-region",
+			expectedRegion: "test-region",
 		},
 		{
 			name:           "trailing whitespace is trimmed",
-			gcpRegionEnv:   "asia-northeast1  ",
-			expectedRegion: "asia-northeast1",
+			gcpRegionEnv:   "test-region  ",
+			expectedRegion: "test-region",
 		},
 		{
 			name:           "leading and trailing whitespace is trimmed",
-			gcpRegionEnv:   "  asia-northeast1  ",
-			expectedRegion: "asia-northeast1",
+			gcpRegionEnv:   "  test-region  ",
+			expectedRegion: "test-region",
 		},
 		{
 			name:           "whitespace only results in empty string",
@@ -708,7 +705,7 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
 	// Given: Create a server directly
-	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
+	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	// When: Create handler
