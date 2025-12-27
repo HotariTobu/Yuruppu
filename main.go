@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"yuruppu/internal/gcp"
 	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
 	"yuruppu/internal/yuruppu"
@@ -144,8 +145,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Resolve project ID and region from Cloud Run metadata with env var fallback
 	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), config.GCPProjectID, config.GCPRegion, gcpMetadataTimeout, logger)
+	metadataClient := gcp.NewMetadataClient(
+		gcp.WithTimeout(gcpMetadataTimeout),
+		gcp.WithLogger(logger),
+	)
+	projectID := metadataClient.GetProjectID(config.GCPProjectID)
+	region := metadataClient.GetRegion(config.GCPRegion)
+
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)

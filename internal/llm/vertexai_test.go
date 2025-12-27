@@ -1,19 +1,11 @@
 package llm_test
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
-	"testing/synctest"
-	"time"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +21,7 @@ func discardLogger() *slog.Logger {
 // NewVertexAIClient Tests
 // =============================================================================
 
-// TestNewVertexAIClient_MissingProjectID tests that client initialization fails when GCP_PROJECT_ID is missing.
+// TestNewVertexAIClient_MissingProjectID tests that client initialization fails when projectID is missing.
 // AC-013: Bot fails to start during initialization if credentials are missing
 // FR-003: Load LLM API credentials from environment variables
 func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
@@ -44,21 +36,21 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 			name:        "empty project ID returns error",
 			projectID:   "",
 			wantErr:     true,
-			wantErrMsg:  "GCP_PROJECT_ID",
+			wantErrMsg:  "projectID is required",
 			wantErrType: "config",
 		},
 		{
 			name:        "whitespace-only project ID returns error",
 			projectID:   "   ",
 			wantErr:     true,
-			wantErrMsg:  "GCP_PROJECT_ID",
+			wantErrMsg:  "projectID is required",
 			wantErrType: "config",
 		},
 		{
 			name:        "whitespace with tabs project ID returns error",
 			projectID:   "\t\n  ",
 			wantErr:     true,
-			wantErrMsg:  "GCP_PROJECT_ID",
+			wantErrMsg:  "projectID is required",
 			wantErrType: "config",
 		},
 	}
@@ -69,23 +61,22 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 			// (projectID is set via function parameter, not env var for test isolation)
 
 			// When: Attempt to create Vertex AI client
-			// SC-003: Pass fallback region as parameter
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "test-region", 2*time.Second, discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "test-region", discardLogger())
 
-			// Then: Should return error indicating missing GCP_PROJECT_ID
+			// Then: Should return error indicating missing projectID
 			if tt.wantErr {
 				require.Error(t, err,
-					"should return error when GCP_PROJECT_ID is missing")
+					"should return error when projectID is missing")
 				assert.Nil(t, client,
 					"client should be nil when initialization fails")
 				assert.Contains(t, err.Error(), tt.wantErrMsg,
-					"error message should indicate which variable is missing")
+					"error message should indicate projectID is required")
 
 				// Then: Error should be of appropriate type
 				if tt.wantErrType == "config" {
 					// Verify it's a configuration error (could use custom error type)
-					assert.Contains(t, err.Error(), "GCP_PROJECT_ID",
-						"error should clearly indicate the missing variable name")
+					assert.Contains(t, err.Error(), "projectID",
+						"error should clearly indicate the missing parameter name")
 				}
 			} else {
 				require.NoError(t, err)
@@ -95,10 +86,10 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 	}
 }
 
-// TestNewVertexAIClient_EmptyGCPRegion tests that client initialization fails when GCP_REGION is missing.
-// AC-005: Add new test for empty GCP_REGION validation
-// AC-007: Error is returned when GCP_REGION is empty and metadata unavailable
-func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
+// TestNewVertexAIClient_EmptyRegion tests that client initialization fails when region is missing.
+// AC-005: Add new test for empty region validation
+// AC-007: Error is returned when region is empty
+func TestNewVertexAIClient_EmptyRegion(t *testing.T) {
 	tests := []struct {
 		name       string
 		region     string
@@ -109,19 +100,19 @@ func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
 			name:       "empty region returns error",
 			region:     "",
 			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
+			wantErrMsg: "region is required",
 		},
 		{
 			name:       "whitespace-only region returns error",
 			region:     "   ",
 			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
+			wantErrMsg: "region is required",
 		},
 		{
 			name:       "whitespace with tabs region returns error",
 			region:     "\t\n  ",
 			wantErr:    true,
-			wantErrMsg: "GCP_REGION is missing or empty",
+			wantErrMsg: "region is required",
 		},
 	}
 
@@ -129,739 +120,22 @@ func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID but empty/whitespace region
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", tt.region, 2*time.Second, discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", tt.region, discardLogger())
 
-			// Then: Should return error indicating missing GCP_REGION
+			// Then: Should return error indicating missing region
 			if tt.wantErr {
 				require.Error(t, err,
-					"should return error when GCP_REGION is missing")
+					"should return error when region is missing")
 				assert.Nil(t, client,
 					"client should be nil when initialization fails")
 				assert.Contains(t, err.Error(), tt.wantErrMsg,
-					"error message should indicate GCP_REGION is missing or empty")
+					"error message should indicate region is required")
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, client)
 			}
 		})
 	}
-}
-
-// TestNewVertexAIClient_FromEnvironment tests loading credentials from environment variables.
-// FR-003: Load LLM API credentials from environment variables
-func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
-	t.Run("returns error when environment variable is not set", func(t *testing.T) {
-		// Given: GCP_PROJECT_ID is not set in environment
-		originalEnv := os.Getenv("GCP_PROJECT_ID")
-		os.Unsetenv("GCP_PROJECT_ID")
-		t.Cleanup(func() {
-			if originalEnv != "" {
-				os.Setenv("GCP_PROJECT_ID", originalEnv)
-			}
-		})
-
-		projectID := os.Getenv("GCP_PROJECT_ID") // Will be empty string
-
-		// When: Attempt to create client
-		// SC-003: Pass fallback region as parameter
-		client, err := llm.NewVertexAIClient(context.Background(), projectID, "test-region", 2*time.Second, discardLogger())
-
-		// Then: Should return error
-		require.Error(t, err,
-			"should return error when GCP_PROJECT_ID is not set")
-		assert.Nil(t, client)
-		assert.Contains(t, err.Error(), "GCP_PROJECT_ID",
-			"error should mention the missing environment variable")
-	})
-}
-
-// =============================================================================
-// GetRegion Tests
-// =============================================================================
-
-// TestGetRegion tests region determination logic for Cloud Run metadata.
-// AC-001: Region derived from Cloud Run metadata
-// SC-004: GetRegion accepts fallback region as parameter instead of reading from environment
-func TestGetRegion(t *testing.T) {
-	tests := []struct {
-		name           string
-		metadataServer *metadataServerMock
-		fallbackRegion string
-		want           string
-	}{
-		{
-			name: "metadata server returns valid response - extract region correctly",
-			metadataServer: &metadataServerMock{
-				response:   "projects/123456789/regions/test-metadata-region",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "test-region",
-			want:           "test-metadata-region",
-		},
-		{
-			name: "metadata server returns different region - extract correctly",
-			metadataServer: &metadataServerMock{
-				response:   "projects/987654321/regions/test-region",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "test-region",
-			want:           "test-region",
-		},
-		{
-			name: "metadata server unavailable - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 500,
-				delay:      0,
-			},
-			fallbackRegion: "test-region-eu",
-			want:           "test-region-eu",
-		},
-		{
-			name: "metadata server returns 404 - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 404,
-				delay:      0,
-			},
-			fallbackRegion: "test-region",
-			want:           "test-region",
-		},
-		{
-			name: "malformed response (not projects/*/regions/*) - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "invalid-format",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "test-region-west2",
-			want:           "test-region-west2",
-		},
-		{
-			name: "malformed response (missing region part) - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "projects/123456789",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "test-region-south1",
-			want:           "test-region-south1",
-		},
-		{
-			name: "malformed response (empty string) - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackRegion: "test-region-east4",
-			want:           "test-region-east4",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server and fallback region
-			server := tt.metadataServer.Start(t)
-			defer server.Close()
-
-			// When: Get region with fallback
-			// SC-004: Pass fallback region as parameter
-			got := llm.GetRegion(server.URL, tt.fallbackRegion)
-
-			// Then: Should return expected region
-			assert.Equal(t, tt.want, got,
-				"region should match expected value")
-		})
-	}
-}
-
-// TestGetRegion_MetadataHeaders tests that metadata server requests include required headers.
-// AC-001: Metadata request requires header: Metadata-Flavor: Google
-func TestGetRegion_MetadataHeaders(t *testing.T) {
-	t.Run("metadata request includes Metadata-Flavor: Google header", func(t *testing.T) {
-		// Given: Mock metadata server that captures request headers
-		var capturedHeaders http.Header
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			capturedHeaders = r.Header
-			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
-		}))
-		defer server.Close()
-
-		// When: Get region
-		// SC-004: Pass fallback region as parameter
-		_ = llm.GetRegion(server.URL, "test-region")
-
-		// Then: Should include Metadata-Flavor header
-		require.NotNil(t, capturedHeaders, "request should have been made")
-		assert.Equal(t, "Google", capturedHeaders.Get("Metadata-Flavor"),
-			"should include Metadata-Flavor: Google header")
-	})
-
-	t.Run("metadata request without proper header should be rejected by real server", func(t *testing.T) {
-		// Given: Mock metadata server that requires Metadata-Flavor header
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Metadata-Flavor") != "Google" {
-				w.WriteHeader(403)
-				w.Write([]byte("Forbidden"))
-				return
-			}
-			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
-		}))
-		defer server.Close()
-
-		// When: Get region (implementation should include header)
-		// SC-004: Pass fallback region as parameter
-		got := llm.GetRegion(server.URL, "test-fallback-region")
-
-		// Then: Should succeed (implementation includes header)
-		// If implementation doesn't include header, it will fallback to provided region
-		assert.NotEmpty(t, got, "should return a region")
-	})
-}
-
-// TestGetRegion_Timeout tests that metadata server request has 2-second timeout.
-// AC-001: Metadata server request has a 2-second timeout
-// SC-004: GetRegion now accepts fallback region as parameter
-// ADR: 20251227-fake-time-testing.md - Uses testing/synctest for deterministic timeout testing
-func TestGetRegion_Timeout(t *testing.T) {
-	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetRegionTimeout(t, 1*time.Second, "test-fallback-region", "test-metadata-region")
-		})
-	})
-
-	t.Run("request takes exactly 2 seconds - timeout", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetRegionTimeout(t, 2*time.Second, "test-fallback-region", "test-fallback-region")
-		})
-	})
-
-	t.Run("request takes longer than timeout - fallback", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetRegionTimeout(t, 5*time.Second, "test-region-east1", "test-region-east1")
-		})
-	})
-}
-
-// testGetRegionTimeout tests GetRegion timeout behavior using synctest fake time.
-// It creates an in-memory HTTP server that delays the response by serverDelay.
-func testGetRegionTimeout(t *testing.T, serverDelay time.Duration, fallbackRegion, want string) {
-	t.Helper()
-
-	// Create in-memory connection pair
-	srvConn, cliConn := net.Pipe()
-
-	// Configure HTTP client with custom transport that uses the pipe
-	client := &http.Client{
-		Timeout: 2 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return cliConn, nil
-			},
-		},
-	}
-
-	// Inject the test client
-	cleanup := llm.SetMetadataHTTPClient(client)
-	defer cleanup()
-
-	// Channel to signal server goroutine completion
-	serverDone := make(chan struct{})
-
-	// Channel to cancel the server delay
-	cancelDelay := make(chan struct{})
-
-	// Start fake server goroutine
-	go func() {
-		defer close(serverDone)
-		defer srvConn.Close()
-
-		// Read the HTTP request
-		req, err := http.ReadRequest(bufio.NewReader(srvConn))
-		if err != nil {
-			// Client closed connection (timeout case)
-			return
-		}
-		req.Body.Close()
-
-		// Wait for delay or cancellation
-		timer := time.NewTimer(serverDelay)
-		defer timer.Stop()
-
-		select {
-		case <-timer.C:
-			// Timer expired, send response
-		case <-cancelDelay:
-			// Cancelled, exit without sending response
-			return
-		}
-
-		// Write response
-		resp := &http.Response{
-			StatusCode: 200,
-			Proto:      "HTTP/1.1",
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-			Header:     make(http.Header),
-			Body:       http.NoBody,
-		}
-		resp.Header.Set("Content-Type", "text/plain")
-
-		// For region endpoint, return the metadata format
-		body := "projects/123456789/regions/test-metadata-region"
-		resp.Body = io.NopCloser(strings.NewReader(body))
-		resp.ContentLength = int64(len(body))
-
-		resp.Write(srvConn)
-	}()
-
-	// Call GetRegion (uses any URL since we override transport)
-	got := llm.GetRegion("http://fake-metadata-server", fallbackRegion)
-
-	// Close client connection and cancel server delay to unblock server
-	cliConn.Close()
-	close(cancelDelay)
-
-	// Wait for server goroutine to finish
-	<-serverDone
-
-	assert.Equal(t, want, got)
-}
-
-// TestGetRegion_EdgeCases tests edge cases in region extraction.
-// AC-001: Region format validation and edge cases
-// SC-004: GetRegion now accepts fallback region as parameter
-func TestGetRegion_EdgeCases(t *testing.T) {
-	tests := []struct {
-		name             string
-		metadataResponse string
-		fallbackRegion   string
-		want             string
-	}{
-		{
-			name:             "response with extra slashes",
-			metadataResponse: "projects/123456789/regions/test-metadata-region/",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region", // malformed, fallback
-		},
-		{
-			name:             "response with leading spaces",
-			metadataResponse: "  projects/123456789/regions/test-metadata-region",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region", // malformed, fallback
-		},
-		{
-			name:             "response with trailing spaces",
-			metadataResponse: "projects/123456789/regions/test-metadata-region  ",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region", // malformed, fallback
-		},
-		{
-			name:             "response with newline",
-			metadataResponse: "projects/123456789/regions/test-metadata-region\n",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-metadata-region", // trimmed newline is acceptable
-		},
-		{
-			name:             "response with only project",
-			metadataResponse: "projects/123456789",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region",
-		},
-		{
-			name:             "response with wrong format (regions first)",
-			metadataResponse: "regions/test-metadata-region/projects/123456789",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region",
-		},
-		{
-			name:             "response with region but no project number",
-			metadataResponse: "projects//regions/test-metadata-region",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region", // malformed, fallback
-		},
-		{
-			name:             "empty region name",
-			metadataResponse: "projects/123456789/regions/",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region",
-		},
-		{
-			name:             "only slashes",
-			metadataResponse: "///",
-			fallbackRegion:   "test-fallback-region",
-			want:             "test-fallback-region",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server returning edge case response
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(200)
-				w.Write([]byte(tt.metadataResponse))
-			}))
-			defer server.Close()
-
-			// When: Get region with fallback
-			// SC-004: Pass fallback region as parameter
-			got := llm.GetRegion(server.URL, tt.fallbackRegion)
-
-			// Then: Should handle edge case correctly
-			assert.Equal(t, tt.want, got,
-				"should handle edge case correctly")
-		})
-	}
-}
-
-// TestGetRegion_ProductionEndpoint tests using actual Cloud Run metadata endpoint path.
-// AC-001: Production endpoint format
-func TestGetRegion_ProductionEndpoint(t *testing.T) {
-	t.Run("uses correct metadata endpoint path", func(t *testing.T) {
-		// Given: Mock server that verifies the request path
-		var requestedPath string
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestedPath = r.URL.Path
-			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
-		}))
-		defer server.Close()
-
-		// When: Get region with base URL (production would use http://metadata.google.internal)
-		// SC-004: Pass fallback region as parameter
-		_ = llm.GetRegion(server.URL, "test-region")
-
-		// Then: Should request the correct path
-		expectedPath := "/computeMetadata/v1/instance/region"
-		assert.Equal(t, expectedPath, requestedPath,
-			"should request metadata endpoint path: %s", expectedPath)
-	})
-}
-
-// =============================================================================
-// GetProjectID Tests
-// =============================================================================
-
-// TestGetProjectID tests project ID determination logic for Cloud Run metadata.
-// FX-001: Add GetProjectID function following the GetRegion() pattern
-// AC-001: Auto-detect project ID on Cloud Run
-// AC-002: Fallback to env var when metadata unavailable
-// AC-003: Error when no project ID available
-// AC-004: Regression - existing functionality preserved
-func TestGetProjectID(t *testing.T) {
-	tests := []struct {
-		name              string
-		metadataServer    *metadataServerMock
-		fallbackProjectID string
-		want              string
-	}{
-		{
-			name: "metadata server returns valid project ID",
-			metadataServer: &metadataServerMock{
-				response:   "test-metadata-project",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-metadata-project",
-		},
-		{
-			name: "metadata server returns different project ID",
-			metadataServer: &metadataServerMock{
-				response:   "test-another-project",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-another-project",
-		},
-		{
-			name: "metadata server unavailable - fallback to provided project ID",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 500,
-				delay:      0,
-			},
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name: "metadata server returns 404 - fallback to provided project ID",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 404,
-				delay:      0,
-			},
-			fallbackProjectID: "test-local-project",
-			want:              "test-local-project",
-		},
-		{
-			name: "empty response - fallback to provided project ID",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 200,
-				delay:      0,
-			},
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name: "metadata unavailable - use provided fallback project ID",
-			metadataServer: &metadataServerMock{
-				response:   "",
-				statusCode: 503,
-				delay:      0,
-			},
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server and fallback project ID
-			server := tt.metadataServer.Start(t)
-			defer server.Close()
-
-			// When: Get project ID with fallback
-			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
-
-			// Then: Should return expected project ID
-			assert.Equal(t, tt.want, got,
-				"project ID should match expected value")
-		})
-	}
-}
-
-// TestGetProjectID_MetadataHeaders tests that metadata server requests include required headers.
-// AC-001: Metadata request requires header: Metadata-Flavor: Google
-func TestGetProjectID_MetadataHeaders(t *testing.T) {
-	t.Run("metadata request includes Metadata-Flavor: Google header", func(t *testing.T) {
-		// Given: Mock metadata server that captures request headers
-		var capturedHeaders http.Header
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			capturedHeaders = r.Header
-			w.WriteHeader(200)
-			w.Write([]byte("test-metadata-project"))
-		}))
-		defer server.Close()
-
-		// When: Get project ID
-		_ = llm.GetProjectID(server.URL, "test-fallback-project")
-
-		// Then: Should include Metadata-Flavor header
-		require.NotNil(t, capturedHeaders, "request should have been made")
-		assert.Equal(t, "Google", capturedHeaders.Get("Metadata-Flavor"),
-			"should include Metadata-Flavor: Google header")
-	})
-}
-
-// TestGetProjectID_ProductionEndpoint tests using actual Cloud Run metadata endpoint path.
-// AC-001: Production endpoint format for project ID
-func TestGetProjectID_ProductionEndpoint(t *testing.T) {
-	t.Run("uses correct metadata endpoint path for project ID", func(t *testing.T) {
-		// Given: Mock server that verifies the request path
-		var requestedPath string
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestedPath = r.URL.Path
-			w.WriteHeader(200)
-			w.Write([]byte("test-metadata-project"))
-		}))
-		defer server.Close()
-
-		// When: Get project ID with base URL (production would use http://metadata.google.internal)
-		_ = llm.GetProjectID(server.URL, "test-fallback-project")
-
-		// Then: Should request the correct path
-		expectedPath := "/computeMetadata/v1/project/project-id"
-		assert.Equal(t, expectedPath, requestedPath,
-			"should request metadata endpoint path: %s", expectedPath)
-	})
-}
-
-// TestGetProjectID_EdgeCases tests edge cases in project ID extraction.
-// AC-001: Project ID format validation and edge cases
-func TestGetProjectID_EdgeCases(t *testing.T) {
-	tests := []struct {
-		name              string
-		metadataResponse  string
-		fallbackProjectID string
-		want              string
-	}{
-		{
-			name:              "response with trailing newline - trim and use",
-			metadataResponse:  "test-metadata-project\n",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-metadata-project",
-		},
-		{
-			name:              "response with CRLF - trim and use",
-			metadataResponse:  "test-metadata-project\r\n",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-metadata-project",
-		},
-		{
-			name:              "response with leading spaces - fallback (malformed)",
-			metadataResponse:  "  test-metadata-project",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name:              "response with trailing spaces - fallback (malformed)",
-			metadataResponse:  "test-metadata-project  ",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name:              "whitespace only - fallback",
-			metadataResponse:  "   ",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name:              "empty string - fallback",
-			metadataResponse:  "",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-		{
-			name:              "newline only - fallback",
-			metadataResponse:  "\n",
-			fallbackProjectID: "test-fallback-project",
-			want:              "test-fallback-project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Mock metadata server returning edge case response
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(200)
-				w.Write([]byte(tt.metadataResponse))
-			}))
-			defer server.Close()
-
-			// When: Get project ID with fallback
-			got := llm.GetProjectID(server.URL, tt.fallbackProjectID)
-
-			// Then: Should handle edge case correctly
-			assert.Equal(t, tt.want, got,
-				"should handle edge case correctly")
-		})
-	}
-}
-
-// TestGetProjectID_Timeout tests that metadata server request has 2-second timeout.
-// AC-001: Metadata server request has a 2-second timeout
-// ADR: 20251227-fake-time-testing.md - Uses testing/synctest for deterministic timeout testing
-func TestGetProjectID_Timeout(t *testing.T) {
-	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetProjectIDTimeout(t, 1*time.Second, "test-fallback-project", "test-metadata-project")
-		})
-	})
-
-	t.Run("request takes exactly 2 seconds - timeout", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetProjectIDTimeout(t, 2*time.Second, "test-fallback-project", "test-fallback-project")
-		})
-	})
-
-	t.Run("request takes longer than timeout - fallback", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			testGetProjectIDTimeout(t, 5*time.Second, "test-fallback-project", "test-fallback-project")
-		})
-	})
-}
-
-// testGetProjectIDTimeout tests GetProjectID timeout behavior using synctest fake time.
-// It creates an in-memory HTTP server that delays the response by serverDelay.
-func testGetProjectIDTimeout(t *testing.T, serverDelay time.Duration, fallbackProjectID, want string) {
-	t.Helper()
-
-	// Create in-memory connection pair
-	srvConn, cliConn := net.Pipe()
-
-	// Configure HTTP client with custom transport that uses the pipe
-	client := &http.Client{
-		Timeout: 2 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return cliConn, nil
-			},
-		},
-	}
-
-	// Inject the test client
-	cleanup := llm.SetMetadataHTTPClient(client)
-	defer cleanup()
-
-	// Channel to signal server goroutine completion
-	serverDone := make(chan struct{})
-
-	// Channel to cancel the server delay
-	cancelDelay := make(chan struct{})
-
-	// Start fake server goroutine
-	go func() {
-		defer close(serverDone)
-		defer srvConn.Close()
-
-		// Read the HTTP request
-		req, err := http.ReadRequest(bufio.NewReader(srvConn))
-		if err != nil {
-			// Client closed connection (timeout case)
-			return
-		}
-		req.Body.Close()
-
-		// Wait for delay or cancellation
-		timer := time.NewTimer(serverDelay)
-		defer timer.Stop()
-
-		select {
-		case <-timer.C:
-			// Timer expired, send response
-		case <-cancelDelay:
-			// Cancelled, exit without sending response
-			return
-		}
-
-		// Write response
-		resp := &http.Response{
-			StatusCode: 200,
-			Proto:      "HTTP/1.1",
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-			Header:     make(http.Header),
-			Body:       http.NoBody,
-		}
-		resp.Header.Set("Content-Type", "text/plain")
-
-		// For project ID endpoint, return plain project ID
-		body := "test-metadata-project"
-		resp.Body = io.NopCloser(strings.NewReader(body))
-		resp.ContentLength = int64(len(body))
-
-		resp.Write(srvConn)
-	}()
-
-	// Call GetProjectID (uses any URL since we override transport)
-	got := llm.GetProjectID("http://fake-metadata-server", fallbackProjectID)
-
-	// Close client connection and cancel server delay to unblock server
-	cliConn.Close()
-	close(cancelDelay)
-
-	// Wait for server goroutine to finish
-	<-serverDone
-
-	assert.Equal(t, want, got)
 }
 
 // =============================================================================
@@ -1070,30 +344,6 @@ func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
 // =============================================================================
 // Test Helpers
 // =============================================================================
-
-// metadataServerMock is a helper struct for mocking Cloud Run metadata server.
-type metadataServerMock struct {
-	response   string
-	statusCode int
-	delay      int // milliseconds
-}
-
-// Start creates and starts an httptest server with the configured mock behavior.
-func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate delay if configured
-		if m.delay > 0 {
-			time.Sleep(time.Duration(m.delay) * time.Millisecond)
-		}
-
-		// Return configured status code and response
-		w.WriteHeader(m.statusCode)
-		if m.response != "" {
-			w.Write([]byte(m.response))
-		}
-	}))
-}
 
 // mockNetError is a mock network error for testing.
 type mockNetError struct {
