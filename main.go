@@ -147,10 +147,8 @@ func main() {
 
 	// Resolve project ID and region from Cloud Run metadata with env var fallback
 	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
-	metadataClient := gcp.NewMetadataClient(
-		gcp.WithTimeout(gcpMetadataTimeout),
-		gcp.WithLogger(logger),
-	)
+	metadataHTTPClient := &http.Client{Timeout: gcpMetadataTimeout}
+	metadataClient := gcp.NewMetadataClient(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
