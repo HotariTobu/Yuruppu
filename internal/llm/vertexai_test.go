@@ -20,6 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testProjectID         = "test-project-id"
+	testRegion            = "test-region"
+	testMetadataProjectID = "test-metadata-project"
+	testMetadataRegion    = "test-metadata-region"
+)
+
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
@@ -70,7 +77,7 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 
 			// When: Attempt to create Vertex AI client
 			// SC-003: Pass fallback region as parameter
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "us-central1", discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, testRegion, 2*time.Second, discardLogger())
 
 			// Then: Should return error indicating missing GCP_PROJECT_ID
 			if tt.wantErr {
@@ -129,7 +136,7 @@ func TestNewVertexAIClient_EmptyGCPRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID but empty/whitespace region
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "valid-project-id", tt.region, discardLogger())
+			client, err := llm.NewVertexAIClient(context.Background(), testProjectID, tt.region, 2*time.Second, discardLogger())
 
 			// Then: Should return error indicating missing GCP_REGION
 			if tt.wantErr {
@@ -164,7 +171,7 @@ func TestNewVertexAIClient_FromEnvironment(t *testing.T) {
 
 		// When: Attempt to create client
 		// SC-003: Pass fallback region as parameter
-		client, err := llm.NewVertexAIClient(context.Background(), projectID, "us-central1", discardLogger())
+		client, err := llm.NewVertexAIClient(context.Background(), projectID, testRegion, 2*time.Second, discardLogger())
 
 		// Then: Should return error
 		require.Error(t, err,
@@ -192,32 +199,22 @@ func TestGetRegion(t *testing.T) {
 		{
 			name: "metadata server returns valid response - extract region correctly",
 			metadataServer: &metadataServerMock{
-				response:   "projects/123456789/regions/us-west1",
+				response:   "projects/123456789/regions/test-metadata-region",
 				statusCode: 200,
 				delay:      0,
 			},
-			fallbackRegion: "us-central1",
-			want:           "us-west1",
+			fallbackRegion: testRegion,
+			want:           testMetadataRegion,
 		},
 		{
 			name: "metadata server returns different region - extract correctly",
 			metadataServer: &metadataServerMock{
-				response:   "projects/987654321/regions/asia-northeast1",
+				response:   "projects/987654321/regions/test-region",
 				statusCode: 200,
 				delay:      0,
 			},
-			fallbackRegion: "us-central1",
-			want:           "asia-northeast1",
-		},
-		{
-			name: "metadata server timeout (2s) - fallback to provided region",
-			metadataServer: &metadataServerMock{
-				response:   "projects/123456789/regions/us-west1",
-				statusCode: 200,
-				delay:      3000, // 3 seconds - exceeds 2s timeout
-			},
-			fallbackRegion: "us-east1",
-			want:           "us-east1",
+			fallbackRegion: testRegion,
+			want:           testRegion,
 		},
 		{
 			name: "metadata server unavailable - fallback to provided region",
@@ -236,8 +233,8 @@ func TestGetRegion(t *testing.T) {
 				statusCode: 404,
 				delay:      0,
 			},
-			fallbackRegion: "us-central1",
-			want:           "us-central1",
+			fallbackRegion: testRegion,
+			want:           testRegion,
 		},
 		{
 			name: "malformed response (not projects/*/regions/*) - fallback to provided region",
@@ -297,13 +294,13 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			capturedHeaders = r.Header
 			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/us-west1"))
+			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
 		}))
 		defer server.Close()
 
 		// When: Get region
 		// SC-004: Pass fallback region as parameter
-		_ = llm.GetRegion(server.URL, "us-central1")
+		_ = llm.GetRegion(server.URL, testRegion)
 
 		// Then: Should include Metadata-Flavor header
 		require.NotNil(t, capturedHeaders, "request should have been made")
@@ -320,7 +317,7 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 				return
 			}
 			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/us-west1"))
+			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
 		}))
 		defer server.Close()
 
@@ -341,7 +338,7 @@ func TestGetRegion_MetadataHeaders(t *testing.T) {
 func TestGetRegion_Timeout(t *testing.T) {
 	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			testGetRegionTimeout(t, 1*time.Second, "fallback-region", "us-west1")
+			testGetRegionTimeout(t, 1*time.Second, "fallback-region", testMetadataRegion)
 		})
 	})
 
@@ -423,7 +420,7 @@ func testGetRegionTimeout(t *testing.T, serverDelay time.Duration, fallbackRegio
 		resp.Header.Set("Content-Type", "text/plain")
 
 		// For region endpoint, return the metadata format
-		body := "projects/123456789/regions/us-west1"
+		body := "projects/123456789/regions/test-metadata-region"
 		resp.Body = io.NopCloser(strings.NewReader(body))
 		resp.ContentLength = int64(len(body))
 
@@ -455,27 +452,27 @@ func TestGetRegion_EdgeCases(t *testing.T) {
 	}{
 		{
 			name:             "response with extra slashes",
-			metadataResponse: "projects/123456789/regions/us-west1/",
+			metadataResponse: "projects/123456789/regions/test-metadata-region/",
 			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with leading spaces",
-			metadataResponse: "  projects/123456789/regions/us-west1",
+			metadataResponse: "  projects/123456789/regions/test-metadata-region",
 			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with trailing spaces",
-			metadataResponse: "projects/123456789/regions/us-west1  ",
+			metadataResponse: "projects/123456789/regions/test-metadata-region  ",
 			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
 		{
 			name:             "response with newline",
-			metadataResponse: "projects/123456789/regions/us-west1\n",
+			metadataResponse: "projects/123456789/regions/test-metadata-region\n",
 			fallbackRegion:   "fallback-region",
-			want:             "us-west1", // trimmed newline is acceptable
+			want:             testMetadataRegion, // trimmed newline is acceptable
 		},
 		{
 			name:             "response with only project",
@@ -485,13 +482,13 @@ func TestGetRegion_EdgeCases(t *testing.T) {
 		},
 		{
 			name:             "response with wrong format (regions first)",
-			metadataResponse: "regions/us-west1/projects/123456789",
+			metadataResponse: "regions/test-metadata-region/projects/123456789",
 			fallbackRegion:   "fallback-region",
 			want:             "fallback-region",
 		},
 		{
 			name:             "response with region but no project number",
-			metadataResponse: "projects//regions/us-west1",
+			metadataResponse: "projects//regions/test-metadata-region",
 			fallbackRegion:   "fallback-region",
 			want:             "fallback-region", // malformed, fallback
 		},
@@ -538,13 +535,13 @@ func TestGetRegion_ProductionEndpoint(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestedPath = r.URL.Path
 			w.WriteHeader(200)
-			w.Write([]byte("projects/123456789/regions/us-west1"))
+			w.Write([]byte("projects/123456789/regions/test-metadata-region"))
 		}))
 		defer server.Close()
 
 		// When: Get region with base URL (production would use http://metadata.google.internal)
 		// SC-004: Pass fallback region as parameter
-		_ = llm.GetRegion(server.URL, "us-central1")
+		_ = llm.GetRegion(server.URL, testRegion)
 
 		// Then: Should request the correct path
 		expectedPath := "/computeMetadata/v1/instance/region"
@@ -573,12 +570,12 @@ func TestGetProjectID(t *testing.T) {
 		{
 			name: "metadata server returns valid project ID",
 			metadataServer: &metadataServerMock{
-				response:   "my-project-123",
+				response:   testMetadataProjectID,
 				statusCode: 200,
 				delay:      0,
 			},
 			fallbackProjectID: "fallback-project",
-			want:              "my-project-123",
+			want:              testMetadataProjectID,
 		},
 		{
 			name: "metadata server returns different project ID",
@@ -589,16 +586,6 @@ func TestGetProjectID(t *testing.T) {
 			},
 			fallbackProjectID: "fallback-project",
 			want:              "another-gcp-project",
-		},
-		{
-			name: "metadata server timeout (2s) - fallback to provided project ID",
-			metadataServer: &metadataServerMock{
-				response:   "my-project-123",
-				statusCode: 200,
-				delay:      3000, // 3 seconds - exceeds 2s timeout
-			},
-			fallbackProjectID: "fallback-project",
-			want:              "fallback-project",
 		},
 		{
 			name: "metadata server unavailable - fallback to provided project ID",
@@ -667,7 +654,7 @@ func TestGetProjectID_MetadataHeaders(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			capturedHeaders = r.Header
 			w.WriteHeader(200)
-			w.Write([]byte("my-project-123"))
+			w.Write([]byte(testMetadataProjectID))
 		}))
 		defer server.Close()
 
@@ -690,7 +677,7 @@ func TestGetProjectID_ProductionEndpoint(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestedPath = r.URL.Path
 			w.WriteHeader(200)
-			w.Write([]byte("my-project-123"))
+			w.Write([]byte(testMetadataProjectID))
 		}))
 		defer server.Close()
 
@@ -715,15 +702,15 @@ func TestGetProjectID_EdgeCases(t *testing.T) {
 	}{
 		{
 			name:              "response with trailing newline - trim and use",
-			metadataResponse:  "my-project-123\n",
+			metadataResponse:  "test-metadata-project\n",
 			fallbackProjectID: "fallback-project",
-			want:              "my-project-123",
+			want:              testMetadataProjectID,
 		},
 		{
 			name:              "response with CRLF - trim and use",
-			metadataResponse:  "my-project-123\r\n",
+			metadataResponse:  "test-metadata-project\r\n",
 			fallbackProjectID: "fallback-project",
-			want:              "my-project-123",
+			want:              testMetadataProjectID,
 		},
 		{
 			name:              "response with leading spaces - fallback (malformed)",
@@ -733,7 +720,7 @@ func TestGetProjectID_EdgeCases(t *testing.T) {
 		},
 		{
 			name:              "response with trailing spaces - fallback (malformed)",
-			metadataResponse:  "my-project-123  ",
+			metadataResponse:  "test-metadata-project  ",
 			fallbackProjectID: "fallback-project",
 			want:              "fallback-project",
 		},
@@ -782,7 +769,7 @@ func TestGetProjectID_EdgeCases(t *testing.T) {
 func TestGetProjectID_Timeout(t *testing.T) {
 	t.Run("request completes before timeout - use metadata", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			testGetProjectIDTimeout(t, 1*time.Second, "fallback-project", "my-project-123")
+			testGetProjectIDTimeout(t, 1*time.Second, "fallback-project", testMetadataProjectID)
 		})
 	})
 
@@ -864,7 +851,7 @@ func testGetProjectIDTimeout(t *testing.T, serverDelay time.Duration, fallbackPr
 		resp.Header.Set("Content-Type", "text/plain")
 
 		// For project ID endpoint, return plain project ID
-		body := "my-project-123"
+		body := testMetadataProjectID
 		resp.Body = io.NopCloser(strings.NewReader(body))
 		resp.ContentLength = int64(len(body))
 

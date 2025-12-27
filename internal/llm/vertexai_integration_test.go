@@ -36,7 +36,7 @@ func TestVertexAI_Integration_NewClient(t *testing.T) {
 
 	ctx := context.Background()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, slog.Default())
+	client, err := llm.NewVertexAIClient(ctx, projectID, region, 2*time.Second, slog.Default())
 
 	require.NoError(t, err, "NewVertexAIClient should succeed with valid credentials")
 	assert.NotNil(t, client, "client should not be nil")
@@ -49,7 +49,7 @@ func TestVertexAI_Integration_GenerateText(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, slog.Default())
+	client, err := llm.NewVertexAIClient(ctx, projectID, region, 2*time.Second, slog.Default())
 	require.NoError(t, err, "NewVertexAIClient should succeed")
 
 	response, err := client.GenerateText(ctx, "You are a helpful assistant.", "Say hello in one word.")

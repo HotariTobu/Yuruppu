@@ -390,9 +390,9 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			expectedRegion: "asia-northeast1",
 		},
 		{
-			name:           "region us-west1",
-			gcpRegionEnv:   "us-west1",
-			expectedRegion: "us-west1",
+			name:           "region test-region",
+			gcpRegionEnv:   "test-region",
+			expectedRegion: "test-region",
 		},
 		{
 			name:           "region europe-west1",
