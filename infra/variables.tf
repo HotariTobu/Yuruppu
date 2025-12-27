@@ -31,3 +31,8 @@ variable "github_app_installation_id" {
   description = "GitHub App installation ID for Cloud Build connection"
   type        = number
 }
+
+variable "llm_model" {
+  description = "LLM model name (e.g., gemini-2.5-flash-lite)"
+  type        = string
+}

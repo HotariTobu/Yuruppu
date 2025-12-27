@@ -161,6 +161,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
         }
       }
 
+      env {
+        name  = "LLM_MODEL"
+        value = var.llm_model
+      }
+
       resources {
         limits = {
           cpu    = "1"
