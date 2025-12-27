@@ -592,6 +592,199 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 }
 
 // =============================================================================
+// LLM Model Configuration Tests (FX-001, FX-002, FX-005, AC-001)
+// =============================================================================
+
+// TestLoadConfig_LLMModel_Valid tests loading configuration with valid LLM_MODEL.
+// FX-001: Config struct has LLMModel field
+// FX-002: loadConfig loads LLM_MODEL as required env var
+func TestLoadConfig_LLMModel_Valid(t *testing.T) {
+	tests := []struct {
+		name          string
+		llmModel      string
+		expectedModel string
+	}{
+		{
+			name:          "valid model name is loaded",
+			llmModel:      "gemini-2.5-flash-lite",
+			expectedModel: "gemini-2.5-flash-lite",
+		},
+		{
+			name:          "different model name is loaded",
+			llmModel:      "gemini-2.0-flash",
+			expectedModel: "gemini-2.0-flash",
+		},
+		{
+			name:          "model name with special characters is accepted",
+			llmModel:      "gemini-2.5-flash-lite-preview-2024",
+			expectedModel: "gemini-2.5-flash-lite-preview-2024",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", tt.llmModel)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error with valid LLM_MODEL")
+
+			// Then: LLMModel should match expected value
+			assert.Equal(t, tt.expectedModel, config.LLMModel,
+				"LLMModel should match environment variable")
+		})
+	}
+}
+
+// TestLoadConfig_LLMModel_Missing tests error when LLM_MODEL is missing.
+// AC-001: Given LLM_MODEL is not set, when application starts, then error with LLM_MODEL
+func TestLoadConfig_LLMModel_Missing(t *testing.T) {
+	tests := []struct {
+		name       string
+		llmModel   string
+		setEnv     bool
+		wantErrMsg string
+	}{
+		{
+			name:       "unset LLM_MODEL returns error",
+			llmModel:   "",
+			setEnv:     false,
+			wantErrMsg: "LLM_MODEL is required",
+		},
+		{
+			name:       "empty LLM_MODEL returns error",
+			llmModel:   "",
+			setEnv:     true,
+			wantErrMsg: "LLM_MODEL is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set LINE credentials
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+
+			// Given: Handle LLM_MODEL based on test case
+			os.Unsetenv("LLM_MODEL")
+			if tt.setEnv {
+				t.Setenv("LLM_MODEL", tt.llmModel)
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error
+			require.Error(t, err, "loadConfig should return error when LLM_MODEL is missing")
+
+			// Then: Config should be nil
+			assert.Nil(t, config, "config should be nil on error")
+
+			// Then: Error message should indicate LLM_MODEL is required
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate LLM_MODEL is required")
+		})
+	}
+}
+
+// TestLoadConfig_LLMModel_WhitespaceOnly tests error when LLM_MODEL is whitespace-only.
+// FX-005: LLM_MODEL that is empty or whitespace-only returns error
+func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
+	tests := []struct {
+		name       string
+		llmModel   string
+		wantErrMsg string
+	}{
+		{
+			name:       "whitespace-only LLM_MODEL returns error",
+			llmModel:   "   ",
+			wantErrMsg: "LLM_MODEL is required",
+		},
+		{
+			name:       "tabs-only LLM_MODEL returns error",
+			llmModel:   "\t\t",
+			wantErrMsg: "LLM_MODEL is required",
+		},
+		{
+			name:       "mixed whitespace LLM_MODEL returns error",
+			llmModel:   " \t \n ",
+			wantErrMsg: "LLM_MODEL is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set LINE credentials
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", tt.llmModel)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error
+			require.Error(t, err, "loadConfig should return error when LLM_MODEL is whitespace-only")
+
+			// Then: Config should be nil
+			assert.Nil(t, config, "config should be nil on error")
+
+			// Then: Error message should indicate LLM_MODEL is required
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate LLM_MODEL is required")
+		})
+	}
+}
+
+// TestLoadConfig_LLMModel_TrimsWhitespace tests that LLM_MODEL value is trimmed.
+func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name          string
+		llmModel      string
+		expectedModel string
+	}{
+		{
+			name:          "leading whitespace is trimmed",
+			llmModel:      "  gemini-2.5-flash-lite",
+			expectedModel: "gemini-2.5-flash-lite",
+		},
+		{
+			name:          "trailing whitespace is trimmed",
+			llmModel:      "gemini-2.5-flash-lite  ",
+			expectedModel: "gemini-2.5-flash-lite",
+		},
+		{
+			name:          "leading and trailing whitespace is trimmed",
+			llmModel:      "  gemini-2.5-flash-lite  ",
+			expectedModel: "gemini-2.5-flash-lite",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", tt.llmModel)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LLMModel should have whitespace trimmed
+			assert.Equal(t, tt.expectedModel, config.LLMModel,
+				"LLMModel should have whitespace trimmed")
+		})
+	}
+}
+
+// =============================================================================
 // LLM Timeout Configuration Tests
 // =============================================================================
 
@@ -790,199 +983,6 @@ func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
 			assert.Nil(t, config, "config should be nil on error")
 			assert.Contains(t, err.Error(), tt.wantErrMsg,
 				"error message should indicate invalid timeout value")
-		})
-	}
-}
-
-// =============================================================================
-// LLM Model Configuration Tests (FX-001, FX-002, FX-005, AC-001)
-// =============================================================================
-
-// TestLoadConfig_LLMModel_Valid tests loading configuration with valid LLM_MODEL.
-// FX-001: Config struct has LLMModel field
-// FX-002: loadConfig loads LLM_MODEL as required env var
-func TestLoadConfig_LLMModel_Valid(t *testing.T) {
-	tests := []struct {
-		name          string
-		llmModel      string
-		expectedModel string
-	}{
-		{
-			name:          "valid model name is loaded",
-			llmModel:      "gemini-2.5-flash-lite",
-			expectedModel: "gemini-2.5-flash-lite",
-		},
-		{
-			name:          "different model name is loaded",
-			llmModel:      "gemini-2.0-flash",
-			expectedModel: "gemini-2.0-flash",
-		},
-		{
-			name:          "model name with special characters is accepted",
-			llmModel:      "gemini-2.5-flash-lite-preview-2024",
-			expectedModel: "gemini-2.5-flash-lite-preview-2024",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set required environment variables
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", tt.llmModel)
-
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should succeed without error
-			require.NoError(t, err, "loadConfig should not return error with valid LLM_MODEL")
-
-			// Then: LLMModel should match expected value
-			assert.Equal(t, tt.expectedModel, config.LLMModel,
-				"LLMModel should match environment variable")
-		})
-	}
-}
-
-// TestLoadConfig_LLMModel_Missing tests error when LLM_MODEL is missing.
-// AC-001: Given LLM_MODEL is not set, when application starts, then error with LLM_MODEL
-func TestLoadConfig_LLMModel_Missing(t *testing.T) {
-	tests := []struct {
-		name       string
-		llmModel   string
-		setEnv     bool
-		wantErrMsg string
-	}{
-		{
-			name:       "unset LLM_MODEL returns error",
-			llmModel:   "",
-			setEnv:     false,
-			wantErrMsg: "LLM_MODEL is required",
-		},
-		{
-			name:       "empty LLM_MODEL returns error",
-			llmModel:   "",
-			setEnv:     true,
-			wantErrMsg: "LLM_MODEL is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-
-			// Given: Handle LLM_MODEL based on test case
-			os.Unsetenv("LLM_MODEL")
-			if tt.setEnv {
-				t.Setenv("LLM_MODEL", tt.llmModel)
-			}
-
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should return error
-			require.Error(t, err, "loadConfig should return error when LLM_MODEL is missing")
-
-			// Then: Config should be nil
-			assert.Nil(t, config, "config should be nil on error")
-
-			// Then: Error message should indicate LLM_MODEL is required
-			assert.Contains(t, err.Error(), tt.wantErrMsg,
-				"error message should indicate LLM_MODEL is required")
-		})
-	}
-}
-
-// TestLoadConfig_LLMModel_WhitespaceOnly tests error when LLM_MODEL is whitespace-only.
-// FX-005: LLM_MODEL that is empty or whitespace-only returns error
-func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
-	tests := []struct {
-		name       string
-		llmModel   string
-		wantErrMsg string
-	}{
-		{
-			name:       "whitespace-only LLM_MODEL returns error",
-			llmModel:   "   ",
-			wantErrMsg: "LLM_MODEL is required",
-		},
-		{
-			name:       "tabs-only LLM_MODEL returns error",
-			llmModel:   "\t\t",
-			wantErrMsg: "LLM_MODEL is required",
-		},
-		{
-			name:       "mixed whitespace LLM_MODEL returns error",
-			llmModel:   " \t \n ",
-			wantErrMsg: "LLM_MODEL is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", tt.llmModel)
-
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should return error
-			require.Error(t, err, "loadConfig should return error when LLM_MODEL is whitespace-only")
-
-			// Then: Config should be nil
-			assert.Nil(t, config, "config should be nil on error")
-
-			// Then: Error message should indicate LLM_MODEL is required
-			assert.Contains(t, err.Error(), tt.wantErrMsg,
-				"error message should indicate LLM_MODEL is required")
-		})
-	}
-}
-
-// TestLoadConfig_LLMModel_TrimsWhitespace tests that LLM_MODEL value is trimmed.
-func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
-	tests := []struct {
-		name          string
-		llmModel      string
-		expectedModel string
-	}{
-		{
-			name:          "leading whitespace is trimmed",
-			llmModel:      "  gemini-2.5-flash-lite",
-			expectedModel: "gemini-2.5-flash-lite",
-		},
-		{
-			name:          "trailing whitespace is trimmed",
-			llmModel:      "gemini-2.5-flash-lite  ",
-			expectedModel: "gemini-2.5-flash-lite",
-		},
-		{
-			name:          "leading and trailing whitespace is trimmed",
-			llmModel:      "  gemini-2.5-flash-lite  ",
-			expectedModel: "gemini-2.5-flash-lite",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set required environment variables
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", tt.llmModel)
-
-			// When: Load configuration
-			config, err := loadConfig()
-
-			// Then: Should succeed without error
-			require.NoError(t, err, "loadConfig should not return error")
-
-			// Then: LLMModel should have whitespace trimmed
-			assert.Equal(t, tt.expectedModel, config.LLMModel,
-				"LLMModel should have whitespace trimmed")
 		})
 	}
 }
