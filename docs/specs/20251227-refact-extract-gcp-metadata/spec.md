@@ -23,12 +23,12 @@ Create a dedicated `internal/gcp` package with a MetadataClient that handles fet
 
 ## Scope
 
-- [ ] SC-001: Create `internal/gcp` package with MetadataClient
-- [ ] SC-002: Create tests for MetadataClient
-- [ ] SC-003: Update `internal/llm/vertexai.go` to accept resolved values
-- [ ] SC-004: Update LLM tests to remove metadata-related tests
-- [ ] SC-005: Update `main.go` to use MetadataClient
-- [ ] SC-006: Update all other callers of NewVertexAIClient
+- [x] SC-001: Create `internal/gcp` package with MetadataClient
+- [x] SC-002: Create tests for MetadataClient
+- [x] SC-003: Update `internal/llm/vertexai.go` to accept resolved values
+- [x] SC-004: Update LLM tests to remove metadata-related tests
+- [x] SC-005: Update `main.go` to use MetadataClient
+- [x] SC-006: Update all other callers of NewVertexAIClient
 
 ## Breaking Changes
 
