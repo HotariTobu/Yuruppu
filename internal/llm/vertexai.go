@@ -10,16 +10,11 @@ import (
 	"google.golang.org/genai"
 )
 
-const (
-	// geminiModel is the Gemini model to use for text generation.
-	// ADR: 20251225-gemini-model-selection.md - Using Gemini 2.5 Flash-Lite
-	geminiModel = "gemini-2.5-flash-lite"
-)
-
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
 type vertexAIClient struct {
 	client    *genai.Client
 	projectID string
+	model     string
 	logger    *slog.Logger
 }
 
@@ -28,12 +23,13 @@ type vertexAIClient struct {
 // AC-012: Bot initializes LLM client successfully when credentials are set
 // AC-013: Bot fails to start during initialization if credentials are missing
 //
-// The projectID and region parameters must be pre-resolved by the caller.
-// Use gcp.MetadataClient to resolve these values from Cloud Run metadata server
+// The projectID, region, and model parameters must be pre-resolved by the caller.
+// Use gcp.MetadataClient to resolve projectID and region from Cloud Run metadata server
 // with fallback to environment variables before calling this function.
+// model is the Gemini model name to use (e.g., "gemini-2.5-flash-lite").
 // logger is the structured logger for the client.
-// Returns an error if projectID or region is empty or whitespace-only.
-func NewVertexAIClient(ctx context.Context, projectID string, region string, logger *slog.Logger) (Provider, error) {
+// Returns an error if projectID, region, or model is empty or whitespace-only.
+func NewVertexAIClient(ctx context.Context, projectID string, region string, model string, logger *slog.Logger) (Provider, error) {
 	// Handle nil context gracefully (SDK may require non-nil context)
 	if ctx == nil {
 		ctx = context.Background()
@@ -47,6 +43,11 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, log
 	// Validate region is not empty or whitespace
 	if strings.TrimSpace(region) == "" {
 		return nil, errors.New("region is required")
+	}
+
+	// Validate model is not empty or whitespace
+	if strings.TrimSpace(model) == "" {
+		return nil, errors.New("model is required")
 	}
 
 	// Create Vertex AI client
@@ -63,6 +64,7 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, log
 	return &vertexAIClient{
 		client:    client,
 		projectID: projectID,
+		model:     model,
 		logger:    logger,
 	}, nil
 }
@@ -74,12 +76,11 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, log
 // NFR-001: LLM API total request timeout should be configurable via context
 func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	v.logger.Debug("generating text",
-		slog.String("model", geminiModel),
+		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
 	)
 
 	// Configure generation with system instruction
-	// ADR: 20251225-gemini-model-selection.md - Gemini 2.5 Flash-Lite
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{{Text: systemPrompt}},
@@ -87,10 +88,10 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	}
 
 	// Generate content
-	resp, err := v.client.Models.GenerateContent(ctx, geminiModel, genai.Text(userMessage), config)
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
 	if err != nil {
 		v.logger.Error("LLM API call failed",
-			slog.String("model", geminiModel),
+			slog.String("model", v.model),
 			slog.Any("error", err),
 		)
 		// FR-004: Map specific errors to custom error types
@@ -122,7 +123,7 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	}
 
 	v.logger.Debug("text generated successfully",
-		slog.String("model", geminiModel),
+		slog.String("model", v.model),
 		slog.Int("responseLength", len(text)),
 	)
 

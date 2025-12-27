@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// resolveGCPCredentials resolves project ID and region using MetadataClient with env var fallback.
+// resolveGCPCredentials resolves project ID, region, and model using MetadataClient with env var fallback.
 // This mirrors the production code pattern in main.go.
-func resolveGCPCredentials(t *testing.T) (projectID, region string) {
+func resolveGCPCredentials(t *testing.T) (projectID, region, model string) {
 	t.Helper()
 
 	// Use MetadataClient to resolve values (same pattern as main.go)
@@ -36,16 +36,21 @@ func resolveGCPCredentials(t *testing.T) (projectID, region string) {
 		t.Fatal("GCP_REGION could not be resolved from metadata or environment")
 	}
 
-	return projectID, region
+	model = os.Getenv("LLM_MODEL")
+	if model == "" {
+		t.Fatal("LLM_MODEL environment variable is required")
+	}
+
+	return projectID, region, model
 }
 
 // TestVertexAI_Integration_NewClient tests that NewVertexAIClient creates a client successfully.
 func TestVertexAI_Integration_NewClient(t *testing.T) {
-	projectID, region := resolveGCPCredentials(t)
+	projectID, region, model := resolveGCPCredentials(t)
 
 	ctx := context.Background()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, slog.Default())
+	client, err := llm.NewVertexAIClient(ctx, projectID, region, model, slog.Default())
 
 	require.NoError(t, err, "NewVertexAIClient should succeed with valid credentials")
 	assert.NotNil(t, client, "client should not be nil")
@@ -53,12 +58,12 @@ func TestVertexAI_Integration_NewClient(t *testing.T) {
 
 // TestVertexAI_Integration_GenerateText tests that GenerateText returns a response from Vertex AI.
 func TestVertexAI_Integration_GenerateText(t *testing.T) {
-	projectID, region := resolveGCPCredentials(t)
+	projectID, region, model := resolveGCPCredentials(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, slog.Default())
+	client, err := llm.NewVertexAIClient(ctx, projectID, region, model, slog.Default())
 	require.NoError(t, err, "NewVertexAIClient should succeed")
 
 	response, err := client.GenerateText(ctx, "You are a helpful assistant.", "Say hello in one word.")
