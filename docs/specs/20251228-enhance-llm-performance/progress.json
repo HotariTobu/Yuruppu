@@ -2,17 +2,21 @@
   "phase": "in_progress",
   "lastUpdated": "2025-12-28",
   "requirements": [
-    { "id": "CH-001", "passes": false },
+    { "id": "CH-001", "passes": true },
     { "id": "CH-002", "passes": false },
     { "id": "CH-003", "passes": true },
-    { "id": "AC-001", "passes": false },
-    { "id": "AC-002", "passes": false },
+    { "id": "AC-001", "passes": true },
+    { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": false },
     { "id": "AC-004", "passes": true },
-    { "id": "AC-005", "passes": false },
-    { "id": "AC-006", "passes": false },
-    { "id": "AC-007", "passes": false }
+    { "id": "AC-005", "passes": true },
+    { "id": "AC-006", "passes": true },
+    { "id": "AC-007", "passes": true }
   ],
-  "blockers": [],
-  "notes": "CH-003/AC-004 complete. Next session should start with CH-001 (context caching) - Close will need to delete cached content. Note: genai.Client has no Close method, so current impl only sets closed flag. Architecture review suggests adding Close to yuruppu.LLMProvider interface when integrating."
+  "blockers": [
+    "REVIEW: Missing genai.Client.Close() call - resource leak (correctness)",
+    "REVIEW: Race condition in cache recreation with concurrent requests (correctness)",
+    "REVIEW: main.go does not call Close() on shutdown (resource leak)"
+  ],
+  "notes": "CH-001 implementation complete (NewVertexAIClientWithCache). Reviews found critical issues: 1) genai.Client never closed in Close() method 2) race condition in handleCacheErrorAndRetry 3) main.go missing lifecycle integration. Next session: Fix blockers, then CH-002 (disable thinking mode)."
 }
