@@ -122,8 +122,10 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 		return "", &LLMResponseError{Message: "response part has no text"}
 	}
 
-	v.logger.Debug("text generated successfully",
+	// AC-002: Log resp.ModelVersion for verification that correct model is used
+	v.logger.Info("text generated successfully",
 		slog.String("model", v.model),
+		slog.String("modelVersion", resp.ModelVersion),
 		slog.Int("responseLength", len(text)),
 	)
 
