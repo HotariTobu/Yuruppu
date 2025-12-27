@@ -18,9 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testTimeout is the default timeout for tests.
-const testTimeout = 30 * time.Second
-
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
@@ -67,7 +64,7 @@ func TestNewServer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server, err := line.NewServer(tt.channelSecret, testTimeout, discardLogger())
+			server, err := line.NewServer(tt.channelSecret, 30*time.Second, discardLogger())
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -116,7 +113,7 @@ func TestNewServer_NegativeTimeout(t *testing.T) {
 func TestServer_OnMessage(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
+	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	callback := func(ctx context.Context, msg line.Message) error {
@@ -139,7 +136,7 @@ func TestServer_OnMessage(t *testing.T) {
 func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
+	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -157,7 +154,7 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", testTimeout, discardLogger())
+	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -177,7 +174,7 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -203,7 +200,7 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	var mu sync.Mutex
@@ -272,7 +269,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	var mu sync.Mutex
@@ -292,14 +289,14 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 		"events": [
 			{
 				"type": "message",
-				"replyToken": "token-1",
+				"replyToken": "test-token-1",
 				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "First"}
 			},
 			{
 				"type": "message",
-				"replyToken": "token-2",
+				"replyToken": "test-token-2",
 				"source": {"type": "user", "userId": "test-user-id-2"},
 				"timestamp": 1625000000001,
 				"message": {"type": "text", "id": "2", "text": "Second"}
@@ -345,7 +342,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	callbackCalled := false
@@ -386,7 +383,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	var receivedMsg line.Message
@@ -435,7 +432,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	var receivedMsg line.Message
@@ -484,7 +481,7 @@ func TestServer_HandleWebhook_NoCallback(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	// No callback registered
@@ -526,7 +523,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	callbackStarted := make(chan struct{})
@@ -582,7 +579,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	var receivedCtx context.Context
@@ -748,7 +745,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, testTimeout, discardLogger())
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	panicTriggered := make(chan struct{})

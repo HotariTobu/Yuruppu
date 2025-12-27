@@ -266,9 +266,9 @@ func TestClient_SendReply_MultipleCalls(t *testing.T) {
 	client := line.NewClientWithAPI(mock, logger)
 
 	// Act - send multiple replies
-	err1 := client.SendReply("token-1", "Message 1")
-	err2 := client.SendReply("token-2", "Message 2")
-	err3 := client.SendReply("token-3", "Message 3")
+	err1 := client.SendReply("test-token-1", "Message 1")
+	err2 := client.SendReply("test-token-2", "Message 2")
+	err3 := client.SendReply("test-token-3", "Message 3")
 
 	// Assert
 	require.NoError(t, err1)
@@ -278,9 +278,9 @@ func TestClient_SendReply_MultipleCalls(t *testing.T) {
 	assert.Len(t, mock.replyMessageCalls, 3, "should make 3 API calls")
 
 	// Verify each call has correct token
-	assert.Equal(t, "token-1", mock.replyMessageCalls[0].ReplyToken)
-	assert.Equal(t, "token-2", mock.replyMessageCalls[1].ReplyToken)
-	assert.Equal(t, "token-3", mock.replyMessageCalls[2].ReplyToken)
+	assert.Equal(t, "test-token-1", mock.replyMessageCalls[0].ReplyToken)
+	assert.Equal(t, "test-token-2", mock.replyMessageCalls[1].ReplyToken)
+	assert.Equal(t, "test-token-3", mock.replyMessageCalls[2].ReplyToken)
 }
 
 // =============================================================================

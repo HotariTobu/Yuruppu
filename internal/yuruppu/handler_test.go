@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testUserID = "test-user-id"
-
 // =============================================================================
 // Test Helpers
 // =============================================================================
@@ -84,7 +82,7 @@ func TestHandler_HandleMessage_Success(t *testing.T) {
 		ReplyToken: "test-reply-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     testUserID,
+		UserID:     "test-user-id",
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -141,7 +139,7 @@ func TestHandler_HandleMessage_NonTextMessage(t *testing.T) {
 				ReplyToken: "test-token",
 				Type:       tt.messageType,
 				Text:       "", // Non-text messages have empty text
-				UserID:     testUserID,
+				UserID:     "test-user-id",
 			}
 
 			err := handler.HandleMessage(context.Background(), msg)
@@ -170,7 +168,7 @@ func TestHandler_HandleMessage_LLMError(t *testing.T) {
 		ReplyToken: "test-reply-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     testUserID,
+		UserID:     "test-user-id",
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -188,10 +186,10 @@ func TestHandler_HandleMessage_SendReplyError(t *testing.T) {
 	handler := yuruppu.NewHandler(llm, client, discardLogger())
 
 	msg := yuruppu.Message{
-		ReplyToken: "expired-token",
+		ReplyToken: "test-expired-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     testUserID,
+		UserID:     "test-user-id",
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -214,7 +212,7 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 		ReplyToken: "test-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     testUserID,
+		UserID:     "test-user-id",
 	}
 
 	err := handler.HandleMessage(ctx, msg)
