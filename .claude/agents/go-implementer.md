@@ -115,6 +115,10 @@ func NewService(repo Repository) *Service {
 }
 ```
 
+### Avoid Functional Options Pattern
+
+Do NOT use the Functional Options pattern (`func WithXxx(...) Option`). Use explicit struct fields or multiple constructors instead.
+
 ### Documentation
 
 ```go
