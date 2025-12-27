@@ -24,8 +24,8 @@ type Config struct {
 	GCPMetadataTimeoutSeconds int    // GCP metadata server timeout in seconds (default: 2)
 	GCPProjectID              string // Optional: auto-detected on Cloud Run
 	GCPRegion                 string // Optional: auto-detected on Cloud Run
-	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
 	LLMModel                  string // Required: LLM model name (e.g., "gemini-2.5-flash-lite")
+	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
 }
 
 const (
@@ -77,6 +77,12 @@ func loadConfig() (*Config, error) {
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
 	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
 
+	// Load and validate LLM_MODEL (required, no default)
+	llmModel := strings.TrimSpace(os.Getenv("LLM_MODEL"))
+	if llmModel == "" {
+		return nil, errors.New("LLM_MODEL is required")
+	}
+
 	// Parse LLM timeout
 	llmTimeoutSeconds := defaultLLMTimeoutSeconds
 	if env := os.Getenv("LLM_TIMEOUT_SECONDS"); env != "" {
@@ -87,12 +93,6 @@ func loadConfig() (*Config, error) {
 		llmTimeoutSeconds = parsed
 	}
 
-	// Load and validate LLM_MODEL (required, no default)
-	llmModel := strings.TrimSpace(os.Getenv("LLM_MODEL"))
-	if llmModel == "" {
-		return nil, errors.New("LLM_MODEL is required")
-	}
-
 	return &Config{
 		Port:                      port,
 		ChannelSecret:             channelSecret,
@@ -100,8 +100,8 @@ func loadConfig() (*Config, error) {
 		GCPMetadataTimeoutSeconds: gcpMetadataTimeoutSeconds,
 		GCPProjectID:              gcpProjectID,
 		GCPRegion:                 gcpRegion,
-		LLMTimeoutSeconds:         llmTimeoutSeconds,
 		LLMModel:                  llmModel,
+		LLMTimeoutSeconds:         llmTimeoutSeconds,
 	}, nil
 }
 
