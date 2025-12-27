@@ -26,10 +26,10 @@ Using `embed` allows:
 
 ## Proposed Changes
 
-- [ ] CH-001: Create new directory `internal/yuruppu/prompt/` and add `system.txt` containing the system prompt text
-- [ ] CH-002: Move `SystemPrompt` from `prompt.go` to `handler.go` as an embedded variable using `//go:embed` directive
-- [ ] CH-003: Delete `internal/yuruppu/prompt.go` (no longer needed)
-- [ ] CH-004: Verify all existing tests pass without modification
+- [x] CH-001: Create new directory `internal/yuruppu/prompt/` and add `system.txt` containing the system prompt text
+- [x] CH-002: Move `SystemPrompt` from `prompt.go` to `handler.go` as an embedded variable using `//go:embed` directive
+- [x] CH-003: Delete `internal/yuruppu/prompt.go` (no longer needed)
+- [x] CH-004: Verify all existing tests pass without modification
 
 ## Acceptance Criteria
 
