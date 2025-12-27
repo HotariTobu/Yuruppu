@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testUserID = "test-user-id"
+
 // =============================================================================
 // Test Helpers
 // =============================================================================
@@ -82,7 +84,7 @@ func TestHandler_HandleMessage_Success(t *testing.T) {
 		ReplyToken: "test-reply-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     "user123",
+		UserID:     testUserID,
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -139,7 +141,7 @@ func TestHandler_HandleMessage_NonTextMessage(t *testing.T) {
 				ReplyToken: "test-token",
 				Type:       tt.messageType,
 				Text:       "", // Non-text messages have empty text
-				UserID:     "user123",
+				UserID:     testUserID,
 			}
 
 			err := handler.HandleMessage(context.Background(), msg)
@@ -168,7 +170,7 @@ func TestHandler_HandleMessage_LLMError(t *testing.T) {
 		ReplyToken: "test-reply-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     "user123",
+		UserID:     testUserID,
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -189,7 +191,7 @@ func TestHandler_HandleMessage_SendReplyError(t *testing.T) {
 		ReplyToken: "expired-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     "user123",
+		UserID:     testUserID,
 	}
 
 	err := handler.HandleMessage(context.Background(), msg)
@@ -212,7 +214,7 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 		ReplyToken: "test-token",
 		Type:       "text",
 		Text:       "Hello",
-		UserID:     "user123",
+		UserID:     testUserID,
 	}
 
 	err := handler.HandleMessage(ctx, msg)

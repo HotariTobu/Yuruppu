@@ -59,13 +59,20 @@ type vertexAIClient struct {
 //
 // The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (optional on Cloud Run).
 // The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
+// The metadataTimeout parameter controls the timeout for metadata server requests.
+// If metadataTimeout is 0 or negative, the default timeout (2 seconds) is used.
 // logger is the structured logger for the client.
 // On Cloud Run, project ID and region are auto-detected from metadata server.
 // Returns an error if project ID or region cannot be determined from either metadata or fallback.
-func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string, logger *slog.Logger) (Provider, error) {
+func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string, metadataTimeout time.Duration, logger *slog.Logger) (Provider, error) {
 	// Handle nil context gracefully (SDK may require non-nil context)
 	if ctx == nil {
 		ctx = context.Background()
+	}
+
+	// Set metadata timeout if provided
+	if metadataTimeout > 0 {
+		metadataHTTPClient.Timeout = metadataTimeout
 	}
 
 	// Determine project ID from Cloud Run metadata, with fallback to provided project ID

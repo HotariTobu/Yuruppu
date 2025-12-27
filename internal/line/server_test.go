@@ -293,7 +293,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "token-1",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "First"}
 			},
@@ -360,7 +360,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 			{
 				"type": "follow",
 				"replyToken": "test-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000
 			}
 		]
@@ -403,7 +403,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "image", "id": "12345"}
 			}
@@ -452,7 +452,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "sticker", "id": "12345", "packageId": "1", "stickerId": "1"}
 			}
@@ -494,7 +494,7 @@ func TestServer_HandleWebhook_NoCallback(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}
@@ -545,7 +545,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}
@@ -599,7 +599,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}
@@ -650,7 +650,7 @@ func TestServer_NewServerWithTimeout(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}
@@ -712,7 +712,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}
@@ -763,7 +763,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "U123"},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
 				"message": {"type": "text", "id": "1", "text": "test"}
 			}

@@ -16,24 +16,28 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	Port               string // Server port (default: 8080)
-	ChannelSecret      string
-	ChannelAccessToken string
-	GCPProjectID       string // Optional: auto-detected on Cloud Run
-	GCPRegion          string // Optional: auto-detected on Cloud Run
-	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
+	Port                      string // Server port (default: 8080)
+	ChannelSecret             string
+	ChannelAccessToken        string
+	GCPMetadataTimeoutSeconds int    // GCP metadata server timeout in seconds (default: 2)
+	GCPProjectID              string // Optional: auto-detected on Cloud Run
+	GCPRegion                 string // Optional: auto-detected on Cloud Run
+	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
 }
 
 const (
 	// defaultPort is the default server port.
 	defaultPort = "8080"
 
+	// defaultGCPMetadataTimeoutSeconds is the default GCP metadata server timeout in seconds.
+	defaultGCPMetadataTimeoutSeconds = 2
+
 	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
 	defaultLLMTimeoutSeconds = 30
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, and LLM_TIMEOUT_SECONDS from environment.
+// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, and LLM_TIMEOUT_SECONDS from environment.
 // Returns error if required LINE environment variables are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 func loadConfig() (*Config, error) {
@@ -56,6 +60,15 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("LINE_CHANNEL_ACCESS_TOKEN is required")
 	}
 
+	// Parse GCP metadata timeout
+	gcpMetadataTimeoutSeconds := defaultGCPMetadataTimeoutSeconds
+	if env := os.Getenv("GCP_METADATA_TIMEOUT_SECONDS"); env != "" {
+		if parsed, err := strconv.Atoi(env); err == nil && parsed > 0 {
+			gcpMetadataTimeoutSeconds = parsed
+		}
+		// Invalid values fall back to default
+	}
+
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
 	gcpRegion := strings.TrimSpace(os.Getenv("GCP_REGION"))
 
@@ -69,12 +82,13 @@ func loadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Port:               port,
-		ChannelSecret:      channelSecret,
-		ChannelAccessToken: channelAccessToken,
-		GCPProjectID:       gcpProjectID,
-		GCPRegion:          gcpRegion,
-		LLMTimeoutSeconds:  llmTimeoutSeconds,
+		Port:                      port,
+		ChannelSecret:             channelSecret,
+		ChannelAccessToken:        channelAccessToken,
+		GCPMetadataTimeoutSeconds: gcpMetadataTimeoutSeconds,
+		GCPProjectID:              gcpProjectID,
+		GCPRegion:                 gcpRegion,
+		LLMTimeoutSeconds:         llmTimeoutSeconds,
 	}, nil
 }
 
@@ -126,7 +140,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), config.GCPProjectID, config.GCPRegion, logger)
+	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), config.GCPProjectID, config.GCPRegion, gcpMetadataTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)
