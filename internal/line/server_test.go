@@ -226,7 +226,7 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 				"replyToken": "test-reply-token",
 				"source": {
 					"type": "user",
-					"userId": "U1234567890"
+					"userId": "test-user-id"
 				},
 				"timestamp": 1625000000000,
 				"message": {
@@ -263,7 +263,7 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 	assert.Equal(t, "test-reply-token", receivedMessages[0].ReplyToken)
 	assert.Equal(t, "text", receivedMessages[0].Type)
 	assert.Equal(t, "Hello, World!", receivedMessages[0].Text)
-	assert.Equal(t, "U1234567890", receivedMessages[0].UserID)
+	assert.Equal(t, "test-user-id", receivedMessages[0].UserID)
 }
 
 // TestServer_HandleWebhook_MultipleEvents tests multiple message events in one webhook.
@@ -300,7 +300,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 			{
 				"type": "message",
 				"replyToken": "token-2",
-				"source": {"type": "user", "userId": "U456"},
+				"source": {"type": "user", "userId": "test-user-id-2"},
 				"timestamp": 1625000000001,
 				"message": {"type": "text", "id": "2", "text": "Second"}
 			}
