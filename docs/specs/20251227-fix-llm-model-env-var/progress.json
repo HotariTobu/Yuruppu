@@ -12,5 +12,5 @@
     { "id": "AC-003", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 3: Implemented AC-002 (added resp.ModelVersion logging at Info level on successful LLM responses). AC-003 verified by existing comprehensive test suite (all unit tests pass, integration tests cover LLM client creation and text generation with configurable model). All requirements complete. Ready for PR."
+  "notes": "Session 4: Code review found latent bug where NewVertexAIClient stored untrimmed values. Fixed by normalizing (trimming) projectID, region, and model before validation and storage. All preflight checks pass. Ready for PR."
 }

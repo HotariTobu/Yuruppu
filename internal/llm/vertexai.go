@@ -35,18 +35,20 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, mod
 		ctx = context.Background()
 	}
 
-	// Validate projectID is not empty or whitespace
-	if strings.TrimSpace(projectID) == "" {
+	// Normalize and validate inputs - trim whitespace before validation and storage
+	projectID = strings.TrimSpace(projectID)
+	region = strings.TrimSpace(region)
+	model = strings.TrimSpace(model)
+
+	if projectID == "" {
 		return nil, errors.New("projectID is required")
 	}
 
-	// Validate region is not empty or whitespace
-	if strings.TrimSpace(region) == "" {
+	if region == "" {
 		return nil, errors.New("region is required")
 	}
 
-	// Validate model is not empty or whitespace
-	if strings.TrimSpace(model) == "" {
+	if model == "" {
 		return nil, errors.New("model is required")
 	}
 
