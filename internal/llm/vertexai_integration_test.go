@@ -5,6 +5,7 @@ package llm_test
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -22,10 +23,8 @@ func resolveGCPCredentials(t *testing.T) (projectID, region string) {
 	t.Helper()
 
 	// Use MetadataClient to resolve values (same pattern as main.go)
-	metadataClient := gcp.NewMetadataClient(
-		gcp.WithTimeout(2*time.Second),
-		gcp.WithLogger(slog.Default()),
-	)
+	httpClient := &http.Client{Timeout: 2 * time.Second}
+	metadataClient := gcp.NewMetadataClient(gcp.DefaultMetadataServerURL, httpClient, slog.Default())
 
 	projectID = metadataClient.GetProjectID(os.Getenv("GCP_PROJECT_ID"))
 	if projectID == "" {

@@ -5,16 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 )
 
-const (
-	// defaultMetadataServerURL is the default Cloud Run metadata server URL.
-	defaultMetadataServerURL = "http://metadata.google.internal"
-
-	// defaultTimeout is the default timeout for metadata server requests.
-	defaultTimeout = 2 * time.Second
-)
+// DefaultMetadataServerURL is the Cloud Run metadata server URL.
+const DefaultMetadataServerURL = "http://metadata.google.internal"
 
 // MetadataClient fetches project ID and region from GCP metadata server.
 type MetadataClient struct {
@@ -23,58 +17,16 @@ type MetadataClient struct {
 	logger     *slog.Logger
 }
 
-// Option is a functional option for configuring MetadataClient.
-type Option func(*MetadataClient)
-
-// WithTimeout configures the timeout for metadata server requests.
-func WithTimeout(d time.Duration) Option {
-	return func(c *MetadataClient) {
-		if c.httpClient != nil {
-			c.httpClient.Timeout = d
-		}
+// NewMetadataClient creates a new MetadataClient.
+// The baseURL should be DefaultMetadataServerURL in production.
+// The httpClient should have an appropriate timeout configured.
+// The logger is used for error logging.
+func NewMetadataClient(baseURL string, httpClient *http.Client, logger *slog.Logger) *MetadataClient {
+	return &MetadataClient{
+		baseURL:    baseURL,
+		httpClient: httpClient,
+		logger:     logger,
 	}
-}
-
-// WithLogger configures the logger for the MetadataClient.
-func WithLogger(l *slog.Logger) Option {
-	return func(c *MetadataClient) {
-		if l != nil {
-			c.logger = l
-		}
-	}
-}
-
-// WithBaseURL configures the base URL for the metadata server (for testing).
-func WithBaseURL(url string) Option {
-	return func(c *MetadataClient) {
-		c.baseURL = url
-	}
-}
-
-// WithHTTPClient configures a custom HTTP client (for testing with synctest).
-func WithHTTPClient(client *http.Client) Option {
-	return func(c *MetadataClient) {
-		c.httpClient = client
-	}
-}
-
-// NewMetadataClient creates a new MetadataClient with the given options.
-func NewMetadataClient(opts ...Option) *MetadataClient {
-	// Create client with defaults
-	client := &MetadataClient{
-		baseURL: defaultMetadataServerURL,
-		httpClient: &http.Client{
-			Timeout: defaultTimeout,
-		},
-		logger: slog.Default(),
-	}
-
-	// Apply options
-	for _, opt := range opts {
-		opt(client)
-	}
-
-	return client
 }
 
 // GetProjectID fetches the project ID from the metadata server.

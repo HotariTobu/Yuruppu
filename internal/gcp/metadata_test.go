@@ -55,101 +55,27 @@ func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
 // NewMetadataClient Tests
 // =============================================================================
 
-// TestNewMetadataClient_DefaultOptions tests creating MetadataClient with default options.
+// TestNewMetadataClient tests creating MetadataClient.
 // AC-001: MetadataClient can be created with configurable timeout and logger
-// AC-001: Default metadata server URL is http://metadata.google.internal
-// AC-001: Default timeout is 2 seconds
-func TestNewMetadataClient_DefaultOptions(t *testing.T) {
-	t.Run("creates client with default options", func(t *testing.T) {
-		// Given: No custom options provided
-
-		// When: Create MetadataClient
-		client := gcp.NewMetadataClient()
-
-		// Then: Should create client successfully
-		assert.NotNil(t, client, "client should not be nil")
-
-		// Note: We cannot verify internal fields directly (they are private),
-		// but we can verify the client works by calling methods.
-		// The actual verification of defaults will happen in integration tests.
-	})
-}
-
-// TestNewMetadataClient_WithCustomTimeout tests creating MetadataClient with custom timeout.
-// AC-001: MetadataClient can be created with configurable timeout and logger
-func TestNewMetadataClient_WithCustomTimeout(t *testing.T) {
-	tests := []struct {
-		name    string
-		timeout time.Duration
-	}{
-		{
-			name:    "custom timeout of 5 seconds",
-			timeout: 5 * time.Second,
-		},
-		{
-			name:    "custom timeout of 1 second",
-			timeout: 1 * time.Second,
-		},
-		{
-			name:    "custom timeout of 10 seconds",
-			timeout: 10 * time.Second,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given: Custom timeout option
-
-			// When: Create MetadataClient with custom timeout
-			client := gcp.NewMetadataClient(gcp.WithTimeout(tt.timeout))
-
-			// Then: Should create client successfully
-			assert.NotNil(t, client, "client should not be nil")
-		})
-	}
-}
-
-// TestNewMetadataClient_WithCustomLogger tests creating MetadataClient with custom logger.
-// AC-001: MetadataClient can be created with configurable timeout and logger
-func TestNewMetadataClient_WithCustomLogger(t *testing.T) {
-	t.Run("creates client with custom logger", func(t *testing.T) {
-		// Given: Custom logger
-		logger := slog.New(slog.DiscardHandler)
-
-		// When: Create MetadataClient with custom logger
-		client := gcp.NewMetadataClient(gcp.WithLogger(logger))
-
-		// Then: Should create client successfully
-		assert.NotNil(t, client, "client should not be nil")
-	})
-
-	t.Run("creates client with nil logger (should use default)", func(t *testing.T) {
-		// Given: Nil logger
-
-		// When: Create MetadataClient with nil logger
-		client := gcp.NewMetadataClient(gcp.WithLogger(nil))
-
-		// Then: Should create client successfully (will use default logger internally)
-		assert.NotNil(t, client, "client should not be nil")
-	})
-}
-
-// TestNewMetadataClient_WithMultipleOptions tests creating MetadataClient with multiple options.
-// AC-001: MetadataClient can be created with configurable timeout and logger
-func TestNewMetadataClient_WithMultipleOptions(t *testing.T) {
-	t.Run("creates client with timeout and logger", func(t *testing.T) {
-		// Given: Custom timeout and logger
-		timeout := 3 * time.Second
+func TestNewMetadataClient(t *testing.T) {
+	t.Run("creates client with provided parameters", func(t *testing.T) {
+		// Given: Parameters for MetadataClient
+		httpClient := &http.Client{Timeout: 5 * time.Second}
 		logger := discardLogger()
 
-		// When: Create MetadataClient with both options
-		client := gcp.NewMetadataClient(
-			gcp.WithTimeout(timeout),
-			gcp.WithLogger(logger),
-		)
+		// When: Create MetadataClient
+		client := gcp.NewMetadataClient(gcp.DefaultMetadataServerURL, httpClient, logger)
 
 		// Then: Should create client successfully
 		assert.NotNil(t, client, "client should not be nil")
+	})
+}
+
+// TestDefaultMetadataServerURL tests the default metadata server URL constant.
+// AC-001: Default metadata server URL is http://metadata.google.internal
+func TestDefaultMetadataServerURL(t *testing.T) {
+	t.Run("default URL is correct", func(t *testing.T) {
+		assert.Equal(t, "http://metadata.google.internal", gcp.DefaultMetadataServerURL)
 	})
 }
 
@@ -234,11 +160,8 @@ func TestMetadataClient_GetProjectID(t *testing.T) {
 			server := tt.metadataServer.Start(t)
 			defer server.Close()
 
-			// Create client with custom base URL for testing
-			client := gcp.NewMetadataClient(
-				gcp.WithBaseURL(server.URL),
-				gcp.WithLogger(discardLogger()),
-			)
+			// Create client with test server URL
+			client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get project ID with fallback
 			got := client.GetProjectID(tt.fallbackProjectID)
@@ -260,10 +183,7 @@ func TestMetadataClient_GetProjectID_EmptyFallback(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.NewMetadataClient(
-			gcp.WithBaseURL(server.URL),
-			gcp.WithLogger(discardLogger()),
-		)
+		client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID with empty fallback
 		got := client.GetProjectID("")
@@ -287,10 +207,7 @@ func TestMetadataClient_GetProjectID_MetadataHeaders(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.NewMetadataClient(
-			gcp.WithBaseURL(server.URL),
-			gcp.WithLogger(discardLogger()),
-		)
+		client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID
 		_ = client.GetProjectID("test-fallback-project")
@@ -315,10 +232,7 @@ func TestMetadataClient_GetProjectID_ProductionEndpoint(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.NewMetadataClient(
-			gcp.WithBaseURL(server.URL),
-			gcp.WithLogger(discardLogger()),
-		)
+		client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID
 		_ = client.GetProjectID("test-fallback-project")
@@ -392,10 +306,7 @@ func TestMetadataClient_GetProjectID_EdgeCases(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.NewMetadataClient(
-				gcp.WithBaseURL(server.URL),
-				gcp.WithLogger(discardLogger()),
-			)
+			client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get project ID with fallback
 			got := client.GetProjectID(tt.fallbackProjectID)
@@ -448,11 +359,8 @@ func testGetProjectIDTimeout(t *testing.T, serverDelay time.Duration, fallbackPr
 		},
 	}
 
-	// Create MetadataClient with test HTTP client
-	client := gcp.NewMetadataClient(
-		gcp.WithHTTPClient(httpClient),
-		gcp.WithLogger(discardLogger()),
-	)
+	// Create MetadataClient with test HTTP client (baseURL doesn't matter with custom transport)
+	client := gcp.NewMetadataClient("http://test", httpClient, discardLogger())
 
 	// Channel to signal server goroutine completion
 	serverDone := make(chan struct{})
@@ -608,10 +516,7 @@ func TestMetadataClient_GetRegion(t *testing.T) {
 			server := tt.metadataServer.Start(t)
 			defer server.Close()
 
-			client := gcp.NewMetadataClient(
-				gcp.WithBaseURL(server.URL),
-				gcp.WithLogger(discardLogger()),
-			)
+			client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region with fallback
 			got := client.GetRegion(tt.fallbackRegion)
@@ -661,10 +566,7 @@ func TestMetadataClient_GetRegion_ParsingFormats(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.NewMetadataClient(
-				gcp.WithBaseURL(server.URL),
-				gcp.WithLogger(discardLogger()),
-			)
+			client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region
 			got := client.GetRegion(tt.fallbackRegion)
@@ -689,10 +591,7 @@ func TestMetadataClient_GetRegion_MetadataHeaders(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.NewMetadataClient(
-			gcp.WithBaseURL(server.URL),
-			gcp.WithLogger(discardLogger()),
-		)
+		client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get region
 		_ = client.GetRegion("test-region")
@@ -717,10 +616,7 @@ func TestMetadataClient_GetRegion_ProductionEndpoint(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.NewMetadataClient(
-			gcp.WithBaseURL(server.URL),
-			gcp.WithLogger(discardLogger()),
-		)
+		client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get region
 		_ = client.GetRegion("test-region")
@@ -806,10 +702,7 @@ func TestMetadataClient_GetRegion_EdgeCases(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.NewMetadataClient(
-				gcp.WithBaseURL(server.URL),
-				gcp.WithLogger(discardLogger()),
-			)
+			client := gcp.NewMetadataClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region with fallback
 			got := client.GetRegion(tt.fallbackRegion)
@@ -862,11 +755,8 @@ func testGetRegionTimeout(t *testing.T, serverDelay time.Duration, fallbackRegio
 		},
 	}
 
-	// Create MetadataClient with test HTTP client
-	client := gcp.NewMetadataClient(
-		gcp.WithHTTPClient(httpClient),
-		gcp.WithLogger(discardLogger()),
-	)
+	// Create MetadataClient with test HTTP client (baseURL doesn't matter with custom transport)
+	client := gcp.NewMetadataClient("http://test", httpClient, discardLogger())
 
 	// Channel to signal server goroutine completion
 	serverDone := make(chan struct{})
