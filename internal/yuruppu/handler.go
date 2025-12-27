@@ -2,8 +2,12 @@ package yuruppu
 
 import (
 	"context"
+	_ "embed"
 	"log/slog"
 )
+
+//go:embed prompt/system.txt
+var SystemPrompt string
 
 // LLMProvider is the interface for LLM operations.
 // This references llm.Provider but avoids circular imports.

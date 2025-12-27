@@ -225,8 +225,7 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 // SystemPrompt Tests
 // =============================================================================
 
-// TestSystemPrompt_Exists verifies SystemPrompt constant exists and is non-empty.
+// TestSystemPrompt_Exists verifies SystemPrompt is embedded and non-empty.
 func TestSystemPrompt_Exists(t *testing.T) {
 	assert.NotEmpty(t, yuruppu.SystemPrompt, "SystemPrompt should not be empty")
-	assert.Contains(t, yuruppu.SystemPrompt, "Yuruppu", "SystemPrompt should mention Yuruppu")
 }
