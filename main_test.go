@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// testLLMModel is a placeholder model name for tests that don't care about the actual value.
+	testLLMModel = "test-model"
+)
+
 // discardLogger returns a logger that discards all output.
 func discardLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
@@ -57,7 +62,7 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", tt.channelSecret)
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -281,7 +286,7 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", tt.channelSecret)
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -356,7 +361,7 @@ func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	// Given: Set LINE credentials and LLM_MODEL but not GCP config
 	t.Setenv("LINE_CHANNEL_SECRET", "test-valid-secret")
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
-	t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+	t.Setenv("LLM_MODEL", testLLMModel)
 	os.Unsetenv("GCP_PROJECT_ID")
 	os.Unsetenv("GCP_REGION")
 
@@ -406,7 +411,7 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			if tt.gcpRegionEnv != "" {
 				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
@@ -462,7 +467,7 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			// Given: Set required environment variables
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 
 			// When: Load configuration
@@ -518,7 +523,7 @@ func TestLoadConfig_Port(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			if tt.portEnv != "" {
 				t.Setenv("PORT", tt.portEnv)
@@ -575,7 +580,7 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 			t.Setenv("PORT", tt.portEnv)
 
 			// When: Load configuration
@@ -606,18 +611,18 @@ func TestLoadConfig_LLMModel_Valid(t *testing.T) {
 	}{
 		{
 			name:          "valid model name is loaded",
-			llmModel:      "gemini-2.5-flash-lite",
-			expectedModel: "gemini-2.5-flash-lite",
+			llmModel:      "test-model",
+			expectedModel: "test-model",
 		},
 		{
 			name:          "different model name is loaded",
-			llmModel:      "gemini-2.0-flash",
-			expectedModel: "gemini-2.0-flash",
+			llmModel:      "another-model",
+			expectedModel: "another-model",
 		},
 		{
 			name:          "model name with special characters is accepted",
-			llmModel:      "gemini-2.5-flash-lite-preview-2024",
-			expectedModel: "gemini-2.5-flash-lite-preview-2024",
+			llmModel:      "model-with-special_chars.v2",
+			expectedModel: "model-with-special_chars.v2",
 		},
 	}
 
@@ -749,18 +754,18 @@ func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
 	}{
 		{
 			name:          "leading whitespace is trimmed",
-			llmModel:      "  gemini-2.5-flash-lite",
-			expectedModel: "gemini-2.5-flash-lite",
+			llmModel:      "  test-model",
+			expectedModel: "test-model",
 		},
 		{
 			name:          "trailing whitespace is trimmed",
-			llmModel:      "gemini-2.5-flash-lite  ",
-			expectedModel: "gemini-2.5-flash-lite",
+			llmModel:      "test-model  ",
+			expectedModel: "test-model",
 		},
 		{
 			name:          "leading and trailing whitespace is trimmed",
-			llmModel:      "  gemini-2.5-flash-lite  ",
-			expectedModel: "gemini-2.5-flash-lite",
+			llmModel:      "  test-model  ",
+			expectedModel: "test-model",
 		},
 	}
 
@@ -824,7 +829,7 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			if tt.llmTimeoutEnv != "" {
 				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
@@ -881,7 +886,7 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 			t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
 
 			// When: Load configuration
@@ -921,7 +926,7 @@ func TestLoadConfig_GCPMetadataTimeout(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 
 			if tt.timeoutEnv != "" {
 				t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
@@ -972,7 +977,7 @@ func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "gemini-2.5-flash-lite")
+			t.Setenv("LLM_MODEL", testLLMModel)
 			t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
 
 			// When: Load configuration
