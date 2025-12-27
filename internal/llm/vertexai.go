@@ -4,44 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"strings"
-	"time"
 
 	"google.golang.org/genai"
 )
 
 const (
-	// metadataServerURL is the Cloud Run metadata server URL.
-	metadataServerURL = "http://metadata.google.internal"
-
 	// geminiModel is the Gemini model to use for text generation.
 	// ADR: 20251225-gemini-model-selection.md - Using Gemini 2.5 Flash-Lite
 	geminiModel = "gemini-2.5-flash-lite"
-
-	// metadataTimeout is the timeout for metadata server requests.
-	metadataTimeout = 2 * time.Second
 )
-
-// metadataHTTPClient is the HTTP client used for metadata requests.
-// It can be overridden in tests to use fake transports.
-// ADR: 20251227-fake-time-testing.md - Allow test injection for synctest
-var metadataHTTPClient = &http.Client{
-	Timeout: metadataTimeout,
-}
-
-// SetMetadataHTTPClient replaces the HTTP client used for metadata requests.
-// This is intended for testing with fake transports.
-// It returns a cleanup function to restore the original client.
-func SetMetadataHTTPClient(client *http.Client) func() {
-	original := metadataHTTPClient
-	metadataHTTPClient = client
-	return func() {
-		metadataHTTPClient = original
-	}
-}
 
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
 type vertexAIClient struct {
@@ -54,41 +27,26 @@ type vertexAIClient struct {
 // FR-003: Load LLM API credentials from environment variables
 // AC-012: Bot initializes LLM client successfully when credentials are set
 // AC-013: Bot fails to start during initialization if credentials are missing
-// SC-003: Accept fallbackRegion as parameter instead of reading from environment
-// FX-001: Auto-detect project ID from Cloud Run metadata server
 //
-// The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (optional on Cloud Run).
-// The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
-// The metadataTimeout parameter controls the timeout for metadata server requests.
-// If metadataTimeout is 0 or negative, the default timeout (2 seconds) is used.
+// The projectID and region parameters must be pre-resolved by the caller.
+// Use gcp.MetadataClient to resolve these values from Cloud Run metadata server
+// with fallback to environment variables before calling this function.
 // logger is the structured logger for the client.
-// On Cloud Run, project ID and region are auto-detected from metadata server.
-// Returns an error if project ID or region cannot be determined from either metadata or fallback.
-func NewVertexAIClient(ctx context.Context, fallbackProjectID string, fallbackRegion string, metadataTimeout time.Duration, logger *slog.Logger) (Provider, error) {
+// Returns an error if projectID or region is empty or whitespace-only.
+func NewVertexAIClient(ctx context.Context, projectID string, region string, logger *slog.Logger) (Provider, error) {
 	// Handle nil context gracefully (SDK may require non-nil context)
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Set metadata timeout if provided
-	if metadataTimeout > 0 {
-		metadataHTTPClient.Timeout = metadataTimeout
-	}
-
-	// Determine project ID from Cloud Run metadata, with fallback to provided project ID
-	projectID := GetProjectID(metadataServerURL, fallbackProjectID)
-
-	// Determine region from Cloud Run metadata, with fallback to provided region
-	region := GetRegion(metadataServerURL, fallbackRegion)
-
 	// Validate projectID is not empty or whitespace
 	if strings.TrimSpace(projectID) == "" {
-		return nil, errors.New("GCP_PROJECT_ID is missing or empty")
+		return nil, errors.New("projectID is required")
 	}
 
 	// Validate region is not empty or whitespace
 	if strings.TrimSpace(region) == "" {
-		return nil, errors.New("GCP_REGION is missing or empty")
+		return nil, errors.New("region is required")
 	}
 
 	// Create Vertex AI client
@@ -169,160 +127,4 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	)
 
 	return text, nil
-}
-
-// GetRegion determines the GCP region to use for Vertex AI API calls.
-// AC-001: Region derived from Cloud Run metadata
-// SC-004: Accept fallbackRegion as parameter instead of reading from environment
-//
-// It attempts to read the region from the Cloud Run metadata server.
-// If that fails (timeout, error, malformed response), it falls back to the provided fallbackRegion.
-//
-// The metadataServerURL parameter should be the base URL of the metadata server
-// (e.g., "http://metadata.google.internal" in production).
-// The function appends "/computeMetadata/v1/instance/region" to this URL.
-// The fallbackRegion parameter should come from the GCP_REGION environment variable (via Config.GCPRegion).
-func GetRegion(metadataServerURL string, fallbackRegion string) string {
-	// Try to get region from metadata server
-	region := getRegionFromMetadata(metadataServerURL)
-	if region != "" {
-		return region
-	}
-
-	// Fallback to provided region
-	return fallbackRegion
-}
-
-// fetchMetadata fetches a value from the Cloud Run metadata server.
-// Returns empty string on any failure (timeout, HTTP error, malformed response).
-// Errors are logged at error level.
-// The parser function is applied to the response body to extract the desired value.
-func fetchMetadata(baseURL string, endpoint string, parser func(string) string) string {
-	url := baseURL + endpoint
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		slog.Error("failed to create metadata request", slog.String("url", url), slog.Any("error", err))
-		return ""
-	}
-
-	req.Header.Set("Metadata-Flavor", "Google")
-
-	resp, err := metadataHTTPClient.Do(req)
-	if err != nil {
-		slog.Error("metadata request failed", slog.String("url", url), slog.Any("error", err))
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Error("metadata server returned non-OK status", slog.String("url", url), slog.Int("status", resp.StatusCode))
-		return ""
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Error("failed to read metadata response", slog.String("url", url), slog.Any("error", err))
-		return ""
-	}
-
-	return parser(string(body))
-}
-
-// getRegionFromMetadata attempts to retrieve the region from the Cloud Run metadata server.
-// Returns empty string on any failure (timeout, HTTP error, malformed response).
-func getRegionFromMetadata(baseURL string) string {
-	return fetchMetadata(baseURL, "/computeMetadata/v1/instance/region", parseRegionFromResponse)
-}
-
-// GetProjectID determines the GCP project ID to use for Vertex AI API calls.
-// FX-001: Add GetProjectID function following the GetRegion() pattern
-// AC-001: Auto-detect project ID on Cloud Run
-// AC-002: Fallback to env var when metadata unavailable
-//
-// It attempts to read the project ID from the Cloud Run metadata server.
-// If that fails (timeout, error, empty response), it falls back to the provided fallbackProjectID.
-//
-// The metadataServerURL parameter should be the base URL of the metadata server
-// (e.g., "http://metadata.google.internal" in production).
-// The function appends "/computeMetadata/v1/project/project-id" to this URL.
-// The fallbackProjectID parameter should come from the GCP_PROJECT_ID environment variable (via Config.GCPProjectID).
-func GetProjectID(metadataServerURL string, fallbackProjectID string) string {
-	// Try to get project ID from metadata server
-	projectID := getProjectIDFromMetadata(metadataServerURL)
-	if projectID != "" {
-		return projectID
-	}
-
-	// Fallback to provided project ID
-	return fallbackProjectID
-}
-
-// getProjectIDFromMetadata attempts to retrieve the project ID from the Cloud Run metadata server.
-// Returns empty string on any failure (timeout, HTTP error, empty response).
-func getProjectIDFromMetadata(baseURL string) string {
-	return fetchMetadata(baseURL, "/computeMetadata/v1/project/project-id", parseProjectIDFromResponse)
-}
-
-// parseProjectIDFromResponse extracts the project ID from the metadata server response.
-// The response is plain text containing just the project ID.
-// Returns empty string if the response is empty or contains invalid characters.
-func parseProjectIDFromResponse(response string) string {
-	// Trim only trailing newlines/carriage returns
-	response = strings.TrimRight(response, "\n\r")
-
-	// Reject responses with leading or trailing spaces
-	// (only newlines are acceptable for trimming)
-	if strings.TrimSpace(response) != response {
-		return ""
-	}
-
-	// Project ID must not be empty
-	if response == "" {
-		return ""
-	}
-
-	return response
-}
-
-// parseRegionFromResponse extracts the region from the metadata server response.
-// Expected format: "projects/PROJECT-NUMBER/regions/REGION"
-// Returns empty string if format is invalid.
-func parseRegionFromResponse(response string) string {
-	// Trim only trailing newlines/carriage returns
-	response = strings.TrimRight(response, "\n\r")
-
-	// Reject responses with leading or trailing spaces
-	// (only newlines are acceptable for trimming)
-	if strings.TrimSpace(response) != response {
-		return ""
-	}
-
-	// Split by "/"
-	parts := strings.Split(response, "/")
-
-	// Expected format: [projects, PROJECT-NUMBER, regions, REGION]
-	// Must have exactly 4 parts
-	if len(parts) != 4 {
-		return ""
-	}
-
-	// Validate format
-	if parts[0] != "projects" || parts[2] != "regions" {
-		return ""
-	}
-
-	// Validate project number is not empty
-	if parts[1] == "" {
-		return ""
-	}
-
-	// Extract region (last part)
-	region := parts[3]
-
-	// Region must not be empty
-	if region == "" {
-		return ""
-	}
-
-	return region
 }
