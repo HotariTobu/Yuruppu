@@ -25,6 +25,7 @@ type Config struct {
 	GCPProjectID              string // Optional: auto-detected on Cloud Run
 	GCPRegion                 string // Optional: auto-detected on Cloud Run
 	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
+	LLMModel                  string // Required: LLM model name (e.g., "gemini-2.5-flash-lite")
 }
 
 const (
@@ -39,8 +40,8 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, and LLM_TIMEOUT_SECONDS from environment.
-// Returns error if required LINE environment variables are missing or empty after trimming whitespace.
+// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_TIMEOUT_SECONDS, and LLM_MODEL from environment.
+// Returns error if required environment variables (LINE credentials, LLM_MODEL) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // Returns error if timeout values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
@@ -86,6 +87,12 @@ func loadConfig() (*Config, error) {
 		llmTimeoutSeconds = parsed
 	}
 
+	// Load and validate LLM_MODEL (required, no default)
+	llmModel := strings.TrimSpace(os.Getenv("LLM_MODEL"))
+	if llmModel == "" {
+		return nil, errors.New("LLM_MODEL is required")
+	}
+
 	return &Config{
 		Port:                      port,
 		ChannelSecret:             channelSecret,
@@ -94,6 +101,7 @@ func loadConfig() (*Config, error) {
 		GCPProjectID:              gcpProjectID,
 		GCPRegion:                 gcpRegion,
 		LLMTimeoutSeconds:         llmTimeoutSeconds,
+		LLMModel:                  llmModel,
 	}, nil
 }
 

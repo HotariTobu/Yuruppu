@@ -1,16 +1,16 @@
 {
-  "phase": "designed",
+  "phase": "in_progress",
   "lastUpdated": "2025-12-27",
   "requirements": [
-    { "id": "FX-001", "passes": false },
-    { "id": "FX-002", "passes": false },
+    { "id": "FX-001", "passes": true },
+    { "id": "FX-002", "passes": true },
     { "id": "FX-003", "passes": false },
     { "id": "FX-004", "passes": false },
-    { "id": "FX-005", "passes": false },
-    { "id": "AC-001", "passes": false },
+    { "id": "FX-005", "passes": true },
+    { "id": "AC-001", "passes": true },
     { "id": "AC-002", "passes": false },
     { "id": "AC-003", "passes": false }
   ],
   "blockers": [],
-  "notes": ""
+  "notes": "Session 1: Implemented FX-001, FX-002, FX-005, AC-001 (Config.LLMModel field, loadConfig loads LLM_MODEL, whitespace validation, error on missing). All tests pass. Next session: FX-003 (add model param to NewVertexAIClient), FX-004 (remove hardcoded geminiModel constant), then AC-002/AC-003 can be verified."
 }
