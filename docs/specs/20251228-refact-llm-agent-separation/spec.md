@@ -77,11 +77,11 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 
 ## Scope
 
-- [ ] SC-001: Remove caching and system prompt logic from `internal/llm/vertexai.go`
-- [ ] SC-002: Create new `internal/llm/agent.go` with Agent interface and implementation
-- [ ] SC-003: Update `internal/yuruppu/handler.go` LLMProvider interface
-- [ ] SC-004: Update `main.go` to create Provider, Agent, and pass Agent to Handler
-- [ ] SC-005: Update tests for new structure
+- [x] SC-001: Remove caching and system prompt logic from `internal/llm/vertexai.go`
+- [x] SC-002: Create new `internal/llm/agent.go` with Agent interface and implementation
+- [x] SC-003: Update `internal/yuruppu/handler.go` LLMProvider interface
+- [x] SC-004: Update `main.go` to create Provider, Agent, and pass Agent to Handler
+- [x] SC-005: Update tests for new structure
 
 ## Breaking Changes
 
