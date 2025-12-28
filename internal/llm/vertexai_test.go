@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genai"
 )
 
 // discardLogger returns a logger that discards all output.
@@ -195,127 +196,16 @@ func TestNewVertexAIClient_EmptyModel(t *testing.T) {
 // Error Mapping Tests
 // =============================================================================
 
-// TestMapHTTPStatusCode tests mapping of HTTP status codes to custom error types.
-// FR-004: On LLM API error, return appropriate custom error type
-func TestMapHTTPStatusCode(t *testing.T) {
-	tests := []struct {
-		name           string
-		httpCode       int
-		message        string
-		wantType       string
-		wantContains   string
-		wantStatusCode int
-	}{
-		{
-			name:           "HTTP 401 maps to LLMAuthError",
-			httpCode:       401,
-			message:        "Unauthorized",
-			wantType:       "*llm.LLMAuthError",
-			wantContains:   "auth",
-			wantStatusCode: 401,
-		},
-		{
-			name:           "HTTP 403 maps to LLMAuthError",
-			httpCode:       403,
-			message:        "Forbidden",
-			wantType:       "*llm.LLMAuthError",
-			wantContains:   "auth",
-			wantStatusCode: 403,
-		},
-		{
-			name:         "HTTP 429 maps to LLMRateLimitError",
-			httpCode:     429,
-			message:      "Too Many Requests",
-			wantType:     "*llm.LLMRateLimitError",
-			wantContains: "rate limit",
-		},
-		{
-			name:         "HTTP 500 maps to LLMResponseError",
-			httpCode:     500,
-			message:      "Internal Server Error",
-			wantType:     "*llm.LLMResponseError",
-			wantContains: "server",
-		},
-		{
-			name:         "HTTP 503 maps to LLMResponseError",
-			httpCode:     503,
-			message:      "Service Unavailable",
-			wantType:     "*llm.LLMResponseError",
-			wantContains: "server",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map HTTP status code to error
-			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
-
-			// Then: Should return correct error type
-			require.NotNil(t, mappedErr)
-			actualType := fmt.Sprintf("%T", mappedErr)
-			assert.Equal(t, tt.wantType, actualType,
-				"error should be mapped to %s, got %s", tt.wantType, actualType)
-
-			// Then: Error message should contain expected text
-			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
-				"error message should contain '%s'", tt.wantContains)
-
-			// Then: Verify type-specific fields
-			if e, ok := mappedErr.(*llm.LLMAuthError); ok {
-				if tt.wantStatusCode > 0 {
-					assert.Equal(t, tt.wantStatusCode, e.StatusCode,
-						"auth error should have status code %d", tt.wantStatusCode)
-				}
-			}
-		})
-	}
-}
-
-// TestMapHTTPStatusCode_PreservesOriginalErrorDetails tests that original error details are preserved.
-// NFR-003: Log LLM API errors at ERROR level with error type and details
-func TestMapHTTPStatusCode_PreservesOriginalErrorDetails(t *testing.T) {
-	tests := []struct {
-		name     string
-		httpCode int
-		message  string
-		wantMsg  string
-	}{
-		{
-			name:     "API error message is preserved",
-			httpCode: 401,
-			message:  "Invalid API key: abc123",
-			wantMsg:  "Invalid API key: abc123",
-		},
-		{
-			name:     "rate limit details are preserved",
-			httpCode: 429,
-			message:  "Quota exceeded for project",
-			wantMsg:  "Quota exceeded for project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Map HTTP status code to error
-			mappedErr := llm.MapHTTPStatusCode(tt.httpCode, tt.message)
-
-			// Then: Original error details should be preserved in the message
-			require.NotNil(t, mappedErr)
-			assert.Contains(t, mappedErr.Error(), tt.wantMsg,
-				"mapped error should preserve original message")
-		})
-	}
-}
-
 // TestMapAPIError tests mapping of Vertex AI API errors to custom error types.
 // FR-004: On LLM API error, return appropriate custom error type
 // NFR-003: Error details should be preserved for logging
 func TestMapAPIError(t *testing.T) {
 	tests := []struct {
-		name         string
-		apiError     error
-		wantType     string
-		wantContains string
+		name           string
+		apiError       error
+		wantType       string
+		wantContains   string
+		wantStatusCode int
 	}{
 		{
 			name:         "context.DeadlineExceeded maps to LLMTimeoutError",
@@ -341,6 +231,50 @@ func TestMapAPIError(t *testing.T) {
 			wantType:     "*llm.LLMNetworkError",
 			wantContains: "network",
 		},
+		{
+			name:           "HTTP 401 maps to LLMAuthError",
+			apiError:       genai.APIError{Code: 401, Message: "Unauthorized"},
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 401,
+		},
+		{
+			name:           "HTTP 403 maps to LLMAuthError",
+			apiError:       genai.APIError{Code: 403, Message: "Forbidden"},
+			wantType:       "*llm.LLMAuthError",
+			wantContains:   "auth",
+			wantStatusCode: 403,
+		},
+		{
+			name:         "HTTP 429 maps to LLMRateLimitError",
+			apiError:     genai.APIError{Code: 429, Message: "Too Many Requests"},
+			wantType:     "*llm.LLMRateLimitError",
+			wantContains: "rate limit",
+		},
+		{
+			name:         "HTTP 500 maps to LLMResponseError",
+			apiError:     genai.APIError{Code: 500, Message: "Internal Server Error"},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name:         "HTTP 503 maps to LLMResponseError",
+			apiError:     genai.APIError{Code: 503, Message: "Service Unavailable"},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name:         "HTTP 502 maps to LLMResponseError",
+			apiError:     genai.APIError{Code: 502, Message: "Bad Gateway"},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
+		{
+			name:         "HTTP 504 maps to LLMResponseError",
+			apiError:     genai.APIError{Code: 504, Message: "Gateway Timeout"},
+			wantType:     "*llm.LLMResponseError",
+			wantContains: "server",
+		},
 	}
 
 	for _, tt := range tests {
@@ -357,6 +291,12 @@ func TestMapAPIError(t *testing.T) {
 			// Then: Error message should contain expected text
 			assert.Contains(t, strings.ToLower(mappedErr.Error()), tt.wantContains,
 				"error message should contain '%s'", tt.wantContains)
+
+			// Then: Verify status code for auth errors
+			if e, ok := mappedErr.(*llm.LLMAuthError); ok && tt.wantStatusCode > 0 {
+				assert.Equal(t, tt.wantStatusCode, e.StatusCode,
+					"auth error should have status code %d", tt.wantStatusCode)
+			}
 		})
 	}
 }
@@ -378,6 +318,16 @@ func TestMapAPIError_PreservesOriginalErrorDetails(t *testing.T) {
 			name:     "network error details are preserved",
 			apiError: &mockNetError{Msg: "dial tcp: connection refused"},
 			wantMsg:  "dial tcp: connection refused",
+		},
+		{
+			name:     "API error message is preserved",
+			apiError: genai.APIError{Code: 401, Message: "Invalid API key: abc123"},
+			wantMsg:  "Invalid API key: abc123",
+		},
+		{
+			name:     "rate limit details are preserved",
+			apiError: genai.APIError{Code: 429, Message: "Quota exceeded for project"},
+			wantMsg:  "Quota exceeded for project",
 		},
 	}
 
