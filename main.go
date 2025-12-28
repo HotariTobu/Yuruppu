@@ -176,6 +176,7 @@ func main() {
 	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
 
 	// Create history storage if bucket is configured
+	// Per NFR-001: storage operations should add at most 100ms to message processing latency
 	var historyStorage history.Storage
 	var gcsClient *storage.Client
 	if config.HistoryBucket != "" {
@@ -185,8 +186,12 @@ func main() {
 			logger.Error("failed to create GCS client", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		historyStorage = history.NewGCSStorage(gcsClient, config.HistoryBucket)
-		logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
+		gcsStorage := history.NewGCSStorage(gcsClient, config.HistoryBucket)
+		historyStorage = history.NewTimeoutStorage(gcsStorage, history.DefaultStorageTimeout)
+		logger.Info("chat history enabled",
+			slog.String("bucket", config.HistoryBucket),
+			slog.Duration("timeout", history.DefaultStorageTimeout),
+		)
 	} else {
 		logger.Info("chat history disabled (HISTORY_BUCKET not set)")
 	}
