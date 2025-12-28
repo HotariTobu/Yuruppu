@@ -27,20 +27,25 @@ Provider should only handle API calls. A new Agent component should manage syste
 ## Proposed Structure
 
 ### Provider (Pure API Layer)
-- `internal/llm/provider.go`: Provider interface unchanged
-  - `GenerateText(ctx, systemPrompt, userMessage) (string, error)`
+- `internal/llm/provider.go`: Provider interface extended (ADR: 20251228-provider-cache-interface)
+  - `GenerateText(ctx, systemPrompt, userMessage) (string, error)` - non-cached calls
+  - `GenerateTextCached(ctx, cacheName, userMessage) (string, error)` - cached calls
+  - `CreateCache(ctx, systemPrompt) (cacheName, error)` - cache creation
+  - `DeleteCache(ctx, cacheName) error` - cache deletion
   - `Close(ctx) error`
 - `internal/llm/vertexai.go`: Pure API implementation only
-  - Remove all cache-related fields and methods
+  - Remove `systemPrompt`, `cacheName`, `cacheRecreate` fields
   - Remove `NewVertexAIClientWithCache()`
+  - Implement new cache methods (moved from current caching logic)
 
 ### Agent (System Prompt + Caching)
 - `internal/llm/agent.go`: New file with Agent struct and interface
   - `Agent` interface: `GenerateText(ctx, userMessage) (string, error)`, `Close(ctx) error`
   - `NewAgent(provider Provider, systemPrompt string, logger) Agent`
   - Stores Provider reference (dependency injection)
-  - Stores systemPrompt
-  - Manages cache lifecycle
+  - Stores systemPrompt and cacheName
+  - Manages cache lifecycle via Provider's cache methods
+  - Calls `provider.GenerateTextCached()` when cache available, otherwise `provider.GenerateText()`
 
 ### Handler Integration
 - `internal/yuruppu/handler.go`: Change LLMProvider interface
@@ -93,9 +98,12 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 - **Given**: Refactored Provider implementation
 - **When**: Code is reviewed
 - **Then**:
-  - `vertexAIClient` has no `systemPrompt`, `cacheName`, `cacheRecreate` fields
-  - No `createCache()`, `isCacheError()`, `handleCacheErrorAndRetry()` methods exist
+  - `vertexAIClient` has no `systemPrompt`, `cacheName`, `cacheRecreate` fields (no state for caching)
+  - No `isCacheError()`, `handleCacheErrorAndRetry()` methods exist (no cache management logic)
   - `GenerateText(ctx, systemPrompt, userMessage)` passes system prompt directly to API each call
+  - `GenerateTextCached(ctx, cacheName, userMessage)` uses provided cacheName directly
+  - `CreateCache(ctx, systemPrompt)` creates cache and returns cacheName (no internal storage)
+  - `DeleteCache(ctx, cacheName)` deletes specified cache (no internal state update)
 
 ### AC-002: Agent Interface Defined [Linked to SC-002]
 
@@ -111,12 +119,13 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 - **Given**: Agent initialized with Provider and systemPrompt
 - **When**: Cache operations occur
 - **Then**:
-  - Cache created during `NewAgent()` with 60-minute TTL
+  - Cache created during `NewAgent()` via `provider.CreateCache()` with 60-minute TTL
   - If initial cache creation fails, Agent operates in fallback mode (no error returned)
-  - Cache errors during `GenerateText()` trigger automatic recreation
+  - Agent calls `provider.GenerateTextCached()` when cacheName is set, otherwise `provider.GenerateText()`
+  - Cache errors during `GenerateTextCached()` trigger automatic recreation via `provider.CreateCache()`
   - If recreation fails, falls back to non-cached mode for that call
   - Concurrent recreation attempts prevented by mutex
-  - `Close()` deletes cache (does not close Provider)
+  - `Close()` deletes cache via `provider.DeleteCache()` (does not close Provider)
   - If cache deletion fails during `Close()`, error is logged but `Close()` completes successfully
 
 ### AC-004: Handler Uses Agent [Linked to SC-003]
@@ -167,3 +176,4 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 | 2025-12-28 | 1.0 | Initial version | - |
 | 2025-12-28 | 1.1 | Add interface design, resource ownership, cache lifecycle details | - |
 | 2025-12-28 | 1.2 | Add error handling details, migration path | - |
+| 2025-12-28 | 1.3 | Design phase: Extend Provider interface with cache methods (ADR: 20251228-provider-cache-interface) | - |
