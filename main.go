@@ -127,14 +127,6 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
-// createHandler creates and returns an http.Handler with registered routes.
-// AC-004: /webhook endpoint is registered with server.HandleWebhook.
-func createHandler(srv *server.Server) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", srv.HandleWebhook)
-	return mux
-}
-
 func main() {
 	// Create logger with JSON handler for structured logging
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -182,10 +174,11 @@ func main() {
 	srv.RegisterHandler(bot.New(yuruppuAgent, lineClient, logger))
 
 	// Create HTTP server with graceful shutdown support
-	handler := createHandler(srv)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/webhook", srv.HandleWebhook)
 	httpServer := &http.Server{
 		Addr:              ":" + config.Port,
-		Handler:           handler,
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second, // Prevent Slowloris attacks
 	}
 
