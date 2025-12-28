@@ -99,11 +99,13 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 		slog.Int("userMessageLength", len(userMessage)),
 	)
 
-	config := v.createGenerateConfig(&genai.Content{
-		Parts: []*genai.Part{{Text: systemPrompt}},
-	}, "")
-
-	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+	budget := disabledThinkingBudget
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), &genai.GenerateContentConfig{
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &budget,
+		},
+		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+	})
 	if err != nil {
 		v.logger.Error("LLM API call failed",
 			slog.String("model", v.model),
@@ -128,9 +130,13 @@ func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, user
 		slog.String("cacheName", cacheName),
 	)
 
-	config := v.createGenerateConfig(nil, cacheName)
-
-	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+	budget := disabledThinkingBudget
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), &genai.GenerateContentConfig{
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &budget,
+		},
+		CachedContent: cacheName,
+	})
 	if err != nil {
 		v.logger.Error("LLM API call failed (cached)",
 			slog.String("model", v.model),
@@ -151,29 +157,6 @@ func (v *vertexAIClient) checkClosed() error {
 		return &LLMClosedError{Message: "provider is closed"}
 	}
 	return nil
-}
-
-// createGenerateConfig creates a GenerateContentConfig with thinking disabled.
-// Exactly one of systemInstruction or cacheName should be provided:
-// - systemInstruction: for non-cached requests with inline system prompt
-// - cacheName: for cached requests using pre-cached system prompt
-func (v *vertexAIClient) createGenerateConfig(systemInstruction *genai.Content, cacheName string) *genai.GenerateContentConfig {
-	if systemInstruction != nil && cacheName != "" {
-		v.logger.Warn("both systemInstruction and cacheName provided, using cacheName")
-	}
-
-	budget := disabledThinkingBudget
-	config := &genai.GenerateContentConfig{
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &budget,
-		},
-	}
-	if cacheName != "" {
-		config.CachedContent = cacheName
-	} else if systemInstruction != nil {
-		config.SystemInstruction = systemInstruction
-	}
-	return config
 }
 
 // extractTextFromResponse extracts text from LLM response.
@@ -218,9 +201,9 @@ func (v *vertexAIClient) extractTextFromResponse(resp *genai.GenerateContentResp
 	return text, nil
 }
 
-// CreateCache creates a cached content for the given system prompt.
+// CreateCachedConfig creates a cached content for the given system prompt.
 // AC-001: Returns cacheName but does not store it internally (pure API layer).
-func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (v *vertexAIClient) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if err := v.checkClosed(); err != nil {
 		return "", err
 	}
@@ -231,18 +214,10 @@ func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string, t
 		slog.Duration("ttl", ttl),
 	)
 
-	contents := []*genai.Content{
-		{
-			Parts: []*genai.Part{
-				{Text: systemPrompt},
-			},
-		},
-	}
-
 	cache, err := v.client.Caches.Create(ctx, v.model, &genai.CreateCachedContentConfig{
-		TTL:         ttl,
-		Contents:    contents,
-		DisplayName: "yuruppu-system-prompt",
+		TTL:               ttl,
+		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+		DisplayName:       "yuruppu-system-prompt",
 	})
 	if err != nil {
 		v.logger.Error("cache creation failed",
@@ -259,10 +234,10 @@ func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string, t
 	return cache.Name, nil
 }
 
-// DeleteCache deletes the specified cache.
+// DeleteCachedConfig deletes the specified cache.
 // AC-001: Deletes the cache but does not update internal state (pure API layer).
-func (v *vertexAIClient) DeleteCache(ctx context.Context, cacheName string) error {
-	// Note: DeleteCache can be called even after Close for cleanup purposes
+func (v *vertexAIClient) DeleteCachedConfig(ctx context.Context, cacheName string) error {
+	// Note: DeleteCachedConfig can be called even after Close for cleanup purposes
 	v.logger.Debug("deleting cache",
 		slog.String("cacheName", cacheName),
 	)

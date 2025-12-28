@@ -60,7 +60,7 @@ func New(provider llm.Provider, systemPrompt string, cacheTTL time.Duration, log
 	// Attempt to create cache during initialization
 	// If creation fails, Agent operates in fallback mode (no error returned)
 	ctx := context.Background()
-	cacheName, err := provider.CreateCache(ctx, systemPrompt, cacheTTL)
+	cacheName, err := provider.CreateCachedConfig(ctx, systemPrompt, cacheTTL)
 	if err != nil {
 		logger.Warn("initial cache creation failed, operating in fallback mode",
 			slog.Any("error", err),
@@ -152,7 +152,7 @@ func (a *Agent) recreateCacheOnce(ctx context.Context) (string, error) {
 	defer a.mu.Unlock()
 
 	a.logger.Debug("recreating cache")
-	newCacheName, err := a.provider.CreateCache(ctx, a.systemPrompt, a.cacheTTL)
+	newCacheName, err := a.provider.CreateCachedConfig(ctx, a.systemPrompt, a.cacheTTL)
 	if err != nil {
 		a.logger.Error("cache recreation failed",
 			slog.Any("error", err),
@@ -190,7 +190,7 @@ func (a *Agent) Close(ctx context.Context) error {
 
 	// Delete cache if it exists (no locks held during API call)
 	if cacheName != "" {
-		err := a.provider.DeleteCache(ctx, cacheName)
+		err := a.provider.DeleteCachedConfig(ctx, cacheName)
 		if err != nil {
 			// Log error but don't return it - Close() completes successfully
 			a.logger.Warn("cache deletion failed during close",

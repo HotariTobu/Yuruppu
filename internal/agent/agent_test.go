@@ -438,7 +438,7 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
@@ -477,7 +477,7 @@ func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl
 	return m.cacheName, nil
 }
 
-func (m *mockProvider) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():

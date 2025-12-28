@@ -57,14 +57,14 @@ func (t *testProviderImpl) GenerateTextCached(ctx context.Context, cacheName, us
 	return "test response from cache", nil
 }
 
-func (t *testProviderImpl) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (t *testProviderImpl) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if t.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
 	return "test-cache-name", nil
 }
 
-func (t *testProviderImpl) DeleteCache(ctx context.Context, cacheName string) error {
+func (t *testProviderImpl) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	return nil
 }
 

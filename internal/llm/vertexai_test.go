@@ -511,14 +511,14 @@ func (m *mockVertexAIProvider) GenerateTextCached(ctx context.Context, cacheName
 	return m.response, nil
 }
 
-func (m *mockVertexAIProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockVertexAIProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
 	return "mock-cache-name", nil
 }
 
-func (m *mockVertexAIProvider) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockVertexAIProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	return nil
 }
 

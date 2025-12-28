@@ -129,14 +129,14 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.createCacheErr != nil {
 		return "", m.createCacheErr
 	}
 	return m.cacheName, nil
 }
 
-func (m *mockProvider) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	m.deleteCacheCalls++
 	return m.deleteCacheErr
 }

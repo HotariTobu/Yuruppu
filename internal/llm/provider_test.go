@@ -796,7 +796,7 @@ func TestProvider_InterfaceHasCacheMethods(t *testing.T) {
 
 		// When: Call CreateCache
 		ctx := context.Background()
-		cacheName, err := provider.CreateCache(ctx, "system prompt", time.Hour)
+		cacheName, err := provider.CreateCachedConfig(ctx, "system prompt", time.Hour)
 
 		// Then: Method should be callable through interface
 		require.NoError(t, err)
@@ -809,7 +809,7 @@ func TestProvider_InterfaceHasCacheMethods(t *testing.T) {
 
 		// When: Call DeleteCache
 		ctx := context.Background()
-		err := provider.DeleteCache(ctx, "cache-name")
+		err := provider.DeleteCachedConfig(ctx, "cache-name")
 
 		// Then: Method should be callable through interface
 		require.NoError(t, err)
@@ -946,7 +946,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		ctx := context.Background()
 		systemPrompt := "You are Yuruppu, a friendly LINE bot."
 
-		cacheName, err := mock.CreateCache(ctx, systemPrompt, time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, systemPrompt, time.Hour)
 
 		// Then: Should return cacheName without error
 		require.NoError(t, err)
@@ -963,8 +963,8 @@ func TestProvider_CreateCache(t *testing.T) {
 		systemPrompt := "System prompt"
 
 		// When: CreateCache is called multiple times
-		cache1, err1 := mock.CreateCache(ctx, systemPrompt, time.Hour)
-		cache2, err2 := mock.CreateCache(ctx, systemPrompt, time.Hour)
+		cache1, err1 := mock.CreateCachedConfig(ctx, systemPrompt, time.Hour)
+		cache2, err2 := mock.CreateCachedConfig(ctx, systemPrompt, time.Hour)
 
 		// Then: Should return different cache names (no internal state)
 		require.NoError(t, err1)
@@ -983,8 +983,8 @@ func TestProvider_CreateCache(t *testing.T) {
 		prompt1 := "You are a helpful assistant."
 		prompt2 := "You are Yuruppu."
 
-		cache1, err1 := mock.CreateCache(ctx, prompt1, time.Hour)
-		cache2, err2 := mock.CreateCache(ctx, prompt2, time.Hour)
+		cache1, err1 := mock.CreateCachedConfig(ctx, prompt1, time.Hour)
+		cache2, err2 := mock.CreateCachedConfig(ctx, prompt2, time.Hour)
 
 		// Then: Should create different caches
 		require.NoError(t, err1)
@@ -1002,7 +1002,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: CreateCache with long prompt
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, longPrompt, time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, longPrompt, time.Hour)
 
 		// Then: Should not panic (implementation decides if it succeeds)
 		_ = cacheName
@@ -1015,7 +1015,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: CreateCache with empty prompt
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, "", time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, "", time.Hour)
 
 		// Then: Implementation decides behavior (may succeed or error)
 		_ = cacheName
@@ -1030,7 +1030,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: Call CreateCache
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, "Short prompt", time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, "Short prompt", time.Hour)
 
 		// Then: Should return error
 		require.Error(t, err)
@@ -1049,7 +1049,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		cancel()
 
 		// When: Call CreateCache with cancelled context
-		cacheName, err := mock.CreateCache(ctx, "System prompt", time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, "System prompt", time.Hour)
 
 		// Then: Should return context error
 		require.Error(t, err)
@@ -1064,7 +1064,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		_ = mock.Close(ctx)
 
 		// When: CreateCache is called after Close
-		cacheName, err := mock.CreateCache(ctx, "System prompt", time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, "System prompt", time.Hour)
 
 		// Then: Should return error (provider is closed)
 		require.Error(t, err)
@@ -1084,7 +1084,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 		ctx := context.Background()
 		cacheName := "test-cache-to-delete"
 
-		err := mock.DeleteCache(ctx, cacheName)
+		err := mock.DeleteCachedConfig(ctx, cacheName)
 
 		// Then: Should delete without error
 		require.NoError(t, err)
@@ -1102,8 +1102,8 @@ func TestProvider_DeleteCache(t *testing.T) {
 		cache1 := "cache-1"
 		cache2 := "cache-2"
 
-		err1 := mock.DeleteCache(ctx, cache1)
-		err2 := mock.DeleteCache(ctx, cache2)
+		err1 := mock.DeleteCachedConfig(ctx, cache1)
+		err2 := mock.DeleteCachedConfig(ctx, cache2)
 
 		// Then: Should delete each without maintaining state
 		require.NoError(t, err1)
@@ -1120,7 +1120,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 
 		// When: Call DeleteCache
 		ctx := context.Background()
-		err := mock.DeleteCache(ctx, "non-existent-cache")
+		err := mock.DeleteCachedConfig(ctx, "non-existent-cache")
 
 		// Then: Should return error
 		require.Error(t, err)
@@ -1145,7 +1145,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				// When: Delete cache
-				err := mock.DeleteCache(ctx, tt.cacheName)
+				err := mock.DeleteCachedConfig(ctx, tt.cacheName)
 
 				// Then: Should accept various cache name formats
 				require.NoError(t, err)
@@ -1160,7 +1160,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 
 		// When: DeleteCache with empty name
 		ctx := context.Background()
-		err := mock.DeleteCache(ctx, "")
+		err := mock.DeleteCachedConfig(ctx, "")
 
 		// Then: Implementation decides behavior
 		_ = err
@@ -1177,7 +1177,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 		cancel()
 
 		// When: Call DeleteCache with cancelled context
-		err := mock.DeleteCache(ctx, "cache-name")
+		err := mock.DeleteCachedConfig(ctx, "cache-name")
 
 		// Then: Should return context error
 		require.Error(t, err)
@@ -1192,9 +1192,9 @@ func TestProvider_DeleteCache(t *testing.T) {
 		cacheName := "cache-to-delete-multiple-times"
 
 		// When: Delete same cache multiple times
-		err1 := mock.DeleteCache(ctx, cacheName)
-		err2 := mock.DeleteCache(ctx, cacheName)
-		err3 := mock.DeleteCache(ctx, cacheName)
+		err1 := mock.DeleteCachedConfig(ctx, cacheName)
+		err2 := mock.DeleteCachedConfig(ctx, cacheName)
+		err3 := mock.DeleteCachedConfig(ctx, cacheName)
 
 		// Then: Should not error (idempotent)
 		require.NoError(t, err1)
@@ -1209,7 +1209,7 @@ func TestProvider_DeleteCache(t *testing.T) {
 		_ = mock.Close(ctx)
 
 		// When: DeleteCache is called after Close
-		err := mock.DeleteCache(ctx, "cache-name")
+		err := mock.DeleteCachedConfig(ctx, "cache-name")
 
 		// Then: Implementation decides behavior (may succeed or error)
 		_ = err
@@ -1230,7 +1230,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		userMessage := "Hello"
 
 		// When: Create cache
-		cacheName, err := mock.CreateCache(ctx, systemPrompt, time.Hour)
+		cacheName, err := mock.CreateCachedConfig(ctx, systemPrompt, time.Hour)
 		require.NoError(t, err)
 		require.NotEmpty(t, cacheName)
 
@@ -1241,7 +1241,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		assert.Equal(t, cacheName, mock.lastUsedCacheName)
 
 		// When: Delete cache
-		err = mock.DeleteCache(ctx, cacheName)
+		err = mock.DeleteCachedConfig(ctx, cacheName)
 		require.NoError(t, err)
 		assert.Equal(t, cacheName, mock.lastDeletedCacheName)
 
@@ -1257,7 +1257,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// When: Create cache
-		cache1, err := mock.CreateCache(ctx, "Prompt 1", time.Hour)
+		cache1, err := mock.CreateCachedConfig(ctx, "Prompt 1", time.Hour)
 		require.NoError(t, err)
 
 		// When: Use different cache (provider doesn't validate)
@@ -1279,9 +1279,9 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// When: Create multiple caches
-		cache1, err1 := mock.CreateCache(ctx, "Prompt 1", time.Hour)
-		cache2, err2 := mock.CreateCache(ctx, "Prompt 2", time.Hour)
-		cache3, err3 := mock.CreateCache(ctx, "Prompt 3", time.Hour)
+		cache1, err1 := mock.CreateCachedConfig(ctx, "Prompt 1", time.Hour)
+		cache2, err2 := mock.CreateCachedConfig(ctx, "Prompt 2", time.Hour)
+		cache3, err3 := mock.CreateCachedConfig(ctx, "Prompt 3", time.Hour)
 
 		require.NoError(t, err1)
 		require.NoError(t, err2)
@@ -1345,7 +1345,7 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
@@ -1357,7 +1357,7 @@ func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl
 	return "mock-cache", nil
 }
 
-func (m *mockProvider) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	return nil
 }
 
@@ -1396,14 +1396,14 @@ func (m *mockProviderWithClose) GenerateTextCached(ctx context.Context, cacheNam
 	return m.response, nil
 }
 
-func (m *mockProviderWithClose) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockProviderWithClose) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
 	return "mock-cache", nil
 }
 
-func (m *mockProviderWithClose) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockProviderWithClose) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	return nil
 }
 
@@ -1469,7 +1469,7 @@ func (m *mockProviderWithCache) GenerateTextCached(ctx context.Context, cacheNam
 	return m.response, nil
 }
 
-func (m *mockProviderWithCache) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockProviderWithCache) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -1493,8 +1493,8 @@ func (m *mockProviderWithCache) CreateCache(ctx context.Context, systemPrompt st
 	return cacheName, nil
 }
 
-func (m *mockProviderWithCache) DeleteCache(ctx context.Context, cacheName string) error {
-	// Note: DeleteCache can be called even after Close in some implementations
+func (m *mockProviderWithCache) DeleteCachedConfig(ctx context.Context, cacheName string) error {
+	// Note: DeleteCachedConfig can be called even after Close in some implementations
 	// This is left to implementation to decide
 
 	if m.checkContext {

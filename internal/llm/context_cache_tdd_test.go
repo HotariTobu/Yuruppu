@@ -37,8 +37,8 @@ func TestProvider_CreateCache_APILayer(t *testing.T) {
 
 		// When: CreateCache is called multiple times
 		ctx := context.Background()
-		cache1, err1 := provider.CreateCache(ctx, "System prompt 1", time.Hour)
-		cache2, err2 := provider.CreateCache(ctx, "System prompt 2", time.Hour)
+		cache1, err1 := provider.CreateCachedConfig(ctx, "System prompt 1", time.Hour)
+		cache2, err2 := provider.CreateCachedConfig(ctx, "System prompt 2", time.Hour)
 
 		// Then: Each call creates a new cache (no internal state)
 		require.NoError(t, err1)
@@ -82,7 +82,7 @@ func TestProvider_DeleteCache_IsStateless(t *testing.T) {
 		// When: DeleteCache is called
 		ctx := context.Background()
 		cacheName := "cache-to-delete"
-		err := provider.DeleteCache(ctx, cacheName)
+		err := provider.DeleteCachedConfig(ctx, cacheName)
 
 		// Then: Should delete without maintaining internal state
 		require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestCacheLifecycle_CreateUseDelete(t *testing.T) {
 		userMessage := "Hello!"
 
 		// Step 1: Create cache (would be done by Agent during initialization)
-		cacheName, err := provider.CreateCache(ctx, systemPrompt, time.Hour)
+		cacheName, err := provider.CreateCachedConfig(ctx, systemPrompt, time.Hour)
 		require.NoError(t, err)
 		require.NotEmpty(t, cacheName)
 
@@ -120,7 +120,7 @@ func TestCacheLifecycle_CreateUseDelete(t *testing.T) {
 		assert.Equal(t, cacheName, provider.lastUsedCacheName)
 
 		// Step 3: Delete cache (would be done by Agent.Close)
-		err = provider.DeleteCache(ctx, cacheName)
+		err = provider.DeleteCachedConfig(ctx, cacheName)
 		require.NoError(t, err)
 		assert.Equal(t, cacheName, provider.lastDeletedCacheName)
 
@@ -201,7 +201,7 @@ func (m *mockCachedProvider) GenerateTextCached(ctx context.Context, cacheName, 
 	return m.response, nil
 }
 
-func (m *mockCachedProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
+func (m *mockCachedProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
@@ -211,7 +211,7 @@ func (m *mockCachedProvider) CreateCache(ctx context.Context, systemPrompt strin
 	return "cache-" + string(rune('0'+m.cacheCounter)), nil
 }
 
-func (m *mockCachedProvider) DeleteCache(ctx context.Context, cacheName string) error {
+func (m *mockCachedProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
 	// Pure API layer: just delete the specified cache
 	m.lastDeletedCacheName = cacheName
 	return nil

@@ -15,20 +15,20 @@ type Provider interface {
 	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
 
 	// GenerateTextCached generates a text response using a cached system prompt.
-	// The cacheName must be a valid cache reference returned by CreateCache.
+	// The cacheName must be a valid cache reference returned by CreateCachedConfig.
 	// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
 	GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error)
 
-	// CreateCache creates a cached content for the given system prompt.
+	// CreateCachedConfig creates a cached content for the given system prompt.
 	// Returns the cache name on success, which can be used with GenerateTextCached.
 	// AC-001: Returns cacheName but does not store it internally (pure API layer).
 	// The caller (Agent) is responsible for managing the cache lifecycle.
-	CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error)
+	CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error)
 
-	// DeleteCache deletes the specified cache.
+	// DeleteCachedConfig deletes the specified cache.
 	// AC-001: Deletes the cache but does not update internal state (pure API layer).
 	// This method is idempotent - safe to call multiple times or on non-existent caches.
-	DeleteCache(ctx context.Context, cacheName string) error
+	DeleteCachedConfig(ctx context.Context, cacheName string) error
 
 	// Close releases any resources held by the provider.
 	// AC-004: Provider lifecycle management
