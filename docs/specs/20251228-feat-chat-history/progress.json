@@ -5,9 +5,9 @@
     { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
-    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-001", "passes": true },
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 5 completed: Implemented FR-003 - Separate conversation history by source (user/group/room). Changes: (1) Renamed extractUserID to extractSourceID in server.go, (2) Added handling for GroupSource (returns GroupId) and RoomSource (returns RoomId), (3) Updated variable names from userID to sourceID for clarity, (4) Added tests for GroupSource, RoomSource, UserSource, and MissingSource edge cases. Code reviews completed (correctness, testing). Suggestions for future: consider adding logging for empty sourceID cases, add tests for unknown source types and empty IDs. Next session should work on NFR-001 (latency requirements - +100ms limit for history read/write operations)."
+  "notes": "Session 6 completed: Implemented NFR-001 - Storage operations latency constraint (+100ms). Changes: (1) Added TimeoutStorage wrapper in internal/history/timeout_storage.go, (2) TimeoutStorage enforces 100ms timeout on GetHistory and AppendMessages, (3) context.DeadlineExceeded errors are wrapped as StorageTimeoutError for consistent error handling, (4) Integrated TimeoutStorage in main.go, (5) Added comprehensive tests in timeout_storage_test.go. Code reviews completed (correctness, performance). All requirements now pass. Next: Final verification and PR creation."
 }
