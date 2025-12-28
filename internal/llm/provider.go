@@ -4,10 +4,28 @@ import "context"
 
 // Provider is an abstraction layer for LLM providers.
 // TR-002: Create an abstraction layer (interface) for LLM providers to allow future provider changes
+// ADR: 20251228-provider-cache-interface - Extended with cache methods (Option C: Separate methods)
 type Provider interface {
 	// GenerateText generates a text response given a system prompt and user message.
 	// The context can be used for timeout and cancellation.
+	// This is the non-cached path - the system prompt is sent with each request.
 	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
+
+	// GenerateTextCached generates a text response using a cached system prompt.
+	// The cacheName must be a valid cache reference returned by CreateCache.
+	// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
+	GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error)
+
+	// CreateCache creates a cached content for the given system prompt.
+	// Returns the cache name on success, which can be used with GenerateTextCached.
+	// AC-001: Returns cacheName but does not store it internally (pure API layer).
+	// The caller (Agent) is responsible for managing the cache lifecycle.
+	CreateCache(ctx context.Context, systemPrompt string) (string, error)
+
+	// DeleteCache deletes the specified cache.
+	// AC-001: Deletes the cache but does not update internal state (pure API layer).
+	// This method is idempotent - safe to call multiple times or on non-existent caches.
+	DeleteCache(ctx context.Context, cacheName string) error
 
 	// Close releases any resources held by the provider.
 	// AC-004: Provider lifecycle management

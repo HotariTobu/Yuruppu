@@ -10,247 +10,212 @@ import (
 )
 
 // =============================================================================
-// TDD Tests for Context Caching (CH-001, AC-001, AC-006, AC-007)
+// TDD Tests for Provider Cache Methods (AC-001: Pure API Layer)
 // =============================================================================
-// These tests verify context caching behavior for system prompts.
-// They will FAIL until the implementation is complete.
+// These tests verify Provider cache methods work as a pure API layer.
+// The Provider does NOT manage cache lifecycle - that's the Agent's responsibility.
 //
-// CH-001: Add context caching for system prompt
-// AC-001: Context Cache Creation - system prompt is cached for reuse
-// AC-006: Cache Expiration Handling - cache is recreated if expired
-// AC-007: Fallback for Insufficient Token Count - caching skipped if below minimum
+// ADR: 20251228-provider-cache-interface - Separate methods for cached/non-cached calls
+// AC-001: Provider is Pure API Layer
 
 // =============================================================================
-// AC-001: Context Cache Creation Tests
+// Provider Cache API Tests
 // =============================================================================
 
-// TestNewVertexAIClientWithCache_AcceptsSystemPrompt tests that NewVertexAIClientWithCache
-// accepts a system prompt parameter for caching.
-// AC-001: System prompt is cached for reuse across requests
-func TestNewVertexAIClientWithCache_AcceptsSystemPrompt(t *testing.T) {
-	// Given: A system prompt to cache
-	systemPrompt := "You are a helpful assistant."
-
-	// When: Creating a client with caching support
-	// Note: This will fail until NewVertexAIClientWithCache is implemented
-	_, err := llm.NewVertexAIClientWithCache(
-		context.Background(),
-		"test-project",
-		"test-region",
-		"test-model",
-		systemPrompt,
-		discardLogger(),
-	)
-
-	// Then: Should not return an error for the function signature
-	// (May fail on actual API call, but that's expected in unit tests)
-	// We're testing the interface exists, not the actual caching
-	_ = err // API call may fail without credentials
-}
-
-// TestNewVertexAIClientWithCache_ValidatesSystemPrompt tests system prompt validation.
-// AC-001: System prompt must be provided for caching
-func TestNewVertexAIClientWithCache_ValidatesSystemPrompt(t *testing.T) {
-	tests := []struct {
-		name         string
-		systemPrompt string
-		wantErr      bool
-		wantErrMsg   string
-	}{
-		{
-			name:         "empty system prompt returns error",
-			systemPrompt: "",
-			wantErr:      true,
-			wantErrMsg:   "systemPrompt is required",
-		},
-		{
-			name:         "whitespace-only system prompt returns error",
-			systemPrompt: "   ",
-			wantErr:      true,
-			wantErrMsg:   "systemPrompt is required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When: Creating a client with invalid system prompt
-			client, err := llm.NewVertexAIClientWithCache(
-				context.Background(),
-				"test-project",
-				"test-region",
-				"test-model",
-				tt.systemPrompt,
-				discardLogger(),
-			)
-
-			// Then: Should return validation error
-			if tt.wantErr {
-				require.Error(t, err, "should return error for invalid system prompt")
-				assert.Nil(t, client, "client should be nil when validation fails")
-				assert.Contains(t, err.Error(), tt.wantErrMsg,
-					"error message should indicate system prompt is required")
-			}
-		})
-	}
-}
-
-// =============================================================================
-// AC-007: Fallback for Insufficient Token Count Tests
-// =============================================================================
-
-// TestContextCacheCreationFallback tests that caching is skipped gracefully
-// when the system prompt is below the minimum token requirement (32K).
-// AC-007: Caching is skipped gracefully when token count is insufficient
-func TestContextCacheCreationFallback(t *testing.T) {
-	// Given: A short system prompt (below 32K token minimum)
-	shortSystemPrompt := "You are a helpful assistant."
-
-	// When: Creating a client with a short system prompt
-	// The cache creation should fail but the client should still work
-	client, err := llm.NewVertexAIClientWithCache(
-		context.Background(),
-		"test-project",
-		"test-region",
-		"test-model",
-		shortSystemPrompt,
-		discardLogger(),
-	)
-
-	// Then: Client creation should succeed (graceful fallback)
-	// Note: In unit tests, this may fail due to missing credentials,
-	// but we're testing the logic that caching failure doesn't break client creation
-	_ = client
-	_ = err
-}
-
-// =============================================================================
-// AC-002: Context Cache Usage Tests
-// =============================================================================
-
-// TestGenerateText_UsesCache tests that GenerateText uses cached content.
-// AC-002: The cached system prompt is used instead of sending it with each request
-func TestGenerateText_UsesCache(t *testing.T) {
-	// This test verifies that when a cache is created, GenerateText uses it.
-	// We can't easily test this in unit tests without mocking the API.
-	// This is primarily tested in integration tests.
-
-	t.Run("GenerateText works with cached client", func(t *testing.T) {
-		// Given: A mock cached provider
+// TestProvider_CreateCache_APILayer tests that CreateCache is a pure API call.
+// AC-001: CreateCache creates cache and returns cacheName (no internal storage)
+func TestProvider_CreateCache_APILayer(t *testing.T) {
+	t.Run("CreateCache is stateless", func(t *testing.T) {
+		// Given: A mock provider (pure API layer)
 		provider := &mockCachedProvider{
-			cacheName: "test-cache-name",
-			response:  "Hello from cached context!",
+			cacheCounter: 0,
 		}
 
-		// When: GenerateText is called
-		response, err := provider.GenerateText(
-			context.Background(),
-			"This prompt is ignored when cache is used",
-			"Hello",
-		)
+		// When: CreateCache is called multiple times
+		ctx := context.Background()
+		cache1, err1 := provider.CreateCache(ctx, "System prompt 1")
+		cache2, err2 := provider.CreateCache(ctx, "System prompt 2")
 
-		// Then: Response should come from cached context
+		// Then: Each call creates a new cache (no internal state)
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		assert.NotEqual(t, cache1, cache2,
+			"Provider should not reuse caches - each call creates new cache")
+	})
+}
+
+// TestProvider_GenerateTextCached_UsesProvidedCacheName tests that
+// GenerateTextCached uses the cacheName provided by the caller.
+// AC-001: GenerateTextCached uses provided cacheName directly
+func TestProvider_GenerateTextCached_UsesProvidedCacheName(t *testing.T) {
+	t.Run("uses provided cacheName", func(t *testing.T) {
+		// Given: A mock provider
+		provider := &mockCachedProvider{
+			response: "Cached response",
+		}
+
+		// When: GenerateTextCached is called with specific cacheName
+		ctx := context.Background()
+		cacheName := "my-custom-cache-123"
+		response, err := provider.GenerateTextCached(ctx, cacheName, "Hello")
+
+		// Then: Should use the exact cacheName provided
 		require.NoError(t, err)
-		assert.Equal(t, "Hello from cached context!", response)
-		assert.True(t, provider.usedCache, "Should use cached content")
+		assert.Equal(t, "Cached response", response)
+		assert.Equal(t, cacheName, provider.lastUsedCacheName,
+			"Should use the exact cacheName provided by caller")
+	})
+}
+
+// TestProvider_DeleteCache_IsStateless tests that DeleteCache does not
+// affect Provider's internal state.
+// AC-001: DeleteCache deletes specified cache (no internal state update)
+func TestProvider_DeleteCache_IsStateless(t *testing.T) {
+	t.Run("DeleteCache is stateless", func(t *testing.T) {
+		// Given: A mock provider
+		provider := &mockCachedProvider{}
+
+		// When: DeleteCache is called
+		ctx := context.Background()
+		cacheName := "cache-to-delete"
+		err := provider.DeleteCache(ctx, cacheName)
+
+		// Then: Should delete without maintaining internal state
+		require.NoError(t, err)
+		assert.Equal(t, cacheName, provider.lastDeletedCacheName)
 	})
 }
 
 // =============================================================================
-// AC-006: Cache Expiration Handling Tests
+// Cache Lifecycle Flow Tests (Provider + Agent interaction pattern)
 // =============================================================================
 
-// TestGenerateText_RecreatesCacheOnExpiration tests that expired cache is recreated.
-// AC-006: Cache is recreated automatically when expired
-func TestGenerateText_RecreatesCacheOnExpiration(t *testing.T) {
-	t.Run("cache is recreated when expired", func(t *testing.T) {
-		// Given: A mock provider with expired cache
+// TestCacheLifecycle_CreateUseDelete tests the complete cache lifecycle
+// using only Provider's pure API methods.
+// This demonstrates how Agent will use Provider for cache management.
+func TestCacheLifecycle_CreateUseDelete(t *testing.T) {
+	t.Run("complete cache lifecycle", func(t *testing.T) {
+		// Given: A mock provider (simulating pure API layer)
 		provider := &mockCachedProvider{
-			cacheName:    "expired-cache",
-			cacheExpired: true,
-			response:     "Response after cache recreation",
+			response: "Response from cached context",
 		}
 
-		// When: GenerateText is called with expired cache
-		response, err := provider.GenerateText(
-			context.Background(),
-			"system prompt for recreation",
-			"user message",
-		)
+		ctx := context.Background()
+		systemPrompt := "You are Yuruppu, a friendly LINE bot."
+		userMessage := "Hello!"
 
-		// Then: Cache should be recreated and request should succeed
+		// Step 1: Create cache (would be done by Agent during initialization)
+		cacheName, err := provider.CreateCache(ctx, systemPrompt)
 		require.NoError(t, err)
-		assert.Equal(t, "Response after cache recreation", response)
-		assert.True(t, provider.cacheRecreated, "Cache should be recreated on expiration")
+		require.NotEmpty(t, cacheName)
+
+		// Step 2: Use cache for generation (would be done by Agent.GenerateText)
+		response, err := provider.GenerateTextCached(ctx, cacheName, userMessage)
+		require.NoError(t, err)
+		assert.Equal(t, "Response from cached context", response)
+		assert.Equal(t, cacheName, provider.lastUsedCacheName)
+
+		// Step 3: Delete cache (would be done by Agent.Close)
+		err = provider.DeleteCache(ctx, cacheName)
+		require.NoError(t, err)
+		assert.Equal(t, cacheName, provider.lastDeletedCacheName)
+
+		// Provider state should NOT track any of this - it's purely transactional
+	})
+}
+
+// TestNonCachedFallback tests that GenerateText (non-cached) works independently.
+// This is used when cache creation fails or as a fallback.
+func TestNonCachedFallback(t *testing.T) {
+	t.Run("non-cached generation works", func(t *testing.T) {
+		// Given: A mock provider
+		provider := &mockCachedProvider{
+			response: "Non-cached response",
+		}
+
+		// When: GenerateText is called (non-cached path)
+		ctx := context.Background()
+		response, err := provider.GenerateText(ctx, "System prompt", "User message")
+
+		// Then: Should work without cache
+		require.NoError(t, err)
+		assert.Equal(t, "Non-cached response", response)
+		assert.Empty(t, provider.lastUsedCacheName,
+			"Should not use cache for non-cached call")
 	})
 }
 
 // =============================================================================
-// Close Method Tests (Updated for Caching)
+// Close Method Tests (Updated for Pure API Layer)
 // =============================================================================
 
-// TestClose_DeletesCachedContent tests that Close deletes cached content.
-// AC-004: Cached resources are cleaned up
-func TestClose_DeletesCachedContent(t *testing.T) {
-	t.Run("Close deletes cached content", func(t *testing.T) {
-		// Given: A mock provider with cached content
-		provider := &mockCachedProvider{
-			cacheName:        "test-cache",
-			hasCachedContent: true,
-		}
+// TestClose_DoesNotDeleteCache tests that Provider.Close does NOT delete cache.
+// AC-001: Provider is pure API layer - cache cleanup is Agent's responsibility
+func TestClose_DoesNotDeleteCache(t *testing.T) {
+	t.Run("Close does not delete cache", func(t *testing.T) {
+		// Given: A mock provider (pure API layer with no internal cache state)
+		provider := &mockCachedProvider{}
 
 		// When: Close is called
 		err := provider.Close(context.Background())
 
-		// Then: Cached content should be deleted
+		// Then: Close should not delete any cache (that's Agent's job)
 		require.NoError(t, err)
-		assert.False(t, provider.hasCachedContent, "Cached content should be deleted")
-		assert.True(t, provider.cacheDeleted, "Cache should be deleted on Close")
+		assert.Empty(t, provider.lastDeletedCacheName,
+			"Provider.Close should NOT delete cache - that's Agent's responsibility")
 	})
 }
 
 // =============================================================================
-// Mock Implementations for Testing
+// Mock Implementation for Testing
 // =============================================================================
 
-// mockCachedProvider simulates a Provider with caching support.
+// mockCachedProvider simulates a Provider with cache methods (pure API layer).
 type mockCachedProvider struct {
-	cacheName        string
-	response         string
-	cacheExpired     bool
-	cacheRecreated   bool
-	cacheDeleted     bool
-	hasCachedContent bool
-	usedCache        bool
-	closed           bool
+	response             string
+	cacheCounter         int
+	lastUsedCacheName    string
+	lastCreatedPrompt    string
+	lastDeletedCacheName string
+	closed               bool
 }
 
 func (m *mockCachedProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	if m.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
-
-	// Simulate cache expiration handling
-	if m.cacheExpired {
-		m.cacheRecreated = true
-		m.cacheExpired = false
-	}
-
-	// Mark that cache was used (if cache exists)
-	if m.cacheName != "" {
-		m.usedCache = true
-	}
-
+	// Non-cached path - doesn't use cacheName
 	return m.response, nil
 }
 
-func (m *mockCachedProvider) Close(ctx context.Context) error {
-	if !m.closed {
-		// Clean up cached content
-		if m.hasCachedContent {
-			m.cacheDeleted = true
-			m.hasCachedContent = false
-		}
+func (m *mockCachedProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if m.closed {
+		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
+	// Pure API layer: just use the provided cacheName
+	m.lastUsedCacheName = cacheName
+	return m.response, nil
+}
+
+func (m *mockCachedProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if m.closed {
+		return "", &llm.LLMClosedError{Message: "provider is closed"}
+	}
+	// Pure API layer: create new cache each time (no internal state)
+	m.lastCreatedPrompt = systemPrompt
+	m.cacheCounter++
+	return "cache-" + string(rune('0'+m.cacheCounter)), nil
+}
+
+func (m *mockCachedProvider) DeleteCache(ctx context.Context, cacheName string) error {
+	// Pure API layer: just delete the specified cache
+	m.lastDeletedCacheName = cacheName
+	return nil
+}
+
+func (m *mockCachedProvider) Close(ctx context.Context) error {
+	// Pure API layer: Close does NOT delete cache
+	// Cache deletion is the Agent's responsibility
 	m.closed = true
 	return nil
 }

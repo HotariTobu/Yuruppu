@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"yuruppu/internal/llm"
 
@@ -755,6 +756,539 @@ func TestProvider_CloseOrder(t *testing.T) {
 }
 
 // =============================================================================
+// Cache Methods Tests (AC-001 from 20251228-refact-llm-agent-separation)
+// =============================================================================
+
+// TestProvider_InterfaceHasCacheMethods tests that the Provider interface
+// includes the new cache methods.
+// AC-001: Provider interface extended with cache methods (ADR: 20251228-provider-cache-interface)
+func TestProvider_InterfaceHasCacheMethods(t *testing.T) {
+	t.Run("interface defines GenerateTextCached method", func(t *testing.T) {
+		// Given: A mock implementation with cache methods
+		var provider llm.Provider = &mockProviderWithCache{
+			response: "test",
+		}
+
+		// When: Call GenerateTextCached
+		ctx := context.Background()
+		response, err := provider.GenerateTextCached(ctx, "cache-name", "message")
+
+		// Then: Method should be callable through interface
+		require.NoError(t, err)
+		assert.Equal(t, "test", response)
+	})
+
+	t.Run("interface defines CreateCache method", func(t *testing.T) {
+		// Given: A mock implementation with cache methods
+		var provider llm.Provider = &mockProviderWithCache{}
+
+		// When: Call CreateCache
+		ctx := context.Background()
+		cacheName, err := provider.CreateCache(ctx, "system prompt")
+
+		// Then: Method should be callable through interface
+		require.NoError(t, err)
+		assert.NotEmpty(t, cacheName)
+	})
+
+	t.Run("interface defines DeleteCache method", func(t *testing.T) {
+		// Given: A mock implementation with cache methods
+		var provider llm.Provider = &mockProviderWithCache{}
+
+		// When: Call DeleteCache
+		ctx := context.Background()
+		err := provider.DeleteCache(ctx, "cache-name")
+
+		// Then: Method should be callable through interface
+		require.NoError(t, err)
+	})
+}
+
+// TestProvider_GenerateTextCached tests the GenerateTextCached method.
+// AC-001: GenerateTextCached(ctx, cacheName, userMessage) uses provided cacheName directly
+func TestProvider_GenerateTextCached(t *testing.T) {
+	t.Run("uses provided cacheName directly", func(t *testing.T) {
+		// Given: A mock provider with cache support
+		mock := &mockProviderWithCache{
+			response: "Response using cache",
+		}
+
+		// When: Call GenerateTextCached with cacheName
+		ctx := context.Background()
+		cacheName := "test-cache-123"
+		userMessage := "Hello from user"
+
+		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage)
+
+		// Then: Should use the provided cacheName
+		require.NoError(t, err)
+		assert.Equal(t, "Response using cache", response)
+		assert.Equal(t, cacheName, mock.lastUsedCacheName,
+			"should use the provided cacheName directly")
+	})
+
+	t.Run("accepts different cache names", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{
+			response: "Response",
+		}
+
+		ctx := context.Background()
+
+		// When: Call with different cache names
+		cache1 := "cache-alpha"
+		cache2 := "cache-beta"
+		cache3 := "cache-gamma"
+
+		_, _ = mock.GenerateTextCached(ctx, cache1, "message1")
+		assert.Equal(t, cache1, mock.lastUsedCacheName)
+
+		_, _ = mock.GenerateTextCached(ctx, cache2, "message2")
+		assert.Equal(t, cache2, mock.lastUsedCacheName)
+
+		_, _ = mock.GenerateTextCached(ctx, cache3, "message3")
+		assert.Equal(t, cache3, mock.lastUsedCacheName)
+
+		// Then: Should accept and use each cache name
+	})
+
+	t.Run("handles errors during cached generation", func(t *testing.T) {
+		// Given: A mock provider that returns error
+		mock := &mockProviderWithCache{
+			err: errors.New("cache API error"),
+		}
+
+		// When: Call GenerateTextCached
+		ctx := context.Background()
+		response, err := mock.GenerateTextCached(ctx, "test-cache", "message")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Empty(t, response)
+		assert.Equal(t, "cache API error", err.Error())
+	})
+
+	t.Run("works with empty user message", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{
+			response: "Response to empty message",
+		}
+
+		// When: Call with empty user message
+		ctx := context.Background()
+		response, err := mock.GenerateTextCached(ctx, "cache-name", "")
+
+		// Then: Should not error (implementation decides behavior)
+		require.NoError(t, err)
+		assert.Equal(t, "Response to empty message", response)
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		// Given: A mock provider that checks context
+		mock := &mockProviderWithCache{
+			checkContext: true,
+		}
+
+		// Given: A cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		// When: Call GenerateTextCached with cancelled context
+		_, err := mock.GenerateTextCached(ctx, "cache-name", "message")
+
+		// Then: Should return context cancelled error
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("returns error after provider is closed", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{
+			response: "Response",
+		}
+
+		ctx := context.Background()
+
+		// Given: Provider is closed
+		err := mock.Close(ctx)
+		require.NoError(t, err)
+
+		// When: Call GenerateTextCached after Close
+		response, err := mock.GenerateTextCached(ctx, "cache-name", "message")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Empty(t, response)
+		assert.Contains(t, err.Error(), "closed")
+	})
+}
+
+// TestProvider_CreateCache tests the CreateCache method.
+// AC-001: CreateCache(ctx, systemPrompt) creates cache and returns cacheName (no internal storage)
+func TestProvider_CreateCache(t *testing.T) {
+	t.Run("creates cache and returns cacheName", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		// When: Call CreateCache with systemPrompt
+		ctx := context.Background()
+		systemPrompt := "You are Yuruppu, a friendly LINE bot."
+
+		cacheName, err := mock.CreateCache(ctx, systemPrompt)
+
+		// Then: Should return cacheName without error
+		require.NoError(t, err)
+		assert.NotEmpty(t, cacheName, "cacheName should not be empty")
+		assert.Equal(t, systemPrompt, mock.lastCreatedCachePrompt,
+			"should create cache with provided systemPrompt")
+	})
+
+	t.Run("does not store cacheName internally", func(t *testing.T) {
+		// Given: A mock provider with no internal state
+		mock := &mockProviderWithCache{}
+
+		ctx := context.Background()
+		systemPrompt := "System prompt"
+
+		// When: CreateCache is called multiple times
+		cache1, err1 := mock.CreateCache(ctx, systemPrompt)
+		cache2, err2 := mock.CreateCache(ctx, systemPrompt)
+
+		// Then: Should return different cache names (no internal state)
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		assert.NotEqual(t, cache1, cache2,
+			"Provider should not reuse internal state, each call creates new cache")
+	})
+
+	t.Run("handles different system prompts", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		ctx := context.Background()
+
+		// When: Create caches with different prompts
+		prompt1 := "You are a helpful assistant."
+		prompt2 := "You are Yuruppu."
+
+		cache1, err1 := mock.CreateCache(ctx, prompt1)
+		cache2, err2 := mock.CreateCache(ctx, prompt2)
+
+		// Then: Should create different caches
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		assert.NotEmpty(t, cache1)
+		assert.NotEmpty(t, cache2)
+	})
+
+	t.Run("handles long system prompts", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		// Given: A very long system prompt (over 32K tokens potential)
+		longPrompt := "You are Yuruppu. " + string(make([]byte, 100000))
+
+		// When: CreateCache with long prompt
+		ctx := context.Background()
+		cacheName, err := mock.CreateCache(ctx, longPrompt)
+
+		// Then: Should not panic (implementation decides if it succeeds)
+		_ = cacheName
+		_ = err
+	})
+
+	t.Run("handles empty system prompt", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		// When: CreateCache with empty prompt
+		ctx := context.Background()
+		cacheName, err := mock.CreateCache(ctx, "")
+
+		// Then: Implementation decides behavior (may succeed or error)
+		_ = cacheName
+		_ = err
+	})
+
+	t.Run("returns error when cache creation fails", func(t *testing.T) {
+		// Given: A mock provider that fails cache creation
+		mock := &mockProviderWithCache{
+			createCacheErr: errors.New("insufficient tokens"),
+		}
+
+		// When: Call CreateCache
+		ctx := context.Background()
+		cacheName, err := mock.CreateCache(ctx, "Short prompt")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Empty(t, cacheName, "cacheName should be empty on error")
+		assert.Equal(t, "insufficient tokens", err.Error())
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		// Given: A mock provider that checks context
+		mock := &mockProviderWithCache{
+			checkContext: true,
+		}
+
+		// Given: A cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// When: Call CreateCache with cancelled context
+		cacheName, err := mock.CreateCache(ctx, "System prompt")
+
+		// Then: Should return context error
+		require.Error(t, err)
+		assert.Empty(t, cacheName)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("can be called after provider is closed", func(t *testing.T) {
+		// Given: A closed provider
+		mock := &mockProviderWithCache{}
+		ctx := context.Background()
+		_ = mock.Close(ctx)
+
+		// When: CreateCache is called after Close
+		cacheName, err := mock.CreateCache(ctx, "System prompt")
+
+		// Then: Should return error (provider is closed)
+		require.Error(t, err)
+		assert.Empty(t, cacheName)
+		assert.Contains(t, err.Error(), "closed")
+	})
+}
+
+// TestProvider_DeleteCache tests the DeleteCache method.
+// AC-001: DeleteCache(ctx, cacheName) deletes specified cache (no internal state update)
+func TestProvider_DeleteCache(t *testing.T) {
+	t.Run("deletes specified cache", func(t *testing.T) {
+		// Given: A mock provider with a cache
+		mock := &mockProviderWithCache{}
+
+		// When: Call DeleteCache
+		ctx := context.Background()
+		cacheName := "test-cache-to-delete"
+
+		err := mock.DeleteCache(ctx, cacheName)
+
+		// Then: Should delete without error
+		require.NoError(t, err)
+		assert.Equal(t, cacheName, mock.lastDeletedCacheName,
+			"should delete the specified cache")
+	})
+
+	t.Run("does not update internal state", func(t *testing.T) {
+		// Given: A mock provider (pure API layer, no state)
+		mock := &mockProviderWithCache{}
+
+		ctx := context.Background()
+
+		// When: Delete multiple caches
+		cache1 := "cache-1"
+		cache2 := "cache-2"
+
+		err1 := mock.DeleteCache(ctx, cache1)
+		err2 := mock.DeleteCache(ctx, cache2)
+
+		// Then: Should delete each without maintaining state
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		assert.Equal(t, cache2, mock.lastDeletedCacheName,
+			"Provider is stateless, only tracks last call for testing")
+	})
+
+	t.Run("handles deletion errors", func(t *testing.T) {
+		// Given: A mock provider that fails deletion
+		mock := &mockProviderWithCache{
+			deleteCacheErr: errors.New("cache not found"),
+		}
+
+		// When: Call DeleteCache
+		ctx := context.Background()
+		err := mock.DeleteCache(ctx, "non-existent-cache")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Equal(t, "cache not found", err.Error())
+	})
+
+	t.Run("accepts different cache names", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		ctx := context.Background()
+
+		tests := []struct {
+			name      string
+			cacheName string
+		}{
+			{"cache with hyphens", "cache-123-abc"},
+			{"cache with underscores", "cache_456_def"},
+			{"cache with slashes", "projects/test/caches/789"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				// When: Delete cache
+				err := mock.DeleteCache(ctx, tt.cacheName)
+
+				// Then: Should accept various cache name formats
+				require.NoError(t, err)
+				assert.Equal(t, tt.cacheName, mock.lastDeletedCacheName)
+			})
+		}
+	})
+
+	t.Run("handles empty cache name", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		// When: DeleteCache with empty name
+		ctx := context.Background()
+		err := mock.DeleteCache(ctx, "")
+
+		// Then: Implementation decides behavior
+		_ = err
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		// Given: A mock provider that checks context
+		mock := &mockProviderWithCache{
+			checkContext: true,
+		}
+
+		// Given: A cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// When: Call DeleteCache with cancelled context
+		err := mock.DeleteCache(ctx, "cache-name")
+
+		// Then: Should return context error
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("is idempotent - safe to delete same cache multiple times", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{}
+
+		ctx := context.Background()
+		cacheName := "cache-to-delete-multiple-times"
+
+		// When: Delete same cache multiple times
+		err1 := mock.DeleteCache(ctx, cacheName)
+		err2 := mock.DeleteCache(ctx, cacheName)
+		err3 := mock.DeleteCache(ctx, cacheName)
+
+		// Then: Should not error (idempotent)
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		require.NoError(t, err3)
+	})
+
+	t.Run("can be called after provider is closed", func(t *testing.T) {
+		// Given: A closed provider
+		mock := &mockProviderWithCache{}
+		ctx := context.Background()
+		_ = mock.Close(ctx)
+
+		// When: DeleteCache is called after Close
+		err := mock.DeleteCache(ctx, "cache-name")
+
+		// Then: Implementation decides behavior (may succeed or error)
+		_ = err
+	})
+}
+
+// TestProvider_CacheMethodsIntegration tests cache methods work together.
+// AC-001: Provider is Pure API Layer (integration verification)
+func TestProvider_CacheMethodsIntegration(t *testing.T) {
+	t.Run("create, use, and delete cache lifecycle", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{
+			response: "Response from cache",
+		}
+
+		ctx := context.Background()
+		systemPrompt := "You are Yuruppu."
+		userMessage := "Hello"
+
+		// When: Create cache
+		cacheName, err := mock.CreateCache(ctx, systemPrompt)
+		require.NoError(t, err)
+		require.NotEmpty(t, cacheName)
+
+		// When: Use cache for generation
+		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage)
+		require.NoError(t, err)
+		assert.Equal(t, "Response from cache", response)
+		assert.Equal(t, cacheName, mock.lastUsedCacheName)
+
+		// When: Delete cache
+		err = mock.DeleteCache(ctx, cacheName)
+		require.NoError(t, err)
+		assert.Equal(t, cacheName, mock.lastDeletedCacheName)
+
+		// Then: Lifecycle completes successfully
+	})
+
+	t.Run("provider does not track cache state across calls", func(t *testing.T) {
+		// Given: A mock provider (pure API layer)
+		mock := &mockProviderWithCache{
+			response: "Response",
+		}
+
+		ctx := context.Background()
+
+		// When: Create cache
+		cache1, err := mock.CreateCache(ctx, "Prompt 1")
+		require.NoError(t, err)
+
+		// When: Use different cache (provider doesn't validate)
+		cache2 := "different-cache-name"
+		_, err = mock.GenerateTextCached(ctx, cache2, "message")
+		require.NoError(t, err)
+
+		// Then: Provider accepts any cache name (no internal state validation)
+		assert.NotEqual(t, cache1, cache2,
+			"Provider is pure API layer, doesn't track cache state")
+	})
+
+	t.Run("multiple caches can be created and used independently", func(t *testing.T) {
+		// Given: A mock provider
+		mock := &mockProviderWithCache{
+			response: "Response",
+		}
+
+		ctx := context.Background()
+
+		// When: Create multiple caches
+		cache1, err1 := mock.CreateCache(ctx, "Prompt 1")
+		cache2, err2 := mock.CreateCache(ctx, "Prompt 2")
+		cache3, err3 := mock.CreateCache(ctx, "Prompt 3")
+
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		require.NoError(t, err3)
+
+		// When: Use different caches
+		_, err := mock.GenerateTextCached(ctx, cache1, "msg1")
+		require.NoError(t, err)
+		_, err = mock.GenerateTextCached(ctx, cache2, "msg2")
+		require.NoError(t, err)
+		_, err = mock.GenerateTextCached(ctx, cache3, "msg3")
+		require.NoError(t, err)
+
+		// Then: All caches work independently
+		assert.Equal(t, cache3, mock.lastUsedCacheName)
+	})
+}
+
+// =============================================================================
 // Test Helpers
 // =============================================================================
 
@@ -808,6 +1342,112 @@ func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, 
 
 func (m *mockProviderWithClose) Close(ctx context.Context) error {
 	// Idempotent - multiple calls to Close are safe
+	m.closed = true
+	return nil
+}
+
+// mockProviderWithCache is a test implementation with cache methods for AC-001 tests.
+// This mock simulates the Provider interface with cache support (pure API layer).
+type mockProviderWithCache struct {
+	response               string
+	err                    error
+	createCacheErr         error
+	deleteCacheErr         error
+	checkContext           bool
+	closed                 bool
+	lastUsedCacheName      string
+	lastCreatedCachePrompt string
+	lastDeletedCacheName   string
+	cacheCounter           int
+}
+
+func (m *mockProviderWithCache) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockProviderWithCache) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	// Pure API layer: just use the provided cacheName
+	m.lastUsedCacheName = cacheName
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockProviderWithCache) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	if m.createCacheErr != nil {
+		return "", m.createCacheErr
+	}
+
+	// Pure API layer: create new cache each time (no internal state)
+	m.lastCreatedCachePrompt = systemPrompt
+	m.cacheCounter++
+	cacheName := fmt.Sprintf("cache-%d", m.cacheCounter)
+	return cacheName, nil
+}
+
+func (m *mockProviderWithCache) DeleteCache(ctx context.Context, cacheName string) error {
+	// Note: DeleteCache can be called even after Close in some implementations
+	// This is left to implementation to decide
+
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+	}
+
+	if m.deleteCacheErr != nil {
+		return m.deleteCacheErr
+	}
+
+	// Pure API layer: just delete the specified cache (no state update)
+	m.lastDeletedCacheName = cacheName
+	return nil
+}
+
+func (m *mockProviderWithCache) Close(ctx context.Context) error {
 	m.closed = true
 	return nil
 }

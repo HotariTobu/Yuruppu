@@ -17,16 +17,15 @@ import (
 const DefaultCacheTTL = 60 * time.Minute
 
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
+// AC-001: Provider is a pure API layer - no caching state management.
+// Cache lifecycle is managed by the Agent component.
 type vertexAIClient struct {
-	client        *genai.Client
-	projectID     string
-	model         string
-	logger        *slog.Logger
-	closed        bool
-	mu            sync.RWMutex // Protects closed and cacheName fields
-	systemPrompt  string       // CH-001: System prompt for caching and fallback
-	cacheName     string       // CH-001: Name of cached content (empty if caching not used)
-	cacheRecreate sync.Mutex   // Protects cache recreation to prevent concurrent recreation
+	client    *genai.Client
+	projectID string
+	model     string
+	logger    *slog.Logger
+	closed    bool
+	mu        sync.RWMutex // Protects closed field
 }
 
 // NewVertexAIClient creates a new Vertex AI client.
@@ -82,106 +81,9 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, mod
 	}, nil
 }
 
-// NewVertexAIClientWithCache creates a new Vertex AI client with context caching enabled.
-// CH-001: Add context caching for system prompt
-// AC-001: System prompt is cached for reuse across requests with reasonable TTL
-// AC-007: Caching is skipped gracefully when token count is insufficient
-//
-// The systemPrompt is cached for reuse across all GenerateText calls.
-// If caching fails (e.g., system prompt below minimum token requirement of 32K),
-// the client falls back to non-cached mode gracefully.
-func NewVertexAIClientWithCache(ctx context.Context, projectID, region, model, systemPrompt string, logger *slog.Logger) (Provider, error) {
-	// Handle nil context gracefully
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Normalize and validate inputs
-	projectID = strings.TrimSpace(projectID)
-	region = strings.TrimSpace(region)
-	model = strings.TrimSpace(model)
-	systemPrompt = strings.TrimSpace(systemPrompt)
-
-	if projectID == "" {
-		return nil, errors.New("projectID is required")
-	}
-
-	if region == "" {
-		return nil, errors.New("region is required")
-	}
-
-	if model == "" {
-		return nil, errors.New("model is required")
-	}
-
-	if systemPrompt == "" {
-		return nil, errors.New("systemPrompt is required")
-	}
-
-	// Create Vertex AI client
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		Project:  projectID,
-		Location: region,
-		Backend:  genai.BackendVertexAI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Vertex AI client: %w", err)
-	}
-
-	v := &vertexAIClient{
-		client:       client,
-		projectID:    projectID,
-		model:        model,
-		logger:       logger,
-		systemPrompt: systemPrompt,
-	}
-
-	// Attempt to create cache
-	// AC-001: Cache has a reasonable TTL (60 minutes)
-	// AC-007: If caching fails, continue without caching
-	cacheName, err := v.createCache(ctx)
-	if err != nil {
-		// AC-007: Caching is skipped gracefully, log info and continue
-		logger.Info("context caching not available, using fallback mode",
-			slog.String("reason", err.Error()),
-		)
-	} else {
-		v.cacheName = cacheName
-		logger.Info("context cache created successfully",
-			slog.String("cacheName", cacheName),
-		)
-	}
-
-	return v, nil
-}
-
-// createCache creates a cached content for the system prompt.
-// Returns the cache name on success, or an error if caching fails.
-func (v *vertexAIClient) createCache(ctx context.Context) (string, error) {
-	contents := []*genai.Content{
-		{
-			Parts: []*genai.Part{
-				{Text: v.systemPrompt},
-			},
-		},
-	}
-
-	cache, err := v.client.Caches.Create(ctx, v.model, &genai.CreateCachedContentConfig{
-		TTL:         DefaultCacheTTL,
-		Contents:    contents,
-		DisplayName: "yuruppu-system-prompt",
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return cache.Name, nil
-}
-
 // GenerateText generates a text response given a system prompt and user message.
 // TR-002: Implements Provider interface for LLM abstraction
-// AC-002: Uses cached system prompt when available
-// AC-006: Handles cache expiration by recreating cache
+// AC-001: Pure API layer - no caching logic. The system prompt is sent directly with each request.
 //
 // The context can be used for timeout and cancellation.
 // NFR-001: LLM API total request timeout should be configurable via context
@@ -192,26 +94,26 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 		v.mu.RUnlock()
 		return "", &LLMClosedError{Message: "provider is closed"}
 	}
-	cacheName := v.cacheName
 	v.mu.RUnlock()
 
 	v.logger.Debug("generating text",
 		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
-		slog.Bool("usingCache", cacheName != ""),
 	)
 
-	// Configure generation
-	config := v.buildGenerateConfig(cacheName, systemPrompt)
+	// AC-003: Disable thinking mode by setting budget to 0
+	thinkingBudget := int32(0)
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{{Text: systemPrompt}},
+		},
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
+	}
 
 	// Generate content
 	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
-
-	// AC-006: Handle cache expiration - check for cache-related errors and retry
-	if err != nil && cacheName != "" && v.isCacheError(err) {
-		resp, err = v.handleCacheErrorAndRetry(ctx, err, cacheName, systemPrompt, userMessage)
-	}
-
 	if err != nil {
 		v.logger.Error("LLM API call failed",
 			slog.String("model", v.model),
@@ -245,125 +147,159 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 		return "", &LLMResponseError{Message: "response part has no text"}
 	}
 
-	// AC-002: Log resp.ModelVersion for verification that correct model is used
 	v.logger.Info("text generated successfully",
 		slog.String("model", v.model),
 		slog.String("modelVersion", resp.ModelVersion),
 		slog.Int("responseLength", len(text)),
-		slog.Bool("usedCache", cacheName != ""),
 	)
 
 	return text, nil
 }
 
-// buildGenerateConfig creates the GenerateContentConfig for API calls.
-// AC-002: Uses cached content when available, otherwise uses system instruction.
-// AC-003: Disables thinking mode to reduce latency.
-func (v *vertexAIClient) buildGenerateConfig(cacheName, systemPrompt string) *genai.GenerateContentConfig {
+// GenerateTextCached generates a text response using a cached system prompt.
+// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
+func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	// AC-004: Check if provider is closed before generating text
+	v.mu.RLock()
+	if v.closed {
+		v.mu.RUnlock()
+		return "", &LLMClosedError{Message: "provider is closed"}
+	}
+	v.mu.RUnlock()
+
+	v.logger.Debug("generating text with cache",
+		slog.String("model", v.model),
+		slog.Int("userMessageLength", len(userMessage)),
+		slog.String("cacheName", cacheName),
+	)
+
 	// AC-003: Disable thinking mode by setting budget to 0
 	thinkingBudget := int32(0)
 	config := &genai.GenerateContentConfig{
+		CachedContent: cacheName,
 		ThinkingConfig: &genai.ThinkingConfig{
 			ThinkingBudget: &thinkingBudget,
 		},
 	}
 
-	if cacheName != "" {
-		// AC-002: Use cached content
-		config.CachedContent = cacheName
-	} else {
-		// Fallback: Use system instruction directly
-		// This is used when:
-		// - Client was created without caching (NewVertexAIClient)
-		// - Cache creation failed (AC-007)
-		// - Cache expired and recreation failed (AC-006)
-		effectivePrompt := systemPrompt
-		if v.systemPrompt != "" {
-			// For cached clients in fallback mode, use stored system prompt
-			effectivePrompt = v.systemPrompt
-		}
-		config.SystemInstruction = &genai.Content{
-			Parts: []*genai.Part{{Text: effectivePrompt}},
-		}
+	// Generate content with cached system prompt
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+	if err != nil {
+		v.logger.Error("LLM API call failed (cached)",
+			slog.String("model", v.model),
+			slog.String("cacheName", cacheName),
+			slog.Any("error", err),
+		)
+		return "", MapAPIError(err)
 	}
 
-	return config
-}
-
-// isCacheError checks if an error is related to cache (expired, not found, etc.).
-// AC-006: Cache expiration handling
-func (v *vertexAIClient) isCacheError(err error) bool {
-	if err == nil {
-		return false
+	// Extract text from response
+	if len(resp.Candidates) == 0 {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "no candidates in response"),
+		)
+		return "", &LLMResponseError{Message: "no candidates in response"}
 	}
-	// Check for common cache-related error messages
-	errStr := err.Error()
-	return strings.Contains(errStr, "cache") ||
-		strings.Contains(errStr, "not found") ||
-		strings.Contains(errStr, "expired")
-}
 
-// handleCacheErrorAndRetry attempts to recreate the cache and retry the request.
-// AC-006: Cache is recreated automatically when expired or deleted.
-// This method is thread-safe and prevents concurrent cache recreation attempts.
-//
-// The failedCacheName parameter is the cache name that caused the error.
-// This is used to detect if another goroutine has already handled the cache error.
-func (v *vertexAIClient) handleCacheErrorAndRetry(ctx context.Context, originalErr error, failedCacheName, systemPrompt, userMessage string) (*genai.GenerateContentResponse, error) {
-	v.logger.Warn("cache error detected, attempting to recreate cache",
-		slog.Any("error", originalErr),
-		slog.String("failedCacheName", failedCacheName),
+	if resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "no content parts in response"),
+		)
+		return "", &LLMResponseError{Message: "no content parts in response"}
+	}
+
+	text := resp.Candidates[0].Content.Parts[0].Text
+	if text == "" {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "response part has no text"),
+		)
+		return "", &LLMResponseError{Message: "response part has no text"}
+	}
+
+	v.logger.Info("text generated successfully (cached)",
+		slog.String("model", v.model),
+		slog.String("modelVersion", resp.ModelVersion),
+		slog.Int("responseLength", len(text)),
+		slog.String("cacheName", cacheName),
 	)
 
-	// Use cacheRecreate mutex to prevent concurrent cache recreation
-	v.cacheRecreate.Lock()
-	defer v.cacheRecreate.Unlock()
+	return text, nil
+}
 
-	// Check if another goroutine already recreated the cache or switched to fallback
+// CreateCache creates a cached content for the given system prompt.
+// AC-001: Returns cacheName but does not store it internally (pure API layer).
+func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	// AC-004: Check if provider is closed
 	v.mu.RLock()
-	currentCacheName := v.cacheName
+	if v.closed {
+		v.mu.RUnlock()
+		return "", &LLMClosedError{Message: "provider is closed"}
+	}
 	v.mu.RUnlock()
 
-	// If cache name has changed, another goroutine already handled the error
-	// This allows cache recreation to happen again after subsequent expirations
-	if currentCacheName != failedCacheName {
-		v.logger.Debug("cache already updated by another goroutine",
-			slog.String("currentCacheName", currentCacheName),
-		)
-		config := v.buildGenerateConfig(currentCacheName, systemPrompt)
-		return v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
-	}
-
-	// Try to recreate cache
-	newCacheName, cacheErr := v.createCache(ctx)
-	if cacheErr == nil {
-		v.mu.Lock()
-		v.cacheName = newCacheName
-		v.mu.Unlock()
-		v.logger.Info("cache recreated successfully",
-			slog.String("cacheName", newCacheName),
-		)
-		// Retry with new cache
-		config := v.buildGenerateConfig(newCacheName, systemPrompt)
-		return v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
-	}
-
-	// Cache recreation failed, fall back to non-cached mode
-	v.logger.Warn("cache recreation failed, using fallback mode",
-		slog.Any("error", cacheErr),
+	v.logger.Debug("creating cache",
+		slog.String("model", v.model),
+		slog.Int("systemPromptLength", len(systemPrompt)),
 	)
-	v.mu.Lock()
-	v.cacheName = ""
-	v.mu.Unlock()
-	config := v.buildGenerateConfig("", systemPrompt)
-	return v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+
+	contents := []*genai.Content{
+		{
+			Parts: []*genai.Part{
+				{Text: systemPrompt},
+			},
+		},
+	}
+
+	cache, err := v.client.Caches.Create(ctx, v.model, &genai.CreateCachedContentConfig{
+		TTL:         DefaultCacheTTL,
+		Contents:    contents,
+		DisplayName: "yuruppu-system-prompt",
+	})
+	if err != nil {
+		v.logger.Error("cache creation failed",
+			slog.String("model", v.model),
+			slog.Any("error", err),
+		)
+		return "", err
+	}
+
+	v.logger.Info("cache created successfully",
+		slog.String("cacheName", cache.Name),
+	)
+
+	return cache.Name, nil
+}
+
+// DeleteCache deletes the specified cache.
+// AC-001: Deletes the cache but does not update internal state (pure API layer).
+func (v *vertexAIClient) DeleteCache(ctx context.Context, cacheName string) error {
+	// Note: DeleteCache can be called even after Close for cleanup purposes
+	v.logger.Debug("deleting cache",
+		slog.String("cacheName", cacheName),
+	)
+
+	_, err := v.client.Caches.Delete(ctx, cacheName, nil)
+	if err != nil {
+		v.logger.Warn("cache deletion failed",
+			slog.String("cacheName", cacheName),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	v.logger.Debug("cache deleted successfully",
+		slog.String("cacheName", cacheName),
+	)
+
+	return nil
 }
 
 // Close releases any resources held by the client.
 // AC-004: Provider lifecycle management
+// AC-001: Provider is a pure API layer - no cache state to clean up.
+// Cache cleanup is the responsibility of the Agent component.
 // - Close is idempotent (safe to call multiple times)
 // - After Close, subsequent GenerateText calls return an error
-// - Cached resources are cleaned up
 func (v *vertexAIClient) Close(ctx context.Context) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -371,23 +307,6 @@ func (v *vertexAIClient) Close(ctx context.Context) error {
 	// Idempotent: if already closed, return immediately without error
 	if v.closed {
 		return nil
-	}
-
-	// AC-004: Clean up cached content if present
-	if v.cacheName != "" {
-		_, err := v.client.Caches.Delete(ctx, v.cacheName, nil)
-		if err != nil {
-			v.logger.Warn("failed to delete cached content during close",
-				slog.String("cacheName", v.cacheName),
-				slog.Any("error", err),
-			)
-			// Continue with close even if cache deletion fails
-		} else {
-			v.logger.Debug("cached content deleted",
-				slog.String("cacheName", v.cacheName),
-			)
-		}
-		v.cacheName = ""
 	}
 
 	v.closed = true

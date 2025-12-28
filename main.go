@@ -162,8 +162,9 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	// CH-001: Use NewVertexAIClientWithCache for system prompt caching
-	llmProvider, err := llm.NewVertexAIClientWithCache(context.Background(), projectID, region, config.LLMModel, yuruppu.SystemPrompt, logger)
+	// TODO(SC-002, SC-003, SC-004): Replace with Agent when implemented
+	// Currently using non-cached Provider directly (cache methods available but not used)
+	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, config.LLMModel, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -549,6 +549,28 @@ func (m *mockVertexAIProvider) GenerateText(ctx context.Context, systemPrompt, u
 	return m.response, nil
 }
 
+func (m *mockVertexAIProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockVertexAIProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+	return "mock-cache-name", nil
+}
+
+func (m *mockVertexAIProvider) DeleteCache(ctx context.Context, cacheName string) error {
+	return nil
+}
+
 func (m *mockVertexAIProvider) Close(ctx context.Context) error {
 	// Idempotent - safe to call multiple times
 	if !m.closed {

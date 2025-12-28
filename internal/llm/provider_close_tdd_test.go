@@ -49,6 +49,24 @@ func (t *testProviderImpl) GenerateText(ctx context.Context, systemPrompt, userM
 	return "test response", nil
 }
 
+func (t *testProviderImpl) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if t.closed {
+		return "", &llm.LLMClosedError{Message: "provider is closed"}
+	}
+	return "test response from cache", nil
+}
+
+func (t *testProviderImpl) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if t.closed {
+		return "", &llm.LLMClosedError{Message: "provider is closed"}
+	}
+	return "test-cache-name", nil
+}
+
+func (t *testProviderImpl) DeleteCache(ctx context.Context, cacheName string) error {
+	return nil
+}
+
 func (t *testProviderImpl) Close(ctx context.Context) error {
 	t.closed = true
 	return nil
