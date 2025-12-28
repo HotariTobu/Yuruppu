@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
 	"yuruppu/internal/line/server"
 
 	"github.com/stretchr/testify/assert"
@@ -995,8 +994,8 @@ func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
 // TestLoadConfig_LLMCacheTTL tests LLM cache TTL configuration loading.
 func TestLoadConfig_LLMCacheTTL(t *testing.T) {
 	tests := []struct {
-		name            string
-		llmCacheTTLEnv  string
+		name             string
+		llmCacheTTLEnv   string
 		expectedCacheTTL int
 	}{
 		{

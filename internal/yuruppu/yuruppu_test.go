@@ -42,7 +42,7 @@ func TestYuruppu_New(t *testing.T) {
 	})
 }
 
-func TestYuruppu_GenerateText(t *testing.T) {
+func TestYuruppu_Respond(t *testing.T) {
 	t.Run("delegates to agent successfully", func(t *testing.T) {
 		mockProvider := &mockProvider{
 			cacheName: "cache-123",
@@ -52,7 +52,7 @@ func TestYuruppu_GenerateText(t *testing.T) {
 		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
-		response, err := yuruppu.GenerateText(ctx, "Hello")
+		response, err := yuruppu.Respond(ctx, "Hello")
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello from Yuruppu!", response)
@@ -67,7 +67,7 @@ func TestYuruppu_GenerateText(t *testing.T) {
 		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
-		_, err := yuruppu.GenerateText(ctx, "Hello")
+		_, err := yuruppu.Respond(ctx, "Hello")
 
 		require.Error(t, err)
 		assert.Equal(t, "LLM error", err.Error())

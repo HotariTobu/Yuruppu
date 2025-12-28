@@ -12,7 +12,6 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-
 	"yuruppu/internal/gcp"
 
 	"github.com/stretchr/testify/assert"

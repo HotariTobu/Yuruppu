@@ -12,7 +12,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
 	"yuruppu/internal/line"
 	"yuruppu/internal/line/server"
 

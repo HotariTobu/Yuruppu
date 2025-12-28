@@ -7,12 +7,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"yuruppu/internal/line"
 
 	// Third-party packages
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
-
 	// Internal packages
-	"yuruppu/internal/line"
 )
 
 // Handler handles incoming LINE messages by type.

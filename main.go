@@ -15,6 +15,7 @@ import (
 	"time"
 
 	// Internal packages
+	"yuruppu/internal/bot"
 	"yuruppu/internal/gcp"
 	"yuruppu/internal/line/client"
 	"yuruppu/internal/line/server"
@@ -126,62 +127,6 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
-// messageHandler implements the MessageHandler interface from yuruppu/internal/line.
-type messageHandler struct {
-	yuruppu *yuruppu.Yuruppu
-	client  *client.Client
-	logger  *slog.Logger
-}
-
-func (h *messageHandler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
-	response, err := h.yuruppu.GenerateText(ctx, text)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "LLM call failed",
-			slog.String("userID", userID),
-			slog.Any("error", err),
-		)
-		return err
-	}
-
-	if err := h.client.SendReply(replyToken, response); err != nil {
-		h.logger.ErrorContext(ctx, "failed to send reply",
-			slog.String("userID", userID),
-			slog.Any("error", err),
-		)
-		return err
-	}
-
-	return nil
-}
-
-func (h *messageHandler) HandleText(ctx context.Context, replyToken, userID, text string) error {
-	return h.handleMessage(ctx, replyToken, userID, text)
-}
-
-func (h *messageHandler) HandleImage(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent an image]")
-}
-
-func (h *messageHandler) HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a sticker]")
-}
-
-func (h *messageHandler) HandleVideo(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a video]")
-}
-
-func (h *messageHandler) HandleAudio(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent an audio]")
-}
-
-func (h *messageHandler) HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a location]")
-}
-
-func (h *messageHandler) HandleUnknown(ctx context.Context, replyToken, userID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a message]")
-}
-
 // createHandler creates and returns an http.Handler with registered routes.
 // AC-004: /webhook endpoint is registered with server.HandleWebhook.
 func createHandler(srv *server.Server) http.Handler {
@@ -234,11 +179,7 @@ func main() {
 	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
 
 	// Register message handler
-	srv.RegisterHandler(&messageHandler{
-		yuruppu: yuruppuAgent,
-		client:  lineClient,
-		logger:  logger,
-	})
+	srv.RegisterHandler(bot.New(yuruppuAgent, lineClient, logger))
 
 	// Create HTTP server with graceful shutdown support
 	handler := createHandler(srv)

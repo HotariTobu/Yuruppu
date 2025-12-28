@@ -3,7 +3,6 @@ package client_test
 import (
 	"log/slog"
 	"testing"
-
 	"yuruppu/internal/line"
 	"yuruppu/internal/line/client"
 

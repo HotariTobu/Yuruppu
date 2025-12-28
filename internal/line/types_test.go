@@ -2,7 +2,6 @@ package line_test
 
 import (
 	"testing"
-
 	"yuruppu/internal/line"
 
 	"github.com/stretchr/testify/assert"

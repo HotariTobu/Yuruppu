@@ -4,12 +4,11 @@ import (
 	// Standard library
 	"log/slog"
 	"strings"
+	"yuruppu/internal/line"
 
 	// Third-party packages
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
-
 	// Internal packages
-	"yuruppu/internal/line"
 )
 
 // Client sends messages via LINE Messaging API.

@@ -33,8 +33,8 @@ func New(provider llm.Provider, cacheTTL time.Duration, logger *slog.Logger) *Yu
 	}
 }
 
-// GenerateText generates a text response given a user message.
-func (y *Yuruppu) GenerateText(ctx context.Context, userMessage string) (string, error) {
+// Respond generates a text response given a user message.
+func (y *Yuruppu) Respond(ctx context.Context, userMessage string) (string, error) {
 	return y.agent.GenerateText(ctx, userMessage)
 }
 
