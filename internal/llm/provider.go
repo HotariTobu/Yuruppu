@@ -1,6 +1,9 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Provider is an abstraction layer for LLM providers.
 // TR-002: Create an abstraction layer (interface) for LLM providers to allow future provider changes
@@ -20,7 +23,7 @@ type Provider interface {
 	// Returns the cache name on success, which can be used with GenerateTextCached.
 	// AC-001: Returns cacheName but does not store it internally (pure API layer).
 	// The caller (Agent) is responsible for managing the cache lifecycle.
-	CreateCache(ctx context.Context, systemPrompt string) (string, error)
+	CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error)
 
 	// DeleteCache deletes the specified cache.
 	// AC-001: Deletes the cache but does not update internal state (pure API layer).

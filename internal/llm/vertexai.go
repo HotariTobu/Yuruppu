@@ -12,10 +12,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// DefaultCacheTTL is the default time-to-live for cached content.
-// CH-001: Context caching for system prompts with reasonable TTL
-const DefaultCacheTTL = 60 * time.Minute
-
 // disabledThinkingBudget disables the thinking feature in Gemini models.
 // AC-003: Set to 0 to prevent the model from showing reasoning steps.
 const disabledThinkingBudget = int32(0)
@@ -222,7 +218,7 @@ func (v *vertexAIClient) extractTextFromResponse(resp *genai.GenerateContentResp
 
 // CreateCache creates a cached content for the given system prompt.
 // AC-001: Returns cacheName but does not store it internally (pure API layer).
-func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if err := v.checkClosed(); err != nil {
 		return "", err
 	}
@@ -230,6 +226,7 @@ func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string) (
 	v.logger.Debug("creating cache",
 		slog.String("model", v.model),
 		slog.Int("systemPromptLength", len(systemPrompt)),
+		slog.Duration("ttl", ttl),
 	)
 
 	contents := []*genai.Content{
@@ -241,7 +238,7 @@ func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string) (
 	}
 
 	cache, err := v.client.Caches.Create(ctx, v.model, &genai.CreateCachedContentConfig{
-		TTL:         DefaultCacheTTL,
+		TTL:         ttl,
 		Contents:    contents,
 		DisplayName: "yuruppu-system-prompt",
 	})

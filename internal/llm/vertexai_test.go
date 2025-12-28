@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -560,7 +561,7 @@ func (m *mockVertexAIProvider) GenerateTextCached(ctx context.Context, cacheName
 	return m.response, nil
 }
 
-func (m *mockVertexAIProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockVertexAIProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}

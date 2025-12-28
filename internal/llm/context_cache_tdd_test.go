@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"testing"
+	"time"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -36,8 +37,8 @@ func TestProvider_CreateCache_APILayer(t *testing.T) {
 
 		// When: CreateCache is called multiple times
 		ctx := context.Background()
-		cache1, err1 := provider.CreateCache(ctx, "System prompt 1")
-		cache2, err2 := provider.CreateCache(ctx, "System prompt 2")
+		cache1, err1 := provider.CreateCache(ctx, "System prompt 1", time.Hour)
+		cache2, err2 := provider.CreateCache(ctx, "System prompt 2", time.Hour)
 
 		// Then: Each call creates a new cache (no internal state)
 		require.NoError(t, err1)
@@ -108,7 +109,7 @@ func TestCacheLifecycle_CreateUseDelete(t *testing.T) {
 		userMessage := "Hello!"
 
 		// Step 1: Create cache (would be done by Agent during initialization)
-		cacheName, err := provider.CreateCache(ctx, systemPrompt)
+		cacheName, err := provider.CreateCache(ctx, systemPrompt, time.Hour)
 		require.NoError(t, err)
 		require.NotEmpty(t, cacheName)
 
@@ -200,7 +201,7 @@ func (m *mockCachedProvider) GenerateTextCached(ctx context.Context, cacheName, 
 	return m.response, nil
 }
 
-func (m *mockCachedProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockCachedProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}

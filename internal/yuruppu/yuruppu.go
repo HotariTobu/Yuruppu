@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"log/slog"
+	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/llm"
 )
@@ -15,13 +16,14 @@ var systemPrompt string
 // Yuruppu is the Yuruppu character agent.
 // It wraps a generic Agent with the Yuruppu-specific system prompt.
 type Yuruppu struct {
-	agent  agent.Agent
+	agent  *agent.Agent
 	logger *slog.Logger
 }
 
 // New creates a new Yuruppu agent with the given LLM provider.
-func New(provider llm.Provider, logger *slog.Logger) *Yuruppu {
-	a := agent.New(provider, systemPrompt, logger)
+// cacheTTL specifies the TTL for the cached system prompt.
+func New(provider llm.Provider, cacheTTL time.Duration, logger *slog.Logger) *Yuruppu {
+	a := agent.New(provider, systemPrompt, cacheTTL, logger)
 	return &Yuruppu{
 		agent:  a,
 		logger: logger,
@@ -36,13 +38,4 @@ func (y *Yuruppu) GenerateText(ctx context.Context, userMessage string) (string,
 // Close cleans up the Yuruppu agent's resources.
 func (y *Yuruppu) Close(ctx context.Context) error {
 	return y.agent.Close(ctx)
-}
-
-// NewHandler creates a new Handler for this Yuruppu agent.
-func (y *Yuruppu) NewHandler(client Replier) *Handler {
-	return &Handler{
-		llm:    y,
-		client: client,
-		logger: y.logger,
-	}
 }

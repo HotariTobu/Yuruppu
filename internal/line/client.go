@@ -7,15 +7,9 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
 
-// MessagingAPI is the interface for LINE messaging API operations.
-// This allows mocking in tests while using the real client in production.
-type MessagingAPI interface {
-	ReplyMessage(req *messaging_api.ReplyMessageRequest) (*messaging_api.ReplyMessageResponse, error)
-}
-
 // Client sends messages via LINE Messaging API.
 type Client struct {
-	api    MessagingAPI
+	api    *messaging_api.MessagingApiAPI
 	logger *slog.Logger
 }
 
@@ -39,15 +33,6 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 		api:    api,
 		logger: logger,
 	}, nil
-}
-
-// NewClientWithAPI creates a new LINE messaging client with a custom API implementation.
-// This is used for testing with mock API implementations.
-func NewClientWithAPI(api MessagingAPI, logger *slog.Logger) *Client {
-	return &Client{
-		api:    api,
-		logger: logger,
-	}
 }
 
 // SendReply sends a text message reply using the LINE Messaging API.

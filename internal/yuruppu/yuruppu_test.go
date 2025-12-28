@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestYuruppu_New(t *testing.T) {
 		mockProvider := &mockProvider{}
 		logger := slog.New(slog.DiscardHandler)
 
-		yuruppu := New(mockProvider, logger)
+		yuruppu := New(mockProvider, time.Hour, logger)
 
 		require.NotNil(t, yuruppu)
 		assert.NotNil(t, yuruppu.agent)
@@ -35,7 +36,7 @@ func TestYuruppu_New(t *testing.T) {
 	t.Run("creates Yuruppu with nil logger", func(t *testing.T) {
 		mockProvider := &mockProvider{}
 
-		yuruppu := New(mockProvider, nil)
+		yuruppu := New(mockProvider, time.Hour, nil)
 
 		require.NotNil(t, yuruppu)
 	})
@@ -48,7 +49,7 @@ func TestYuruppu_GenerateText(t *testing.T) {
 			response:  "Hello from Yuruppu!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
+		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
 		response, err := yuruppu.GenerateText(ctx, "Hello")
@@ -63,7 +64,7 @@ func TestYuruppu_GenerateText(t *testing.T) {
 			generateTextErr: errors.New("LLM error"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
+		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
 		_, err := yuruppu.GenerateText(ctx, "Hello")
@@ -79,7 +80,7 @@ func TestYuruppu_Close(t *testing.T) {
 			cacheName: "cache-123",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
+		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
 		err := yuruppu.Close(ctx)
@@ -94,54 +95,13 @@ func TestYuruppu_Close(t *testing.T) {
 			deleteCacheErr: errors.New("delete failed"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
+		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
 		err := yuruppu.Close(ctx)
 
 		// Agent logs error but returns nil
 		require.NoError(t, err)
-	})
-}
-
-func TestYuruppu_NewHandler(t *testing.T) {
-	t.Run("creates handler with correct dependencies", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-			response:  "Response",
-		}
-		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
-
-		mockClient := &mockReplier{}
-		handler := yuruppu.NewHandler(mockClient)
-
-		require.NotNil(t, handler)
-	})
-
-	t.Run("handler uses yuruppu for generation", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-			response:  "Yuruppu response",
-		}
-		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, logger)
-
-		mockClient := &mockReplier{}
-		handler := yuruppu.NewHandler(mockClient)
-
-		msg := Message{
-			ReplyToken: "token",
-			Type:       "text",
-			Text:       "Hello",
-			UserID:     "user-1",
-		}
-
-		err := handler.HandleMessage(context.Background(), msg)
-
-		require.NoError(t, err)
-		assert.True(t, mockClient.called)
-		assert.Equal(t, "Yuruppu response", mockClient.text)
 	})
 }
 
@@ -169,7 +129,7 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.createCacheErr != nil {
 		return "", m.createCacheErr
 	}
@@ -183,22 +143,4 @@ func (m *mockProvider) DeleteCache(ctx context.Context, cacheName string) error 
 
 func (m *mockProvider) Close(ctx context.Context) error {
 	return nil
-}
-
-// =============================================================================
-// Mock Replier for Handler Tests
-// =============================================================================
-
-type mockReplier struct {
-	replyToken string
-	text       string
-	err        error
-	called     bool
-}
-
-func (m *mockReplier) SendReply(replyToken string, text string) error {
-	m.called = true
-	m.replyToken = replyToken
-	m.text = text
-	return m.err
 }

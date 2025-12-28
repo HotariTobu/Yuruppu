@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"testing"
+	"time"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func (t *testProviderImpl) GenerateTextCached(ctx context.Context, cacheName, us
 	return "test response from cache", nil
 }
 
-func (t *testProviderImpl) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (t *testProviderImpl) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if t.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}

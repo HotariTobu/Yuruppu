@@ -14,51 +14,6 @@ import (
 )
 
 // =============================================================================
-// Agent Interface Tests
-// =============================================================================
-
-func TestAgent_InterfaceExists(t *testing.T) {
-	t.Run("interface defines GenerateText method", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			response: "Hello!",
-		}
-		logger := slog.Default()
-
-		a := agent.New(mockProvider, "System prompt", logger)
-
-		var _ agent.Agent = a
-	})
-
-	t.Run("interface defines Close method", func(t *testing.T) {
-		mockProvider := &mockProvider{}
-		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
-
-		ctx := context.Background()
-		err := a.Close(ctx)
-
-		require.NoError(t, err)
-	})
-}
-
-func TestAgent_GenerateTextSignature(t *testing.T) {
-	t.Run("GenerateText accepts context and userMessage only", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			response: "Response",
-		}
-		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
-
-		ctx := context.Background()
-		userMessage := "Hello"
-		response, err := a.GenerateText(ctx, userMessage)
-
-		require.NoError(t, err)
-		assert.Equal(t, "Response", response)
-	})
-}
-
-// =============================================================================
 // New Constructor Tests
 // =============================================================================
 
@@ -70,7 +25,7 @@ func TestNew_Constructor(t *testing.T) {
 		logger := slog.Default()
 		systemPrompt := "You are helpful"
 
-		a := agent.New(mockProvider, systemPrompt, logger)
+		a := agent.New(mockProvider, systemPrompt, time.Hour, logger)
 
 		require.NotNil(t, a)
 		assert.Equal(t, 1, mockProvider.createCacheCalls)
@@ -83,7 +38,7 @@ func TestNew_Constructor(t *testing.T) {
 		logger := slog.Default()
 		systemPrompt := "Short prompt"
 
-		a := agent.New(mockProvider, systemPrompt, logger)
+		a := agent.New(mockProvider, systemPrompt, time.Hour, logger)
 
 		require.NotNil(t, a)
 		assert.Equal(t, 1, mockProvider.createCacheCalls)
@@ -94,7 +49,7 @@ func TestNew_Constructor(t *testing.T) {
 			cacheName: "cache-123",
 		}
 
-		a := agent.New(mockProvider, "System prompt", nil)
+		a := agent.New(mockProvider, "System prompt", time.Hour, nil)
 
 		require.NotNil(t, a)
 	})
@@ -112,7 +67,7 @@ func TestAgent_CacheCreation(t *testing.T) {
 		logger := slog.Default()
 		systemPrompt := "System prompt"
 
-		a := agent.New(mockProvider, systemPrompt, logger)
+		a := agent.New(mockProvider, systemPrompt, time.Hour, logger)
 
 		require.NotNil(t, a)
 		assert.Equal(t, 1, mockProvider.createCacheCalls)
@@ -126,7 +81,7 @@ func TestAgent_CacheCreation(t *testing.T) {
 		}
 		logger := slog.Default()
 
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 		require.NotNil(t, a)
 
 		ctx := context.Background()
@@ -150,7 +105,7 @@ func TestAgent_GenerateText_CachePath(t *testing.T) {
 			response:  "Cached response",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		response, err := a.GenerateText(ctx, "user message")
@@ -168,7 +123,7 @@ func TestAgent_GenerateText_CachePath(t *testing.T) {
 			response:       "Non-cached response",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		response, err := a.GenerateText(ctx, "user message")
@@ -194,7 +149,7 @@ func TestAgent_CacheErrorRecreation(t *testing.T) {
 			recreatedCacheName:      "cache-recreated",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		response, err := a.GenerateText(ctx, "user message")
@@ -213,7 +168,7 @@ func TestAgent_CacheErrorRecreation(t *testing.T) {
 			response:                "Fallback response",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		mockProvider.createCacheErrOnRecreate = true
 
@@ -240,7 +195,7 @@ func TestAgent_ConcurrentCacheRecreation(t *testing.T) {
 			recreationDelay:         50 * time.Millisecond,
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		concurrency := 5
@@ -270,7 +225,7 @@ func TestAgent_Close(t *testing.T) {
 			cacheName: "cache-to-delete",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		err := a.Close(ctx)
@@ -286,7 +241,7 @@ func TestAgent_Close(t *testing.T) {
 			deleteCacheErr: errors.New("cache deletion failed"),
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		err := a.Close(ctx)
@@ -300,7 +255,7 @@ func TestAgent_Close(t *testing.T) {
 			cacheName: "cache-123",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 		err := a.Close(ctx)
@@ -314,7 +269,7 @@ func TestAgent_Close(t *testing.T) {
 			cacheName: "cache-123",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 
@@ -339,7 +294,7 @@ func TestAgent_GenerateTextAfterClose(t *testing.T) {
 			response:  "Response",
 		}
 		logger := slog.Default()
-		a := agent.New(mockProvider, "System prompt", logger)
+		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
 
@@ -373,7 +328,7 @@ func TestAgent_FullLifecycle(t *testing.T) {
 		logger := slog.Default()
 		systemPrompt := "System prompt"
 
-		a := agent.New(mockProvider, systemPrompt, logger)
+		a := agent.New(mockProvider, systemPrompt, time.Hour, logger)
 		require.NotNil(t, a)
 		assert.Equal(t, 1, mockProvider.createCacheCalls)
 
@@ -483,7 +438,7 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():

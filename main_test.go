@@ -988,6 +988,116 @@ func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
 }
 
 // =============================================================================
+// LLM Cache TTL Configuration Tests
+// =============================================================================
+
+// TestLoadConfig_LLMCacheTTL tests LLM cache TTL configuration loading.
+func TestLoadConfig_LLMCacheTTL(t *testing.T) {
+	tests := []struct {
+		name            string
+		llmCacheTTLEnv  string
+		expectedCacheTTL int
+	}{
+		{
+			name:             "default TTL is 60 minutes when not set",
+			llmCacheTTLEnv:   "",
+			expectedCacheTTL: 60,
+		},
+		{
+			name:             "custom TTL from environment variable",
+			llmCacheTTLEnv:   "120",
+			expectedCacheTTL: 120,
+		},
+		{
+			name:             "TTL of 1 minute",
+			llmCacheTTLEnv:   "1",
+			expectedCacheTTL: 1,
+		},
+		{
+			name:             "TTL of 1440 minutes (24 hours)",
+			llmCacheTTLEnv:   "1440",
+			expectedCacheTTL: 1440,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+
+			if tt.llmCacheTTLEnv != "" {
+				t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
+			} else {
+				os.Unsetenv("LLM_CACHE_TTL_MINUTES")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LLM cache TTL should match expected value
+			assert.Equal(t, tt.expectedCacheTTL, config.LLMCacheTTLMinutes,
+				"LLMCacheTTLMinutes should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_LLMCacheTTL_InvalidValue tests error handling for invalid TTL values.
+func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
+	tests := []struct {
+		name           string
+		llmCacheTTLEnv string
+		wantErrMsg     string
+	}{
+		{
+			name:           "non-numeric value returns error",
+			llmCacheTTLEnv: "abc",
+			wantErrMsg:     "LLM_CACHE_TTL_MINUTES must be a positive integer",
+		},
+		{
+			name:           "negative value returns error",
+			llmCacheTTLEnv: "-5",
+			wantErrMsg:     "LLM_CACHE_TTL_MINUTES must be a positive integer",
+		},
+		{
+			name:           "zero value returns error",
+			llmCacheTTLEnv: "0",
+			wantErrMsg:     "LLM_CACHE_TTL_MINUTES must be a positive integer",
+		},
+		{
+			name:           "float value returns error",
+			llmCacheTTLEnv: "60.5",
+			wantErrMsg:     "LLM_CACHE_TTL_MINUTES must be a positive integer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error for invalid values
+			require.Error(t, err, "loadConfig should return error for invalid TTL")
+			assert.Nil(t, config, "config should be nil on error")
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate invalid TTL value")
+		})
+	}
+}
+
+// =============================================================================
 // Handler Tests
 // =============================================================================
 

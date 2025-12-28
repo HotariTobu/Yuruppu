@@ -27,6 +27,7 @@ type Config struct {
 	GCPProjectID              string // Optional: auto-detected on Cloud Run
 	GCPRegion                 string // Optional: auto-detected on Cloud Run
 	LLMModel                  string // Required: LLM model name
+	LLMCacheTTLMinutes        int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
 }
 
@@ -37,15 +38,18 @@ const (
 	// defaultGCPMetadataTimeoutSeconds is the default GCP metadata server timeout in seconds.
 	defaultGCPMetadataTimeoutSeconds = 2
 
+	// defaultLLMCacheTTLMinutes is the default LLM cache TTL in minutes.
+	defaultLLMCacheTTLMinutes = 60
+
 	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
 	defaultLLMTimeoutSeconds = 30
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_TIMEOUT_SECONDS, and LLM_MODEL from environment.
+// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, and LLM_TIMEOUT_SECONDS from environment.
 // Returns error if required environment variables (LINE credentials, LLM_MODEL) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
-// Returns error if timeout values are invalid (non-positive or non-integer).
+// Returns error if timeout/TTL values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables (order matches Config struct)
 	port := strings.TrimSpace(os.Getenv("PORT"))
@@ -85,6 +89,16 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("LLM_MODEL is required")
 	}
 
+	// Parse LLM cache TTL
+	llmCacheTTLMinutes := defaultLLMCacheTTLMinutes
+	if env := os.Getenv("LLM_CACHE_TTL_MINUTES"); env != "" {
+		parsed, err := strconv.Atoi(env)
+		if err != nil || parsed <= 0 {
+			return nil, fmt.Errorf("LLM_CACHE_TTL_MINUTES must be a positive integer: %s", env)
+		}
+		llmCacheTTLMinutes = parsed
+	}
+
 	// Parse LLM timeout
 	llmTimeoutSeconds := defaultLLMTimeoutSeconds
 	if env := os.Getenv("LLM_TIMEOUT_SECONDS"); env != "" {
@@ -103,23 +117,65 @@ func loadConfig() (*Config, error) {
 		GCPProjectID:              gcpProjectID,
 		GCPRegion:                 gcpRegion,
 		LLMModel:                  llmModel,
+		LLMCacheTTLMinutes:        llmCacheTTLMinutes,
 		LLMTimeoutSeconds:         llmTimeoutSeconds,
 	}, nil
 }
 
-// createMessageCallback creates a callback that adapts line.Message to yuruppu.Message.
-// This adapter bridges the line and yuruppu packages without creating circular imports.
-func createMessageCallback(handler *yuruppu.Handler) line.MessageHandler {
-	return func(ctx context.Context, msg line.Message) error {
-		// Convert line.Message to yuruppu.Message
-		yMsg := yuruppu.Message{
-			ReplyToken: msg.ReplyToken,
-			Type:       msg.Type,
-			Text:       msg.Text,
-			UserID:     msg.UserID,
-		}
-		return handler.HandleMessage(ctx, yMsg)
+// messageHandler implements line.MessageHandler.
+type messageHandler struct {
+	yuruppu *yuruppu.Yuruppu
+	client  *line.Client
+	logger  *slog.Logger
+}
+
+func (h *messageHandler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
+	response, err := h.yuruppu.GenerateText(ctx, text)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "LLM call failed",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
 	}
+
+	if err := h.client.SendReply(replyToken, response); err != nil {
+		h.logger.ErrorContext(ctx, "failed to send reply",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (h *messageHandler) HandleText(ctx context.Context, replyToken, userID, text string) error {
+	return h.handleMessage(ctx, replyToken, userID, text)
+}
+
+func (h *messageHandler) HandleImage(ctx context.Context, replyToken, userID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent an image]")
+}
+
+func (h *messageHandler) HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent a sticker]")
+}
+
+func (h *messageHandler) HandleVideo(ctx context.Context, replyToken, userID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent a video]")
+}
+
+func (h *messageHandler) HandleAudio(ctx context.Context, replyToken, userID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent an audio]")
+}
+
+func (h *messageHandler) HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent a location]")
+}
+
+func (h *messageHandler) HandleUnknown(ctx context.Context, replyToken, userID string) error {
+	return h.handleMessage(ctx, replyToken, userID, "[User sent a message]")
 }
 
 // createHandler creates and returns an http.Handler with registered routes.
@@ -170,11 +226,15 @@ func main() {
 	}
 
 	// Create Yuruppu agent (manages system prompt and caching)
-	yuruppuAgent := yuruppu.New(llmProvider, logger)
+	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
+	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
 
-	// Create handler from Yuruppu and register callback
-	yHandler := yuruppuAgent.NewHandler(client)
-	server.OnMessage(createMessageCallback(yHandler))
+	// Register message handler
+	server.RegisterHandler(&messageHandler{
+		yuruppu: yuruppuAgent,
+		client:  client,
+		logger:  logger,
+	})
 
 	// Create HTTP server with graceful shutdown support
 	handler := createHandler(server)

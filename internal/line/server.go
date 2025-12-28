@@ -19,17 +19,17 @@ func (e *ConfigError) Error() string {
 	return "Missing required configuration: " + e.Variable
 }
 
-// Server handles incoming LINE webhook requests and dispatches callbacks.
+// Server handles incoming LINE webhook requests and dispatches to handlers.
 type Server struct {
-	channelSecret   string
-	callback        MessageHandler
-	callbackTimeout time.Duration
-	logger          *slog.Logger
+	channelSecret  string
+	handlers       []MessageHandler
+	handlerTimeout time.Duration
+	logger         *slog.Logger
 }
 
 // NewServer creates a new LINE webhook server.
 // channelSecret is the LINE channel secret for signature verification.
-// timeout is the timeout for callback execution (must be positive).
+// timeout is the timeout for handler execution (must be positive).
 // logger is the structured logger for the server.
 // Returns an error if channelSecret is empty or timeout is not positive.
 func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
@@ -43,23 +43,24 @@ func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger)
 	}
 
 	return &Server{
-		channelSecret:   channelSecret,
-		callbackTimeout: timeout,
-		logger:          logger,
+		channelSecret:  channelSecret,
+		handlerTimeout: timeout,
+		logger:         logger,
 	}, nil
 }
 
-// OnMessage registers a callback to be invoked for each incoming message.
-// The callback is invoked asynchronously in a goroutine after HTTP 200 is returned.
-func (s *Server) OnMessage(callback MessageHandler) {
-	s.callback = callback
+// RegisterHandler registers a message handler.
+// Multiple handlers can be registered and all will be invoked for each message.
+// Handler methods are invoked asynchronously in goroutines after HTTP 200 is returned.
+func (s *Server) RegisterHandler(handler MessageHandler) {
+	s.handlers = append(s.handlers, handler)
 }
 
 // HandleWebhook processes incoming LINE webhook requests.
 // Signature is verified synchronously.
 // Events are parsed synchronously.
 // HTTP 200 is returned synchronously.
-// Callbacks are invoked asynchronously in goroutines.
+// Handler methods are invoked asynchronously in goroutines.
 func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Parse webhook request using LINE SDK (includes signature verification)
 	cb, err := webhook.ParseRequest(s.channelSecret, r)
@@ -71,123 +72,81 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return HTTP 200 OK immediately (before callback execution)
+	// Return HTTP 200 OK immediately (before handler execution)
 	w.WriteHeader(http.StatusOK)
 
 	// Process each event asynchronously
 	for _, event := range cb.Events {
-		// Handle message events only
-		var msgEvent *webhook.MessageEvent
-		if me, ok := event.(*webhook.MessageEvent); ok {
-			msgEvent = me
-		} else if me, ok := event.(webhook.MessageEvent); ok {
-			msgEvent = &me
-		}
-
-		if msgEvent != nil {
-			msg := extractMessage(msgEvent)
-			s.invokeCallback(msg)
+		if msgEvent, ok := event.(webhook.MessageEvent); ok {
+			s.dispatchMessage(msgEvent)
 		}
 	}
 }
 
 // extractUserID extracts the user ID from a webhook source.
-// Handles both pointer and value types of UserSource.
 func extractUserID(source webhook.SourceInterface) string {
 	if source == nil {
 		return ""
 	}
-	switch s := source.(type) {
-	case *webhook.UserSource:
+	if s, ok := source.(webhook.UserSource); ok {
 		return s.UserId
-	case webhook.UserSource:
-		return s.UserId
-	default:
-		return ""
 	}
+	return ""
 }
 
-// extractTextContent extracts the text from a TextMessageContent.
-// Handles both pointer and value types.
-func extractTextContent(content webhook.MessageContentInterface) (string, bool) {
-	switch c := content.(type) {
-	case *webhook.TextMessageContent:
-		return c.Text, true
-	case webhook.TextMessageContent:
-		return c.Text, true
-	default:
-		return "", false
-	}
-}
-
-// extractMessage converts a LINE webhook MessageEvent to a line.Message.
-func extractMessage(msgEvent *webhook.MessageEvent) Message {
-	msg := Message{
-		ReplyToken: msgEvent.ReplyToken,
-		UserID:     extractUserID(msgEvent.Source),
-	}
-
-	// Extract message type and text
-	if text, ok := extractTextContent(msgEvent.Message); ok {
-		msg.Type = "text"
-		msg.Text = text
-		return msg
-	}
-
-	switch msgEvent.Message.(type) {
-	case webhook.ImageMessageContent, *webhook.ImageMessageContent:
-		msg.Type = "image"
-		msg.Text = "[User sent an image]"
-	case webhook.StickerMessageContent, *webhook.StickerMessageContent:
-		msg.Type = "sticker"
-		msg.Text = "[User sent a sticker]"
-	case webhook.VideoMessageContent, *webhook.VideoMessageContent:
-		msg.Type = "video"
-		msg.Text = "[User sent a video]"
-	case webhook.AudioMessageContent, *webhook.AudioMessageContent:
-		msg.Type = "audio"
-		msg.Text = "[User sent an audio]"
-	case webhook.LocationMessageContent, *webhook.LocationMessageContent:
-		msg.Type = "location"
-		msg.Text = "[User sent a location]"
-	default:
-		msg.Type = "unknown"
-		msg.Text = "[User sent a message]"
-	}
-
-	return msg
-}
-
-// invokeCallback invokes the registered callback asynchronously.
-// Each callback runs in its own goroutine with panic recovery.
-func (s *Server) invokeCallback(msg Message) {
-	if s.callback == nil {
+// dispatchMessage dispatches the message event to all registered handlers.
+// Each handler runs asynchronously in its own goroutine with panic recovery.
+func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
+	if len(s.handlers) == 0 {
 		return
 	}
 
-	go func() {
-		// Panic recovery (AC-008)
-		defer func() {
-			if r := recover(); r != nil {
-				s.logger.Error("callback panicked",
-					slog.String("replyToken", msg.ReplyToken),
-					slog.String("userID", msg.UserID),
-					slog.Any("panic", r),
-				)
-			}
-		}()
+	replyToken := msgEvent.ReplyToken
+	userID := extractUserID(msgEvent.Source)
 
-		// Create context with timeout (not from HTTP request context)
-		ctx, cancel := context.WithTimeout(context.Background(), s.callbackTimeout)
-		defer cancel()
+	for _, handler := range s.handlers {
+		go s.invokeHandler(handler, msgEvent, replyToken, userID)
+	}
+}
 
-		// Invoke callback
-		if err := s.callback(ctx, msg); err != nil {
-			s.logger.Error("callback failed",
-				slog.String("replyToken", msg.ReplyToken),
-				slog.String("userID", msg.UserID),
-				slog.Any("error", err),
+// invokeHandler invokes a single handler with panic recovery.
+func (s *Server) invokeHandler(handler MessageHandler, msgEvent webhook.MessageEvent, replyToken, userID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("handler panicked",
+				slog.String("replyToken", replyToken),
+				slog.String("userID", userID),
+				slog.Any("panic", r),
 			)
 		}
 	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
+	defer cancel()
+
+	var err error
+	switch msg := msgEvent.Message.(type) {
+	case webhook.TextMessageContent:
+		err = handler.HandleText(ctx, replyToken, userID, msg.Text)
+	case webhook.ImageMessageContent:
+		err = handler.HandleImage(ctx, replyToken, userID, msg.Id)
+	case webhook.StickerMessageContent:
+		err = handler.HandleSticker(ctx, replyToken, userID, msg.PackageId, msg.StickerId)
+	case webhook.VideoMessageContent:
+		err = handler.HandleVideo(ctx, replyToken, userID, msg.Id)
+	case webhook.AudioMessageContent:
+		err = handler.HandleAudio(ctx, replyToken, userID, msg.Id)
+	case webhook.LocationMessageContent:
+		err = handler.HandleLocation(ctx, replyToken, userID, msg.Latitude, msg.Longitude)
+	default:
+		err = handler.HandleUnknown(ctx, replyToken, userID)
+	}
+
+	if err != nil {
+		s.logger.Error("handler failed",
+			slog.String("replyToken", replyToken),
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+	}
 }

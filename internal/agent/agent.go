@@ -6,25 +6,9 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 	"yuruppu/internal/llm"
 )
-
-// Agent manages system prompt and caching for LLM interactions.
-// The Agent component is responsible for:
-// - Storing the system prompt
-// - Managing cache lifecycle (creation, recreation, deletion)
-// - Delegating API calls to Provider
-type Agent interface {
-	// GenerateText generates a text response given a user message.
-	// The system prompt is managed internally by the Agent.
-	// Returns ClosedError if the Agent has been closed.
-	GenerateText(ctx context.Context, userMessage string) (string, error)
-
-	// Close cleans up the Agent's resources (deletes cache).
-	// Does not close the Provider - the caller is responsible for Provider lifecycle.
-	// Close is idempotent and safe to call multiple times.
-	Close(ctx context.Context) error
-}
 
 // ClosedError represents an error when using a closed agent.
 type ClosedError struct {
@@ -35,10 +19,15 @@ func (e *ClosedError) Error() string {
 	return e.Message
 }
 
-// agent is the implementation of Agent interface.
-type agent struct {
+// Agent manages system prompt and caching for LLM interactions.
+// The Agent component is responsible for:
+// - Storing the system prompt
+// - Managing cache lifecycle (creation, recreation, deletion)
+// - Delegating API calls to Provider
+type Agent struct {
 	provider     llm.Provider
 	systemPrompt string
+	cacheTTL     time.Duration
 	logger       *slog.Logger
 
 	// Cache state
@@ -51,22 +40,24 @@ type agent struct {
 // New creates a new Agent with the given Provider and system prompt.
 // Returns Agent (no error) even if cache creation fails - Agent operates in fallback mode.
 // If logger is nil, a discard logger is created.
-func New(provider llm.Provider, systemPrompt string, logger *slog.Logger) Agent {
+// cacheTTL specifies the TTL for the cached system prompt.
+func New(provider llm.Provider, systemPrompt string, cacheTTL time.Duration, logger *slog.Logger) *Agent {
 	// Handle nil logger
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(nil, nil))
 	}
 
-	a := &agent{
+	a := &Agent{
 		provider:     provider,
 		systemPrompt: systemPrompt,
+		cacheTTL:     cacheTTL,
 		logger:       logger,
 	}
 
 	// Attempt to create cache during initialization
 	// If creation fails, Agent operates in fallback mode (no error returned)
 	ctx := context.Background()
-	cacheName, err := provider.CreateCache(ctx, systemPrompt)
+	cacheName, err := provider.CreateCache(ctx, systemPrompt, cacheTTL)
 	if err != nil {
 		logger.Warn("initial cache creation failed, operating in fallback mode",
 			slog.Any("error", err),
@@ -83,7 +74,8 @@ func New(provider llm.Provider, systemPrompt string, logger *slog.Logger) Agent 
 }
 
 // GenerateText generates a text response given a user message.
-func (a *agent) GenerateText(ctx context.Context, userMessage string) (string, error) {
+// Returns ClosedError if the Agent has been closed.
+func (a *Agent) GenerateText(ctx context.Context, userMessage string) (string, error) {
 	// Check if Agent is closed
 	a.closedMu.RLock()
 	if a.closed {
@@ -107,7 +99,7 @@ func (a *agent) GenerateText(ctx context.Context, userMessage string) (string, e
 
 // generateWithCache attempts to generate text using the cache.
 // If cache error is detected, it attempts recreation and retry.
-func (a *agent) generateWithCache(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (a *Agent) generateWithCache(ctx context.Context, cacheName, userMessage string) (string, error) {
 	response, err := a.provider.GenerateTextCached(ctx, cacheName, userMessage)
 	if err == nil {
 		return response, nil
@@ -123,7 +115,7 @@ func (a *agent) generateWithCache(ctx context.Context, cacheName, userMessage st
 }
 
 // handleCacheErrorAndRetry handles cache errors by attempting cache recreation.
-func (a *agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string, originalErr error) (string, error) {
+func (a *Agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string, originalErr error) (string, error) {
 	a.logger.Warn("cache error detected, attempting recreation",
 		slog.Any("error", originalErr),
 	)
@@ -152,12 +144,12 @@ func (a *agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string
 }
 
 // recreateCacheOnce recreates the cache, protected by mutex to prevent concurrent recreation.
-func (a *agent) recreateCacheOnce(ctx context.Context) (string, error) {
+func (a *Agent) recreateCacheOnce(ctx context.Context) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	a.logger.Debug("recreating cache")
-	newCacheName, err := a.provider.CreateCache(ctx, a.systemPrompt)
+	newCacheName, err := a.provider.CreateCache(ctx, a.systemPrompt, a.cacheTTL)
 	if err != nil {
 		a.logger.Error("cache recreation failed",
 			slog.Any("error", err),
@@ -178,7 +170,7 @@ func (a *agent) recreateCacheOnce(ctx context.Context) (string, error) {
 
 // Close cleans up the Agent's resources by deleting the cache.
 // Does not close the Provider - the caller is responsible for Provider lifecycle.
-func (a *agent) Close(ctx context.Context) error {
+func (a *Agent) Close(ctx context.Context) error {
 	// Get cache name first to minimize lock holding time
 	a.mu.Lock()
 	cacheName := a.cacheName

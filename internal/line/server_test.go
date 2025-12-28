@@ -30,11 +30,128 @@ func computeSignature(body []byte, channelSecret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// mockHandler is a test implementation of line.MessageHandler.
+type mockHandler struct {
+	mu              sync.Mutex
+	textMessages    []textMessage
+	imageMessages   []imageMessage
+	stickerMessages []stickerMessage
+	videoMessages   []videoMessage
+	audioMessages   []audioMessage
+	locationMsgs    []locationMessage
+	unknownMessages []unknownMessage
+	onText          func(ctx context.Context, replyToken, userID, text string) error
+	onImage         func(ctx context.Context, replyToken, userID, messageID string) error
+	onSticker       func(ctx context.Context, replyToken, userID, packageID, stickerID string) error
+	onVideo         func(ctx context.Context, replyToken, userID, messageID string) error
+	onAudio         func(ctx context.Context, replyToken, userID, messageID string) error
+	onLocation      func(ctx context.Context, replyToken, userID string, lat, lng float64) error
+	onUnknown       func(ctx context.Context, replyToken, userID string) error
+}
+
+type textMessage struct {
+	replyToken, userID, text string
+}
+
+type imageMessage struct {
+	replyToken, userID, messageID string
+}
+
+type stickerMessage struct {
+	replyToken, userID, packageID, stickerID string
+}
+
+type videoMessage struct {
+	replyToken, userID, messageID string
+}
+
+type audioMessage struct {
+	replyToken, userID, messageID string
+}
+
+type locationMessage struct {
+	replyToken, userID string
+	latitude, longitude float64
+}
+
+type unknownMessage struct {
+	replyToken, userID string
+}
+
+func (m *mockHandler) HandleText(ctx context.Context, replyToken, userID, text string) error {
+	m.mu.Lock()
+	m.textMessages = append(m.textMessages, textMessage{replyToken, userID, text})
+	m.mu.Unlock()
+	if m.onText != nil {
+		return m.onText(ctx, replyToken, userID, text)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleImage(ctx context.Context, replyToken, userID, messageID string) error {
+	m.mu.Lock()
+	m.imageMessages = append(m.imageMessages, imageMessage{replyToken, userID, messageID})
+	m.mu.Unlock()
+	if m.onImage != nil {
+		return m.onImage(ctx, replyToken, userID, messageID)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
+	m.mu.Lock()
+	m.stickerMessages = append(m.stickerMessages, stickerMessage{replyToken, userID, packageID, stickerID})
+	m.mu.Unlock()
+	if m.onSticker != nil {
+		return m.onSticker(ctx, replyToken, userID, packageID, stickerID)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleVideo(ctx context.Context, replyToken, userID, messageID string) error {
+	m.mu.Lock()
+	m.videoMessages = append(m.videoMessages, videoMessage{replyToken, userID, messageID})
+	m.mu.Unlock()
+	if m.onVideo != nil {
+		return m.onVideo(ctx, replyToken, userID, messageID)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleAudio(ctx context.Context, replyToken, userID, messageID string) error {
+	m.mu.Lock()
+	m.audioMessages = append(m.audioMessages, audioMessage{replyToken, userID, messageID})
+	m.mu.Unlock()
+	if m.onAudio != nil {
+		return m.onAudio(ctx, replyToken, userID, messageID)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error {
+	m.mu.Lock()
+	m.locationMsgs = append(m.locationMsgs, locationMessage{replyToken, userID, latitude, longitude})
+	m.mu.Unlock()
+	if m.onLocation != nil {
+		return m.onLocation(ctx, replyToken, userID, latitude, longitude)
+	}
+	return nil
+}
+
+func (m *mockHandler) HandleUnknown(ctx context.Context, replyToken, userID string) error {
+	m.mu.Lock()
+	m.unknownMessages = append(m.unknownMessages, unknownMessage{replyToken, userID})
+	m.mu.Unlock()
+	if m.onUnknown != nil {
+		return m.onUnknown(ctx, replyToken, userID)
+	}
+	return nil
+}
+
 // =============================================================================
 // NewServer Tests
 // =============================================================================
 
-// TestNewServer tests server creation with various inputs.
 func TestNewServer(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +194,6 @@ func TestNewServer(t *testing.T) {
 	}
 }
 
-// TestNewServer_ZeroTimeout tests that zero timeout is rejected.
 func TestNewServer_ZeroTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -91,7 +207,6 @@ func TestNewServer_ZeroTimeout(t *testing.T) {
 	assert.Equal(t, "timeout", configErr.Variable)
 }
 
-// TestNewServer_NegativeTimeout tests that negative timeout is rejected.
 func TestNewServer_NegativeTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -106,33 +221,28 @@ func TestNewServer_NegativeTimeout(t *testing.T) {
 }
 
 // =============================================================================
-// OnMessage Tests
+// RegisterHandler Tests
 // =============================================================================
 
-// TestServer_OnMessage tests callback registration.
-func TestServer_OnMessage(t *testing.T) {
+func TestServer_RegisterHandler(t *testing.T) {
 	t.Parallel()
 
 	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	callback := func(ctx context.Context, msg line.Message) error {
-		return nil
-	}
+	handler := &mockHandler{}
 
 	// Should not panic
-	server.OnMessage(callback)
+	server.RegisterHandler(handler)
 
-	// Registration should be idempotent - can register again without error
-	server.OnMessage(callback)
+	// Can register multiple handlers
+	server.RegisterHandler(&mockHandler{})
 }
 
 // =============================================================================
 // Signature Verification Tests
 // =============================================================================
 
-// TestServer_HandleWebhook_InvalidSignature tests signature verification.
-// AC-002: Signature is verified synchronously.
 func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	t.Parallel()
 
@@ -146,11 +256,9 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	// Should return 400 Bad Request for invalid signature
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// TestServer_HandleWebhook_MissingSignature tests missing signature header.
 func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 	t.Parallel()
 
@@ -159,17 +267,13 @@ func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 
 	body := `{"events":[]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	// No X-Line-Signature header
 
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	// Should return 400 Bad Request for missing signature
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// TestServer_HandleWebhook_ValidSignature_EmptyEvents tests valid signature with no events.
-// AC-002: Events are parsed synchronously, HTTP 200 is returned.
 func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +290,6 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	// Should return 200 OK
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -194,43 +297,29 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 // Message Processing Tests
 // =============================================================================
 
-// TestServer_HandleWebhook_CallbackInvoked tests that callback is invoked for message events.
-// AC-002/AC-003: Callback is invoked asynchronously for each MessageEvent.
-func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
+func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	var mu sync.Mutex
-	var receivedMessages []line.Message
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		mu.Lock()
-		receivedMessages = append(receivedMessages, msg)
-		mu.Unlock()
-		close(callbackDone)
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+		close(done)
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
-	// Valid webhook payload with a text message
 	body := `{
 		"events": [
 			{
 				"type": "message",
 				"replyToken": "test-reply-token",
-				"source": {
-					"type": "user",
-					"userId": "test-user-id"
-				},
+				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
-				"message": {
-					"type": "text",
-					"id": "12345",
-					"text": "Hello, World!"
-				}
+				"message": {"type": "text", "id": "12345", "text": "Hello, World!"}
 			}
 		]
 	}`
@@ -242,29 +331,23 @@ func TestServer_HandleWebhook_CallbackInvoked(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	// HTTP 200 should be returned immediately (before callback completes)
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Wait for callback to be invoked
 	select {
-	case <-callbackDone:
-		// Callback was invoked
+	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked within timeout")
+		t.Fatal("handler was not invoked within timeout")
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
 
-	require.Len(t, receivedMessages, 1)
-	assert.Equal(t, "test-reply-token", receivedMessages[0].ReplyToken)
-	assert.Equal(t, "text", receivedMessages[0].Type)
-	assert.Equal(t, "Hello, World!", receivedMessages[0].Text)
-	assert.Equal(t, "test-user-id", receivedMessages[0].UserID)
+	require.Len(t, handler.textMessages, 1)
+	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
+	assert.Equal(t, "test-user-id", handler.textMessages[0].userID)
+	assert.Equal(t, "Hello, World!", handler.textMessages[0].text)
 }
 
-// TestServer_HandleWebhook_MultipleEvents tests multiple message events in one webhook.
-// AC-002: Each MessageEvent spawns a new goroutine.
 func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	t.Parallel()
 
@@ -272,18 +355,14 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	var mu sync.Mutex
-	var receivedMessages []line.Message
+	handler := &mockHandler{}
 	var wg sync.WaitGroup
-	wg.Add(2) // Expecting 2 message events
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		mu.Lock()
-		receivedMessages = append(receivedMessages, msg)
-		mu.Unlock()
+	wg.Add(2)
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
 		wg.Done()
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -313,7 +392,6 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Wait for both callbacks to complete
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -322,22 +400,19 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 
 	select {
 	case <-done:
-		// Success
 	case <-time.After(2 * time.Second):
-		t.Fatal("not all callbacks were invoked within timeout")
+		t.Fatal("not all handlers were invoked within timeout")
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
 
-	require.Len(t, receivedMessages, 2)
-	// Order may vary due to concurrent execution
-	texts := []string{receivedMessages[0].Text, receivedMessages[1].Text}
+	require.Len(t, handler.textMessages, 2)
+	texts := []string{handler.textMessages[0].text, handler.textMessages[1].text}
 	assert.Contains(t, texts, "First")
 	assert.Contains(t, texts, "Second")
 }
 
-// TestServer_HandleWebhook_NonMessageEvents tests that non-message events are ignored.
 func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	t.Parallel()
 
@@ -345,13 +420,14 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	callbackCalled := false
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		callbackCalled = true
+	handler := &mockHandler{}
+	handlerCalled := false
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+		handlerCalled = true
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
-	// Follow event (not a message event)
 	body := `{
 		"events": [
 			{
@@ -372,13 +448,11 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Give some time for any potential callback invocation
 	time.Sleep(50 * time.Millisecond)
 
-	assert.False(t, callbackCalled, "callback should not be called for non-message events")
+	assert.False(t, handlerCalled, "handler should not be called for non-message events")
 }
 
-// TestServer_HandleWebhook_ImageMessage tests handling of image messages.
 func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	t.Parallel()
 
@@ -386,14 +460,13 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	var receivedMsg line.Message
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		receivedMsg = msg
-		close(callbackDone)
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onImage = func(ctx context.Context, replyToken, userID, messageID string) error {
+		close(done)
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -417,17 +490,18 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	select {
-	case <-callbackDone:
-		// Success
+	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
+		t.Fatal("handler was not invoked")
 	}
 
-	assert.Equal(t, "image", receivedMsg.Type)
-	assert.Equal(t, "[User sent an image]", receivedMsg.Text)
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.imageMessages, 1)
+	assert.Equal(t, "12345", handler.imageMessages[0].messageID)
 }
 
-// TestServer_HandleWebhook_StickerMessage tests handling of sticker messages.
 func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	t.Parallel()
 
@@ -435,14 +509,13 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	var receivedMsg line.Message
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		receivedMsg = msg
-		close(callbackDone)
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onSticker = func(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
+		close(done)
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -451,7 +524,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 				"replyToken": "test-reply-token",
 				"source": {"type": "user", "userId": "test-user-id"},
 				"timestamp": 1625000000000,
-				"message": {"type": "sticker", "id": "12345", "packageId": "1", "stickerId": "1"}
+				"message": {"type": "sticker", "id": "12345", "packageId": "446", "stickerId": "1988"}
 			}
 		]
 	}`
@@ -466,25 +539,75 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	select {
-	case <-callbackDone:
-		// Success
+	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
+		t.Fatal("handler was not invoked")
 	}
 
-	assert.Equal(t, "sticker", receivedMsg.Type)
-	assert.Equal(t, "[User sent a sticker]", receivedMsg.Text)
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.stickerMessages, 1)
+	assert.Equal(t, "446", handler.stickerMessages[0].packageID)
+	assert.Equal(t, "1988", handler.stickerMessages[0].stickerID)
 }
 
-// TestServer_HandleWebhook_NoCallback tests behavior when no callback is registered.
-func TestServer_HandleWebhook_NoCallback(t *testing.T) {
+func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	// No callback registered
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onLocation = func(ctx context.Context, replyToken, userID string, lat, lng float64) error {
+		close(done)
+		return nil
+	}
+	server.RegisterHandler(handler)
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "test-user-id"},
+				"timestamp": 1625000000000,
+				"message": {"type": "location", "id": "12345", "latitude": 35.6895, "longitude": 139.6917}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	server.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked")
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.locationMsgs, 1)
+	assert.InDelta(t, 35.6895, handler.locationMsgs[0].latitude, 0.0001)
+	assert.InDelta(t, 139.6917, handler.locationMsgs[0].longitude, 0.0001)
+}
+
+func TestServer_HandleWebhook_NoHandler(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
 
 	body := `{
 		"events": [
@@ -504,21 +627,81 @@ func TestServer_HandleWebhook_NoCallback(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	// Should not panic when no callback is registered
 	assert.NotPanics(t, func() {
 		server.HandleWebhook(w, req)
 	})
 
-	// HTTP 200 should still be returned
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
+
+	handler1 := &mockHandler{}
+	handler2 := &mockHandler{}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	handler1.onText = func(ctx context.Context, replyToken, userID, text string) error {
+		wg.Done()
+		return nil
+	}
+	handler2.onText = func(ctx context.Context, replyToken, userID, text string) error {
+		wg.Done()
+		return nil
+	}
+	server.RegisterHandler(handler1)
+	server.RegisterHandler(handler2)
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "test-user-id"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "1", "text": "test"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	server.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("not all handlers were invoked")
+	}
+
+	handler1.mu.Lock()
+	defer handler1.mu.Unlock()
+	handler2.mu.Lock()
+	defer handler2.mu.Unlock()
+
+	assert.Len(t, handler1.textMessages, 1)
+	assert.Len(t, handler2.textMessages, 1)
 }
 
 // =============================================================================
 // Async Execution and Context Tests
 // =============================================================================
 
-// TestServer_HandleWebhook_AsyncExecution tests that HTTP response is sent before callback completes.
-// AC-002: HTTP response time does not depend on callback execution time.
 func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
@@ -526,16 +709,14 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
-	callbackStarted := make(chan struct{})
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		close(callbackStarted)
-		// Simulate slow processing
+	handler := &mockHandler{}
+	handlerDone := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
 		time.Sleep(500 * time.Millisecond)
-		close(callbackDone)
+		close(handlerDone)
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -555,26 +736,20 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	// Measure time for HandleWebhook to return
 	start := time.Now()
 	server.HandleWebhook(w, req)
 	responseTime := time.Since(start)
 
-	// HTTP response should be sent quickly (before callback completes)
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Less(t, responseTime, 100*time.Millisecond, "HTTP response should be sent before callback completes")
+	assert.Less(t, responseTime, 100*time.Millisecond, "HTTP response should be sent before handler completes")
 
-	// Wait for callback to complete
 	select {
-	case <-callbackDone:
-		// Success
+	case <-handlerDone:
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback did not complete within timeout")
+		t.Fatal("handler did not complete within timeout")
 	}
 }
 
-// TestServer_HandleWebhook_ContextWithTimeout tests that callback receives context with timeout.
-// Implementation note: Context propagation with configurable timeout.
 func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -582,14 +757,15 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
+	handler := &mockHandler{}
 	var receivedCtx context.Context
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
 		receivedCtx = ctx
-		close(callbackDone)
+		close(done)
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -610,75 +786,16 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-
 	select {
-	case <-callbackDone:
-		// Success
+	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
+		t.Fatal("handler was not invoked")
 	}
 
-	// Context should have a deadline
 	_, hasDeadline := receivedCtx.Deadline()
 	assert.True(t, hasDeadline, "context should have a timeout deadline")
 }
 
-// TestServer_NewServerWithTimeout tests timeout passed to NewServer.
-func TestServer_NewServerWithTimeout(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	customTimeout := 10 * time.Second
-	server, err := line.NewServer(channelSecret, customTimeout, discardLogger())
-	require.NoError(t, err)
-
-	var receivedCtx context.Context
-	callbackDone := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		receivedCtx = ctx
-		close(callbackDone)
-		return nil
-	})
-
-	body := `{
-		"events": [
-			{
-				"type": "message",
-				"replyToken": "test-reply-token",
-				"source": {"type": "user", "userId": "test-user-id"},
-				"timestamp": 1625000000000,
-				"message": {"type": "text", "id": "1", "text": "test"}
-			}
-		]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
-
-	select {
-	case <-callbackDone:
-		// Success
-	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
-	}
-
-	deadline, hasDeadline := receivedCtx.Deadline()
-	assert.True(t, hasDeadline, "context should have a timeout deadline")
-
-	// The deadline should be approximately customTimeout from now
-	// Allow some margin for test execution
-	timeUntilDeadline := time.Until(deadline)
-	assert.True(t, timeUntilDeadline > 5*time.Second && timeUntilDeadline <= customTimeout,
-		"deadline should be approximately %v from now, got %v", customTimeout, timeUntilDeadline)
-}
-
-// TestServer_CallbackTimeout_Enforcement tests that long-running callbacks are cancelled.
 func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 	t.Parallel()
 
@@ -687,13 +804,11 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 	server, err := line.NewServer(channelSecret, shortTimeout, discardLogger())
 	require.NoError(t, err)
 
-	callbackStarted := make(chan struct{})
+	handler := &mockHandler{}
+	handlerStarted := make(chan struct{})
 	contextCancelled := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
-		close(callbackStarted)
-
-		// Wait for context cancellation
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+		close(handlerStarted)
 		select {
 		case <-ctx.Done():
 			close(contextCancelled)
@@ -702,7 +817,8 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 			t.Error("context was not cancelled within timeout")
 		}
 		return nil
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -723,24 +839,19 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.HandleWebhook(w, req)
 
-	// Wait for callback to start
 	select {
-	case <-callbackStarted:
+	case <-handlerStarted:
 	case <-time.After(1 * time.Second):
-		t.Fatal("callback was not invoked")
+		t.Fatal("handler was not invoked")
 	}
 
-	// Wait for context to be cancelled due to timeout
 	select {
 	case <-contextCancelled:
-		// Success - timeout was enforced
 	case <-time.After(1 * time.Second):
 		t.Fatal("context was not cancelled by timeout")
 	}
 }
 
-// TestServer_HandleWebhook_PanicRecovery tests panic recovery in callback.
-// AC-008: Panics are recovered using defer/recover.
 func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
@@ -748,12 +859,13 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
+	handler := &mockHandler{}
 	panicTriggered := make(chan struct{})
-
-	server.OnMessage(func(ctx context.Context, msg line.Message) error {
+	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
 		close(panicTriggered)
 		panic("test panic")
-	})
+	}
+	server.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -773,19 +885,15 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	// Should not panic even if callback panics
 	assert.NotPanics(t, func() {
 		server.HandleWebhook(w, req)
 	})
 
-	// HTTP 200 should still be returned
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Wait for panic to be triggered
 	select {
 	case <-panicTriggered:
-		// Panic was triggered and recovered
 	case <-time.After(2 * time.Second):
-		t.Fatal("callback was not invoked")
+		t.Fatal("handler was not invoked")
 	}
 }

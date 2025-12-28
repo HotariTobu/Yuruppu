@@ -2,16 +2,16 @@ package line
 
 import "context"
 
-// Message represents an incoming LINE message.
-type Message struct {
-	ReplyToken string
-	Type       string // "text", "image", "sticker", etc.
-	Text       string // For text messages; formatted for others
-	UserID     string
-}
-
-// MessageHandler is the callback signature for message processing.
-// It receives a context with timeout and a Message.
+// MessageHandler handles incoming LINE messages by type.
+// Each method receives a context with timeout and message-specific parameters.
 // The error return is used for logging purposes only - the HTTP response
-// is already sent before callback execution.
-type MessageHandler func(ctx context.Context, msg Message) error
+// is already sent before handler execution.
+type MessageHandler interface {
+	HandleText(ctx context.Context, replyToken, userID, text string) error
+	HandleImage(ctx context.Context, replyToken, userID, messageID string) error
+	HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, replyToken, userID, messageID string) error
+	HandleAudio(ctx context.Context, replyToken, userID, messageID string) error
+	HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context, replyToken, userID string) error
+}

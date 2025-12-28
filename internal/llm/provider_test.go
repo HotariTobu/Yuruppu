@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -795,7 +796,7 @@ func TestProvider_InterfaceHasCacheMethods(t *testing.T) {
 
 		// When: Call CreateCache
 		ctx := context.Background()
-		cacheName, err := provider.CreateCache(ctx, "system prompt")
+		cacheName, err := provider.CreateCache(ctx, "system prompt", time.Hour)
 
 		// Then: Method should be callable through interface
 		require.NoError(t, err)
@@ -945,7 +946,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		ctx := context.Background()
 		systemPrompt := "You are Yuruppu, a friendly LINE bot."
 
-		cacheName, err := mock.CreateCache(ctx, systemPrompt)
+		cacheName, err := mock.CreateCache(ctx, systemPrompt, time.Hour)
 
 		// Then: Should return cacheName without error
 		require.NoError(t, err)
@@ -962,8 +963,8 @@ func TestProvider_CreateCache(t *testing.T) {
 		systemPrompt := "System prompt"
 
 		// When: CreateCache is called multiple times
-		cache1, err1 := mock.CreateCache(ctx, systemPrompt)
-		cache2, err2 := mock.CreateCache(ctx, systemPrompt)
+		cache1, err1 := mock.CreateCache(ctx, systemPrompt, time.Hour)
+		cache2, err2 := mock.CreateCache(ctx, systemPrompt, time.Hour)
 
 		// Then: Should return different cache names (no internal state)
 		require.NoError(t, err1)
@@ -982,8 +983,8 @@ func TestProvider_CreateCache(t *testing.T) {
 		prompt1 := "You are a helpful assistant."
 		prompt2 := "You are Yuruppu."
 
-		cache1, err1 := mock.CreateCache(ctx, prompt1)
-		cache2, err2 := mock.CreateCache(ctx, prompt2)
+		cache1, err1 := mock.CreateCache(ctx, prompt1, time.Hour)
+		cache2, err2 := mock.CreateCache(ctx, prompt2, time.Hour)
 
 		// Then: Should create different caches
 		require.NoError(t, err1)
@@ -1001,7 +1002,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: CreateCache with long prompt
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, longPrompt)
+		cacheName, err := mock.CreateCache(ctx, longPrompt, time.Hour)
 
 		// Then: Should not panic (implementation decides if it succeeds)
 		_ = cacheName
@@ -1014,7 +1015,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: CreateCache with empty prompt
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, "")
+		cacheName, err := mock.CreateCache(ctx, "", time.Hour)
 
 		// Then: Implementation decides behavior (may succeed or error)
 		_ = cacheName
@@ -1029,7 +1030,7 @@ func TestProvider_CreateCache(t *testing.T) {
 
 		// When: Call CreateCache
 		ctx := context.Background()
-		cacheName, err := mock.CreateCache(ctx, "Short prompt")
+		cacheName, err := mock.CreateCache(ctx, "Short prompt", time.Hour)
 
 		// Then: Should return error
 		require.Error(t, err)
@@ -1048,7 +1049,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		cancel()
 
 		// When: Call CreateCache with cancelled context
-		cacheName, err := mock.CreateCache(ctx, "System prompt")
+		cacheName, err := mock.CreateCache(ctx, "System prompt", time.Hour)
 
 		// Then: Should return context error
 		require.Error(t, err)
@@ -1063,7 +1064,7 @@ func TestProvider_CreateCache(t *testing.T) {
 		_ = mock.Close(ctx)
 
 		// When: CreateCache is called after Close
-		cacheName, err := mock.CreateCache(ctx, "System prompt")
+		cacheName, err := mock.CreateCache(ctx, "System prompt", time.Hour)
 
 		// Then: Should return error (provider is closed)
 		require.Error(t, err)
@@ -1229,7 +1230,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		userMessage := "Hello"
 
 		// When: Create cache
-		cacheName, err := mock.CreateCache(ctx, systemPrompt)
+		cacheName, err := mock.CreateCache(ctx, systemPrompt, time.Hour)
 		require.NoError(t, err)
 		require.NotEmpty(t, cacheName)
 
@@ -1256,7 +1257,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// When: Create cache
-		cache1, err := mock.CreateCache(ctx, "Prompt 1")
+		cache1, err := mock.CreateCache(ctx, "Prompt 1", time.Hour)
 		require.NoError(t, err)
 
 		// When: Use different cache (provider doesn't validate)
@@ -1278,9 +1279,9 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// When: Create multiple caches
-		cache1, err1 := mock.CreateCache(ctx, "Prompt 1")
-		cache2, err2 := mock.CreateCache(ctx, "Prompt 2")
-		cache3, err3 := mock.CreateCache(ctx, "Prompt 3")
+		cache1, err1 := mock.CreateCache(ctx, "Prompt 1", time.Hour)
+		cache2, err2 := mock.CreateCache(ctx, "Prompt 2", time.Hour)
+		cache3, err3 := mock.CreateCache(ctx, "Prompt 3", time.Hour)
 
 		require.NoError(t, err1)
 		require.NoError(t, err2)
@@ -1344,7 +1345,7 @@ func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMe
 	return m.response, nil
 }
 
-func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
@@ -1395,7 +1396,7 @@ func (m *mockProviderWithClose) GenerateTextCached(ctx context.Context, cacheNam
 	return m.response, nil
 }
 
-func (m *mockProviderWithClose) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockProviderWithClose) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -1468,7 +1469,7 @@ func (m *mockProviderWithCache) GenerateTextCached(ctx context.Context, cacheNam
 	return m.response, nil
 }
 
-func (m *mockProviderWithCache) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+func (m *mockProviderWithCache) CreateCache(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
