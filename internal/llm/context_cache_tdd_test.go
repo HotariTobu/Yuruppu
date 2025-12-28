@@ -61,7 +61,7 @@ func TestProvider_GenerateTextCached_UsesProvidedCacheName(t *testing.T) {
 		// When: GenerateTextCached is called with specific cacheName
 		ctx := context.Background()
 		cacheName := "my-custom-cache-123"
-		response, err := provider.GenerateTextCached(ctx, cacheName, "Hello")
+		response, err := provider.GenerateTextCached(ctx, cacheName, "Hello", nil)
 
 		// Then: Should use the exact cacheName provided
 		require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestCacheLifecycle_CreateUseDelete(t *testing.T) {
 		require.NotEmpty(t, cacheName)
 
 		// Step 2: Use cache for generation (would be done by Agent.GenerateText)
-		response, err := provider.GenerateTextCached(ctx, cacheName, userMessage)
+		response, err := provider.GenerateTextCached(ctx, cacheName, userMessage, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Response from cached context", response)
 		assert.Equal(t, cacheName, provider.lastUsedCacheName)
@@ -139,7 +139,7 @@ func TestNonCachedFallback(t *testing.T) {
 
 		// When: GenerateText is called (non-cached path)
 		ctx := context.Background()
-		response, err := provider.GenerateText(ctx, "System prompt", "User message")
+		response, err := provider.GenerateText(ctx, "System prompt", "User message", nil)
 
 		// Then: Should work without cache
 		require.NoError(t, err)
@@ -184,7 +184,7 @@ type mockCachedProvider struct {
 	closed               bool
 }
 
-func (m *mockCachedProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockCachedProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
@@ -192,7 +192,7 @@ func (m *mockCachedProvider) GenerateText(ctx context.Context, systemPrompt, use
 	return m.response, nil
 }
 
-func (m *mockCachedProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockCachedProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}

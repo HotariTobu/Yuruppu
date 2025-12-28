@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+// Message represents a single message in conversation history.
+// Used to provide context to LLM for multi-turn conversations.
+type Message struct {
+	Role    string // "user" or "assistant"
+	Content string
+}
+
 // Provider is an abstraction layer for LLM providers.
 // TR-002: Create an abstraction layer (interface) for LLM providers to allow future provider changes
 // ADR: 20251228-provider-cache-interface - Extended with cache methods (Option C: Separate methods)
@@ -12,12 +19,14 @@ type Provider interface {
 	// GenerateText generates a text response given a system prompt and user message.
 	// The context can be used for timeout and cancellation.
 	// This is the non-cached path - the system prompt is sent with each request.
-	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
+	// history provides optional conversation context (may be nil).
+	GenerateText(ctx context.Context, systemPrompt, userMessage string, history []Message) (string, error)
 
 	// GenerateTextCached generates a text response using a cached system prompt.
 	// The cacheName must be a valid cache reference returned by CreateCachedConfig.
 	// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
-	GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error)
+	// history provides optional conversation context (may be nil).
+	GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []Message) (string, error)
 
 	// CreateCachedConfig creates a cached content for the given system prompt.
 	// Returns the cache name on success, which can be used with GenerateTextCached.

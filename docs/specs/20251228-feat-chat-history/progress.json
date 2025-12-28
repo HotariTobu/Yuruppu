@@ -3,11 +3,11 @@
   "lastUpdated": "2025-12-28",
   "requirements": [
     { "id": "FR-001", "passes": true },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": false },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 3: Integrated GCSStorage into bot.Handler. Changes: (1) Added history.Storage dependency to bot.Handler, (2) Save user message and bot response after successful LLM response, (3) Storage errors prevent sending reply per NFR-002, (4) Added HISTORY_BUCKET env var to main.go, (5) Added GCS client lifecycle management. FR-001 verified - messages saved to history with tests. NFR-002 verified - storage errors prevent response with tests. Code reviews completed: correctness, testing, architecture, security. Suggestions noted: add sourceID validation, use UTC timestamps, add context cancellation check. Next session should start with FR-002 (include history in LLM context) - requires modifying Responder interface or yuruppu agent to accept history."
+  "notes": "Session 4 completed: Implemented FR-002 - Include saved history in LLM request context. Changes: (1) Added llm.Message type to Provider interface, (2) Modified Responder interface to accept []history.Message, (3) Updated bot.Handler to load history before calling Respond, (4) Modified Yuruppu.Respond to convert history.Message to llm.Message, (5) Updated vertexAIClient.buildContents to build multi-turn conversation from history, (6) Updated Agent.GenerateText to pass history through call chain. Code reviews completed (correctness, testing, architecture). Suggestions for future: add tests for cache retry paths with history, add role validation. Next session should work on FR-003 (limit history context) or NFR-001 (retry logic)."
 }

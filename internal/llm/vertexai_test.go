@@ -443,7 +443,7 @@ func TestVertexAIClient_Close(t *testing.T) {
 		ctx := context.Background()
 
 		// Given: GenerateText works before Close
-		response, err := provider.GenerateText(ctx, "system", "user")
+		response, err := provider.GenerateText(ctx, "system", "user", nil)
 		require.NoError(t, err, "GenerateText should work before Close")
 		assert.Equal(t, "test response", response)
 
@@ -452,7 +452,7 @@ func TestVertexAIClient_Close(t *testing.T) {
 		require.NoError(t, err, "Close should succeed")
 
 		// Then: GenerateText should fail after Close
-		response, err = provider.GenerateText(ctx, "system", "user")
+		response, err = provider.GenerateText(ctx, "system", "user", nil)
 		require.Error(t, err, "GenerateText should fail after Close")
 		assert.Empty(t, response, "Response should be empty after Close")
 		assert.Contains(t, err.Error(), "closed",
@@ -489,7 +489,7 @@ type mockVertexAIProvider struct {
 	hasCachedContent bool
 }
 
-func (m *mockVertexAIProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockVertexAIProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -500,7 +500,7 @@ func (m *mockVertexAIProvider) GenerateText(ctx context.Context, systemPrompt, u
 	return m.response, nil
 }
 
-func (m *mockVertexAIProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockVertexAIProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}

@@ -10,6 +10,7 @@ import (
 
 	// Internal packages
 	"yuruppu/internal/agent"
+	"yuruppu/internal/history"
 	"yuruppu/internal/llm"
 )
 
@@ -33,9 +34,21 @@ func New(provider llm.Provider, cacheTTL time.Duration, logger *slog.Logger) *Yu
 	}
 }
 
-// Respond generates a text response given a user message.
-func (y *Yuruppu) Respond(ctx context.Context, userMessage string) (string, error) {
-	return y.agent.GenerateText(ctx, userMessage)
+// Respond generates a text response given a user message with optional conversation history.
+// history may be nil if no history is available.
+func (y *Yuruppu) Respond(ctx context.Context, userMessage string, conversationHistory []history.Message) (string, error) {
+	// Convert history.Message to llm.Message
+	var llmHistory []llm.Message
+	if conversationHistory != nil {
+		llmHistory = make([]llm.Message, len(conversationHistory))
+		for i, msg := range conversationHistory {
+			llmHistory[i] = llm.Message{
+				Role:    msg.Role,
+				Content: msg.Content,
+			}
+		}
+	}
+	return y.agent.GenerateText(ctx, userMessage, llmHistory)
 }
 
 // Close cleans up the Yuruppu agent's resources.

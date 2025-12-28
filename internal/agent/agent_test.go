@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 	"yuruppu/internal/agent"
+	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +86,7 @@ func TestAgent_CacheCreation(t *testing.T) {
 		require.NotNil(t, a)
 
 		ctx := context.Background()
-		response, err := a.GenerateText(ctx, "user message")
+		response, err := a.GenerateText(ctx, "user message", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Response without cache", response)
@@ -108,7 +109,7 @@ func TestAgent_GenerateText_CachePath(t *testing.T) {
 		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
-		response, err := a.GenerateText(ctx, "user message")
+		response, err := a.GenerateText(ctx, "user message", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Cached response", response)
@@ -126,7 +127,7 @@ func TestAgent_GenerateText_CachePath(t *testing.T) {
 		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
-		response, err := a.GenerateText(ctx, "user message")
+		response, err := a.GenerateText(ctx, "user message", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Non-cached response", response)
@@ -152,7 +153,7 @@ func TestAgent_CacheErrorRecreation(t *testing.T) {
 		a := agent.New(mockProvider, "System prompt", time.Hour, logger)
 
 		ctx := context.Background()
-		response, err := a.GenerateText(ctx, "user message")
+		response, err := a.GenerateText(ctx, "user message", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Response after recreation", response)
@@ -173,7 +174,7 @@ func TestAgent_CacheErrorRecreation(t *testing.T) {
 		mockProvider.createCacheErrOnRecreate = true
 
 		ctx := context.Background()
-		response, err := a.GenerateText(ctx, "user message")
+		response, err := a.GenerateText(ctx, "user message", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Fallback response", response)
@@ -205,7 +206,7 @@ func TestAgent_ConcurrentCacheRecreation(t *testing.T) {
 		for range concurrency {
 			go func() {
 				defer wg.Done()
-				_, _ = a.GenerateText(ctx, "concurrent message")
+				_, _ = a.GenerateText(ctx, "concurrent message", nil)
 			}()
 		}
 
@@ -298,14 +299,14 @@ func TestAgent_GenerateTextAfterClose(t *testing.T) {
 
 		ctx := context.Background()
 
-		response, err := a.GenerateText(ctx, "message before close")
+		response, err := a.GenerateText(ctx, "message before close", nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Response", response)
 
 		err = a.Close(ctx)
 		require.NoError(t, err)
 
-		response, err = a.GenerateText(ctx, "message after close")
+		response, err = a.GenerateText(ctx, "message after close", nil)
 		require.Error(t, err)
 		assert.Empty(t, response)
 
@@ -334,7 +335,7 @@ func TestAgent_FullLifecycle(t *testing.T) {
 
 		ctx := context.Background()
 
-		response1, err1 := a.GenerateText(ctx, "message 1")
+		response1, err1 := a.GenerateText(ctx, "message 1", nil)
 		require.NoError(t, err1)
 		assert.Equal(t, "Response", response1)
 		assert.Equal(t, 1, mockProvider.generateTextCachedCalls)
@@ -342,13 +343,13 @@ func TestAgent_FullLifecycle(t *testing.T) {
 		mockProvider.generateTextCachedErr = errors.New("cache expired")
 		mockProvider.generateTextCachedFails = 1
 
-		response2, err2 := a.GenerateText(ctx, "message 2")
+		response2, err2 := a.GenerateText(ctx, "message 2", nil)
 		require.NoError(t, err2)
 		assert.Equal(t, "Response", response2)
 		assert.Equal(t, 2, mockProvider.createCacheCalls)
 
 		mockProvider.generateTextCachedErr = nil
-		response3, err3 := a.GenerateText(ctx, "message 3")
+		response3, err3 := a.GenerateText(ctx, "message 3", nil)
 		require.NoError(t, err3)
 		assert.Equal(t, "Response", response3)
 
@@ -356,7 +357,7 @@ func TestAgent_FullLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, mockProvider.deleteCacheCalls)
 
-		_, err = a.GenerateText(ctx, "message after close")
+		_, err = a.GenerateText(ctx, "message after close", nil)
 		var closedErr *agent.ClosedError
 		assert.ErrorAs(t, err, &closedErr)
 	})
@@ -395,7 +396,7 @@ type mockProvider struct {
 	recreationInProgressLock sync.Mutex
 }
 
-func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
@@ -414,7 +415,7 @@ func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessa
 	return m.response, nil
 }
 
-func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
