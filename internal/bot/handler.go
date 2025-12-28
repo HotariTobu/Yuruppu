@@ -3,6 +3,8 @@ package bot
 import (
 	"context"
 	"log/slog"
+	"time"
+	"yuruppu/internal/history"
 )
 
 // Responder generates a response for a given message.
@@ -20,14 +22,17 @@ type Handler struct {
 	responder Responder
 	sender    Sender
 	logger    *slog.Logger
+	storage   history.Storage
 }
 
 // New creates a new Handler with the given dependencies.
-func New(responder Responder, sender Sender, logger *slog.Logger) *Handler {
+// storage can be nil if history storage is not needed.
+func New(responder Responder, sender Sender, logger *slog.Logger, storage history.Storage) *Handler {
 	return &Handler{
 		responder: responder,
 		sender:    sender,
 		logger:    logger,
+		storage:   storage,
 	}
 }
 
@@ -39,6 +44,29 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 			slog.Any("error", err),
 		)
 		return err
+	}
+
+	// Save to history if storage is configured (FR-001)
+	// Per NFR-002: storage errors prevent sending a response
+	if h.storage != nil {
+		now := time.Now()
+		userMsg := history.Message{
+			Role:      "user",
+			Content:   text,
+			Timestamp: now,
+		}
+		botMsg := history.Message{
+			Role:      "assistant",
+			Content:   response,
+			Timestamp: now,
+		}
+		if err := h.storage.AppendMessages(ctx, userID, userMsg, botMsg); err != nil {
+			h.logger.ErrorContext(ctx, "failed to save history",
+				slog.String("userID", userID),
+				slog.Any("error", err),
+			)
+			return err
+		}
 	}
 
 	if err := h.sender.SendReply(replyToken, response); err != nil {

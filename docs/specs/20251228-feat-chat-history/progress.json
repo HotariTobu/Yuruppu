@@ -2,12 +2,12 @@
   "phase": "implementing",
   "lastUpdated": "2025-12-28",
   "requirements": [
-    { "id": "FR-001", "passes": false },
+    { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": false },
     { "id": "FR-003", "passes": false },
     { "id": "NFR-001", "passes": false },
-    { "id": "NFR-002", "passes": false }
+    { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 2: Implemented GCSStorage backend with full test coverage (14 test cases). Features: JSONL read/write, read-modify-write with generation preconditions, context timeout handling, proper error wrapping. Code review findings: (1) TOCTOU race is documented GCS limitation, (2) consider adding sourceID validation, (3) extract JSONL parsing to reduce duplication, (4) add logging for production debugging. All issues are suggestions for future improvement. Preflight passes. Next session: Integrate Storage into message handling flow - connect GCSStorage to bot/agent to save/retrieve conversation history during message processing."
+  "notes": "Session 3: Integrated GCSStorage into bot.Handler. Changes: (1) Added history.Storage dependency to bot.Handler, (2) Save user message and bot response after successful LLM response, (3) Storage errors prevent sending reply per NFR-002, (4) Added HISTORY_BUCKET env var to main.go, (5) Added GCS client lifecycle management. FR-001 verified - messages saved to history with tests. NFR-002 verified - storage errors prevent response with tests. Code reviews completed: correctness, testing, architecture, security. Suggestions noted: add sourceID validation, use UTC timestamps, add context cancellation check. Next session should start with FR-002 (include history in LLM context) - requires modifying Responder interface or yuruppu agent to accept history."
 }
