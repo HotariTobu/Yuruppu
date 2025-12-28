@@ -2,17 +2,13 @@ package yuruppu
 
 import (
 	"context"
-	_ "embed"
 	"log/slog"
 )
 
-//go:embed prompt/system.txt
-var SystemPrompt string
-
 // LLMProvider is the interface for LLM operations.
-// This references llm.Provider but avoids circular imports.
+// This is satisfied by llm.Agent which manages system prompt and caching internally.
 type LLMProvider interface {
-	GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error)
+	GenerateText(ctx context.Context, userMessage string) (string, error)
 }
 
 // Replier is the interface for sending replies.
@@ -64,7 +60,7 @@ func (h *Handler) HandleMessage(ctx context.Context, msg Message) error {
 	}
 
 	// Call LLM to generate response
-	response, err := h.llm.GenerateText(ctx, SystemPrompt, userMessage)
+	response, err := h.llm.GenerateText(ctx, userMessage)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "LLM call failed",
 			slog.String("userID", msg.UserID),

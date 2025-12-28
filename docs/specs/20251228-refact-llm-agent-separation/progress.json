@@ -4,16 +4,16 @@
   "requirements": [
     { "id": "SC-001", "passes": true },
     { "id": "SC-002", "passes": true },
-    { "id": "SC-003", "passes": false },
-    { "id": "SC-004", "passes": false },
+    { "id": "SC-003", "passes": true },
+    { "id": "SC-004", "passes": true },
     { "id": "SC-005", "passes": false },
     { "id": "AC-001", "passes": true },
     { "id": "AC-002", "passes": true },
     { "id": "AC-003", "passes": true },
-    { "id": "AC-004", "passes": false },
-    { "id": "AC-005", "passes": false },
+    { "id": "AC-004", "passes": true },
+    { "id": "AC-005", "passes": true },
     { "id": "AC-006", "passes": false }
   ],
   "blockers": [],
-  "notes": "Session 2: Completed SC-002, AC-002, AC-003 - Agent component created with interface, cache management, and full test coverage. Next: SC-003 (Update Handler) to use Agent interface."
+  "notes": "Session 3: Completed SC-003, SC-004, AC-004, AC-005 - Handler uses Agent interface, main.go creates Provider→Agent→Handler chain with proper shutdown order. Created prompt package with SystemPrompt and test. Next session should start with SC-005/AC-006: Update existing test files (provider_test.go, context_cache_tdd_test.go) for new structure."
 }

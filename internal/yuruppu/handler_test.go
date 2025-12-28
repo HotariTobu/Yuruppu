@@ -22,14 +22,12 @@ func discardLogger() *slog.Logger {
 
 // mockLLMProvider is a test mock for LLMProvider.
 type mockLLMProvider struct {
-	response             string
-	err                  error
-	capturedSystemPrompt string
-	capturedUserMessage  string
+	response            string
+	err                 error
+	capturedUserMessage string
 }
 
-func (m *mockLLMProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
-	m.capturedSystemPrompt = systemPrompt
+func (m *mockLLMProvider) GenerateText(ctx context.Context, userMessage string) (string, error) {
 	m.capturedUserMessage = userMessage
 	if m.err != nil {
 		return "", m.err
@@ -219,13 +217,4 @@ func TestHandler_HandleMessage_ContextCancellation(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
-}
-
-// =============================================================================
-// SystemPrompt Tests
-// =============================================================================
-
-// TestSystemPrompt_Exists verifies SystemPrompt is embedded and non-empty.
-func TestSystemPrompt_Exists(t *testing.T) {
-	assert.NotEmpty(t, yuruppu.SystemPrompt, "SystemPrompt should not be empty")
 }

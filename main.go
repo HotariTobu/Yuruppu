@@ -16,6 +16,7 @@ import (
 	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
 	"yuruppu/internal/yuruppu"
+	"yuruppu/internal/yuruppu/prompt"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -162,16 +163,18 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	// TODO(SC-002, SC-003, SC-004): Replace with Agent when implemented
-	// Currently using non-cached Provider directly (cache methods available but not used)
+	// Create LLM provider (pure API layer)
 	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, config.LLMModel, logger)
 	if err != nil {
-		logger.Error("failed to initialize LLM", slog.String("error", err.Error()))
+		logger.Error("failed to initialize LLM provider", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
+	// Create Agent (manages system prompt and caching)
+	llmAgent := llm.NewAgent(llmProvider, prompt.SystemPrompt, logger)
+
 	// Create yuruppu handler and register callback
-	yHandler := yuruppu.NewHandler(llmProvider, client, logger)
+	yHandler := yuruppu.NewHandler(llmAgent, client, logger)
 	server.OnMessage(createMessageCallback(yHandler))
 
 	// Create HTTP server with graceful shutdown support
@@ -208,7 +211,12 @@ func main() {
 		logger.Error("failed to shutdown HTTP server gracefully", slog.String("error", err.Error()))
 	}
 
-	// Close LLM provider to clean up resources (cache, connections)
+	// Close Agent first (cleans up cache)
+	if err := llmAgent.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close LLM agent", slog.String("error", err.Error()))
+	}
+
+	// Close Provider (cleans up API connections)
 	if err := llmProvider.Close(shutdownCtx); err != nil {
 		logger.Error("failed to close LLM provider", slog.String("error", err.Error()))
 	}
