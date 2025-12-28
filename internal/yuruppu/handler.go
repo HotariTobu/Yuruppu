@@ -6,7 +6,6 @@ import (
 )
 
 // LLMProvider is the interface for LLM operations.
-// This is satisfied by llm.Agent which manages system prompt and caching internally.
 type LLMProvider interface {
 	GenerateText(ctx context.Context, userMessage string) (string, error)
 }
@@ -27,13 +26,15 @@ type Message struct {
 }
 
 // Handler processes incoming messages using LLM and sends replies.
+// Handler is created from Yuruppu using yuruppu.NewHandler(client).
 type Handler struct {
 	llm    LLMProvider
 	client Replier
 	logger *slog.Logger
 }
 
-// NewHandler creates a new Handler with the given dependencies.
+// NewHandler creates a Handler for testing purposes.
+// In production, use Yuruppu.NewHandler(client) instead.
 func NewHandler(llm LLMProvider, client Replier, logger *slog.Logger) *Handler {
 	return &Handler{
 		llm:    llm,
