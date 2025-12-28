@@ -106,3 +106,5 @@ linters:
           - errorlint
           - testifylint
           - staticcheck
+          - gosmopolitan
+          - musttag
