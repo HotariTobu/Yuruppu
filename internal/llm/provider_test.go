@@ -12,6 +12,17 @@ import (
 )
 
 // =============================================================================
+// Compile-time interface conformance checks
+// AC-001: Verify all mock implementations satisfy the full Provider interface
+// =============================================================================
+
+var (
+	_ llm.Provider = (*mockProvider)(nil)
+	_ llm.Provider = (*mockProviderWithClose)(nil)
+	_ llm.Provider = (*mockProviderWithCache)(nil)
+)
+
+// =============================================================================
 // Provider Interface Tests
 // =============================================================================
 
@@ -1294,6 +1305,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 
 // mockProvider is a test implementation of the Provider interface.
 // This verifies that the Provider interface can be implemented.
+// AC-001: Updated to implement full Provider interface with cache methods.
 type mockProvider struct {
 	response     string
 	err          error
@@ -1317,12 +1329,44 @@ func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessa
 	return m.response, nil
 }
 
+func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockProvider) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if m.checkContext {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	return "mock-cache", nil
+}
+
+func (m *mockProvider) DeleteCache(ctx context.Context, cacheName string) error {
+	return nil
+}
+
 func (m *mockProvider) Close(ctx context.Context) error {
 	m.closed = true
 	return nil
 }
 
 // mockProviderWithClose is a test implementation with Close method for AC-004 tests.
+// AC-001: Updated to implement full Provider interface with cache methods.
 type mockProviderWithClose struct {
 	response string
 	err      error
@@ -1338,6 +1382,28 @@ func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, 
 		return "", m.err
 	}
 	return m.response, nil
+}
+
+func (m *mockProviderWithClose) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockProviderWithClose) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
+	if m.closed {
+		return "", errors.New("provider is closed")
+	}
+	return "mock-cache", nil
+}
+
+func (m *mockProviderWithClose) DeleteCache(ctx context.Context, cacheName string) error {
+	return nil
 }
 
 func (m *mockProviderWithClose) Close(ctx context.Context) error {

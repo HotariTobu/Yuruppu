@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Compile-time interface conformance check
+var _ llm.Provider = (*mockCachedProvider)(nil)
+
 // =============================================================================
 // TDD Tests for Provider Cache Methods (AC-001: Pure API Layer)
 // =============================================================================
