@@ -898,3 +898,213 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 		t.Fatal("handler was not invoked")
 	}
 }
+
+// =============================================================================
+// Source ID Extraction Tests (FR-003)
+// =============================================================================
+
+func TestServer_HandleWebhook_GroupSource(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
+
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+		close(done)
+		return nil
+	}
+	s.RegisterHandler(handler)
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "group", "groupId": "C1234567890abcdef", "userId": "U9876543210fedcba"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "12345", "text": "Hello from group!"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	s.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked within timeout")
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.textMessages, 1)
+	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
+	// For group source, sourceID should be groupId (not userId)
+	assert.Equal(t, "C1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "Hello from group!", handler.textMessages[0].text)
+}
+
+func TestServer_HandleWebhook_RoomSource(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
+
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+		close(done)
+		return nil
+	}
+	s.RegisterHandler(handler)
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "room", "roomId": "R1234567890abcdef", "userId": "U9876543210fedcba"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "12345", "text": "Hello from room!"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	s.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked within timeout")
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.textMessages, 1)
+	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
+	// For room source, sourceID should be roomId (not userId)
+	assert.Equal(t, "R1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "Hello from room!", handler.textMessages[0].text)
+}
+
+func TestServer_HandleWebhook_UserSource(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
+
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+		close(done)
+		return nil
+	}
+	s.RegisterHandler(handler)
+
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"source": {"type": "user", "userId": "U1234567890abcdef"},
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "12345", "text": "Hello from 1:1 chat!"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	s.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked within timeout")
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.textMessages, 1)
+	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
+	// For user source, sourceID should be userId
+	assert.Equal(t, "U1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "Hello from 1:1 chat!", handler.textMessages[0].text)
+}
+
+func TestServer_HandleWebhook_MissingSource(t *testing.T) {
+	t.Parallel()
+
+	channelSecret := "test-secret"
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
+	require.NoError(t, err)
+
+	handler := &mockHandler{}
+	done := make(chan struct{})
+	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+		close(done)
+		return nil
+	}
+	s.RegisterHandler(handler)
+
+	// Webhook event without source field - should not crash
+	body := `{
+		"events": [
+			{
+				"type": "message",
+				"replyToken": "test-reply-token",
+				"timestamp": 1625000000000,
+				"message": {"type": "text", "id": "12345", "text": "No source!"}
+			}
+		]
+	}`
+	signature := computeSignature([]byte(body), channelSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+
+	w := httptest.NewRecorder()
+	s.HandleWebhook(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked within timeout")
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	require.Len(t, handler.textMessages, 1)
+	// Missing source should result in empty sourceID
+	assert.Equal(t, "", handler.textMessages[0].userID)
+}

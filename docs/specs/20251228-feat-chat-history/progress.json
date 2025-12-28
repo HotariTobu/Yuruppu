@@ -4,10 +4,10 @@
   "requirements": [
     { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": true },
-    { "id": "FR-003", "passes": false },
+    { "id": "FR-003", "passes": true },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 4 completed: Implemented FR-002 - Include saved history in LLM request context. Changes: (1) Added llm.Message type to Provider interface, (2) Modified Responder interface to accept []history.Message, (3) Updated bot.Handler to load history before calling Respond, (4) Modified Yuruppu.Respond to convert history.Message to llm.Message, (5) Updated vertexAIClient.buildContents to build multi-turn conversation from history, (6) Updated Agent.GenerateText to pass history through call chain. Code reviews completed (correctness, testing, architecture). Suggestions for future: add tests for cache retry paths with history, add role validation. Next session should work on FR-003 (limit history context) or NFR-001 (retry logic)."
+  "notes": "Session 5 completed: Implemented FR-003 - Separate conversation history by source (user/group/room). Changes: (1) Renamed extractUserID to extractSourceID in server.go, (2) Added handling for GroupSource (returns GroupId) and RoomSource (returns RoomId), (3) Updated variable names from userID to sourceID for clarity, (4) Added tests for GroupSource, RoomSource, UserSource, and MissingSource edge cases. Code reviews completed (correctness, testing). Suggestions for future: consider adding logging for empty sourceID cases, add tests for unknown source types and empty IDs. Next session should work on NFR-001 (latency requirements - +100ms limit for history read/write operations)."
 }
