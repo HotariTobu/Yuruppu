@@ -92,13 +92,21 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// extractUserID extracts the user ID from a webhook source.
-func extractUserID(source webhook.SourceInterface) string {
+// extractSourceID extracts the source ID from a webhook source.
+// For 1:1 chats (UserSource), it returns the user ID.
+// For group chats (GroupSource), it returns the group ID.
+// For room chats (RoomSource), it returns the room ID.
+func extractSourceID(source webhook.SourceInterface) string {
 	if source == nil {
 		return ""
 	}
-	if s, ok := source.(webhook.UserSource); ok {
+	switch s := source.(type) {
+	case webhook.UserSource:
 		return s.UserId
+	case webhook.GroupSource:
+		return s.GroupId
+	case webhook.RoomSource:
+		return s.RoomId
 	}
 	return ""
 }
@@ -111,20 +119,21 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 	}
 
 	replyToken := msgEvent.ReplyToken
-	userID := extractUserID(msgEvent.Source)
+	sourceID := extractSourceID(msgEvent.Source)
 
 	for _, handler := range s.handlers {
-		go s.invokeHandler(handler, msgEvent, replyToken, userID)
+		go s.invokeHandler(handler, msgEvent, replyToken, sourceID)
 	}
 }
 
 // invokeHandler invokes a single handler with panic recovery.
-func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent, replyToken, userID string) {
+// sourceID identifies the conversation source (user ID for 1:1, group ID for groups, room ID for rooms).
+func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent, replyToken, sourceID string) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("handler panicked",
 				slog.String("replyToken", replyToken),
-				slog.String("userID", userID),
+				slog.String("sourceID", sourceID),
 				slog.Any("panic", r),
 			)
 		}
@@ -136,25 +145,25 @@ func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent, r
 	var err error
 	switch msg := msgEvent.Message.(type) {
 	case webhook.TextMessageContent:
-		err = handler.HandleText(ctx, replyToken, userID, msg.Text)
+		err = handler.HandleText(ctx, replyToken, sourceID, msg.Text)
 	case webhook.ImageMessageContent:
-		err = handler.HandleImage(ctx, replyToken, userID, msg.Id)
+		err = handler.HandleImage(ctx, replyToken, sourceID, msg.Id)
 	case webhook.StickerMessageContent:
-		err = handler.HandleSticker(ctx, replyToken, userID, msg.PackageId, msg.StickerId)
+		err = handler.HandleSticker(ctx, replyToken, sourceID, msg.PackageId, msg.StickerId)
 	case webhook.VideoMessageContent:
-		err = handler.HandleVideo(ctx, replyToken, userID, msg.Id)
+		err = handler.HandleVideo(ctx, replyToken, sourceID, msg.Id)
 	case webhook.AudioMessageContent:
-		err = handler.HandleAudio(ctx, replyToken, userID, msg.Id)
+		err = handler.HandleAudio(ctx, replyToken, sourceID, msg.Id)
 	case webhook.LocationMessageContent:
-		err = handler.HandleLocation(ctx, replyToken, userID, msg.Latitude, msg.Longitude)
+		err = handler.HandleLocation(ctx, replyToken, sourceID, msg.Latitude, msg.Longitude)
 	default:
-		err = handler.HandleUnknown(ctx, replyToken, userID)
+		err = handler.HandleUnknown(ctx, replyToken, sourceID)
 	}
 
 	if err != nil {
 		s.logger.Error("handler failed",
 			slog.String("replyToken", replyToken),
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 	}
