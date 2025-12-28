@@ -16,6 +16,10 @@ import (
 // CH-001: Context caching for system prompts with reasonable TTL
 const DefaultCacheTTL = 60 * time.Minute
 
+// disabledThinkingBudget disables the thinking feature in Gemini models.
+// AC-003: Set to 0 to prevent the model from showing reasoning steps.
+const disabledThinkingBudget = int32(0)
+
 // vertexAIClient is an implementation of Provider using Google Vertex AI.
 // AC-001: Provider is a pure API layer - no caching state management.
 // Cache lifecycle is managed by the Agent component.
@@ -88,43 +92,96 @@ func NewVertexAIClient(ctx context.Context, projectID string, region string, mod
 // The context can be used for timeout and cancellation.
 // NFR-001: LLM API total request timeout should be configurable via context
 func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
-	// AC-004: Check if provider is closed before generating text
-	v.mu.RLock()
-	if v.closed {
-		v.mu.RUnlock()
-		return "", &LLMClosedError{Message: "provider is closed"}
+	if err := v.checkClosed(); err != nil {
+		return "", err
 	}
-	v.mu.RUnlock()
 
 	v.logger.Debug("generating text",
 		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
 	)
 
-	// AC-003: Disable thinking mode by setting budget to 0
-	thinkingBudget := int32(0)
-	config := &genai.GenerateContentConfig{
-		SystemInstruction: &genai.Content{
-			Parts: []*genai.Part{{Text: systemPrompt}},
-		},
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
-		},
-	}
+	config := v.createGenerateConfig(&genai.Content{
+		Parts: []*genai.Part{{Text: systemPrompt}},
+	}, "")
 
-	// Generate content
 	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
 	if err != nil {
 		v.logger.Error("LLM API call failed",
 			slog.String("model", v.model),
 			slog.Any("error", err),
 		)
-		// FR-004: Map specific errors to custom error types
 		return "", MapAPIError(err)
 	}
 
-	// Extract text from response
-	if len(resp.Candidates) == 0 {
+	return v.extractTextFromResponse(resp)
+}
+
+// GenerateTextCached generates a text response using a cached system prompt.
+// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
+func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+	if err := v.checkClosed(); err != nil {
+		return "", err
+	}
+
+	v.logger.Debug("generating text with cache",
+		slog.String("model", v.model),
+		slog.Int("userMessageLength", len(userMessage)),
+		slog.String("cacheName", cacheName),
+	)
+
+	config := v.createGenerateConfig(nil, cacheName)
+
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
+	if err != nil {
+		v.logger.Error("LLM API call failed (cached)",
+			slog.String("model", v.model),
+			slog.String("cacheName", cacheName),
+			slog.Any("error", err),
+		)
+		return "", MapAPIError(err)
+	}
+
+	return v.extractTextFromResponse(resp)
+}
+
+// checkClosed checks if the provider is closed and returns an error if so.
+func (v *vertexAIClient) checkClosed() error {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	if v.closed {
+		return &LLMClosedError{Message: "provider is closed"}
+	}
+	return nil
+}
+
+// createGenerateConfig creates a GenerateContentConfig with thinking disabled.
+// Exactly one of systemInstruction or cacheName should be provided:
+// - systemInstruction: for non-cached requests with inline system prompt
+// - cacheName: for cached requests using pre-cached system prompt
+func (v *vertexAIClient) createGenerateConfig(systemInstruction *genai.Content, cacheName string) *genai.GenerateContentConfig {
+	if systemInstruction != nil && cacheName != "" {
+		v.logger.Warn("both systemInstruction and cacheName provided, using cacheName")
+	}
+
+	budget := disabledThinkingBudget
+	config := &genai.GenerateContentConfig{
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &budget,
+		},
+	}
+	if cacheName != "" {
+		config.CachedContent = cacheName
+	} else if systemInstruction != nil {
+		config.SystemInstruction = systemInstruction
+	}
+	return config
+}
+
+// extractTextFromResponse extracts text from LLM response.
+// Validates the response structure: candidates -> content -> parts -> text.
+func (v *vertexAIClient) extractTextFromResponse(resp *genai.GenerateContentResponse) (string, error) {
+	if resp == nil || len(resp.Candidates) == 0 {
 		v.logger.Error("LLM response error",
 			slog.String("reason", "no candidates in response"),
 		)
@@ -138,8 +195,15 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 		return "", &LLMResponseError{Message: "no content parts in response"}
 	}
 
-	// Extract text from first part
-	text := resp.Candidates[0].Content.Parts[0].Text
+	part := resp.Candidates[0].Content.Parts[0]
+	if part == nil {
+		v.logger.Error("LLM response error",
+			slog.String("reason", "response part is nil"),
+		)
+		return "", &LLMResponseError{Message: "response part is nil"}
+	}
+
+	text := part.Text
 	if text == "" {
 		v.logger.Error("LLM response error",
 			slog.String("reason", "response part has no text"),
@@ -156,86 +220,12 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	return text, nil
 }
 
-// GenerateTextCached generates a text response using a cached system prompt.
-// AC-001: Uses provided cacheName directly (pure API layer, no internal state).
-func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
-	// AC-004: Check if provider is closed before generating text
-	v.mu.RLock()
-	if v.closed {
-		v.mu.RUnlock()
-		return "", &LLMClosedError{Message: "provider is closed"}
-	}
-	v.mu.RUnlock()
-
-	v.logger.Debug("generating text with cache",
-		slog.String("model", v.model),
-		slog.Int("userMessageLength", len(userMessage)),
-		slog.String("cacheName", cacheName),
-	)
-
-	// AC-003: Disable thinking mode by setting budget to 0
-	thinkingBudget := int32(0)
-	config := &genai.GenerateContentConfig{
-		CachedContent: cacheName,
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
-		},
-	}
-
-	// Generate content with cached system prompt
-	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), config)
-	if err != nil {
-		v.logger.Error("LLM API call failed (cached)",
-			slog.String("model", v.model),
-			slog.String("cacheName", cacheName),
-			slog.Any("error", err),
-		)
-		return "", MapAPIError(err)
-	}
-
-	// Extract text from response
-	if len(resp.Candidates) == 0 {
-		v.logger.Error("LLM response error",
-			slog.String("reason", "no candidates in response"),
-		)
-		return "", &LLMResponseError{Message: "no candidates in response"}
-	}
-
-	if resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
-		v.logger.Error("LLM response error",
-			slog.String("reason", "no content parts in response"),
-		)
-		return "", &LLMResponseError{Message: "no content parts in response"}
-	}
-
-	text := resp.Candidates[0].Content.Parts[0].Text
-	if text == "" {
-		v.logger.Error("LLM response error",
-			slog.String("reason", "response part has no text"),
-		)
-		return "", &LLMResponseError{Message: "response part has no text"}
-	}
-
-	v.logger.Info("text generated successfully (cached)",
-		slog.String("model", v.model),
-		slog.String("modelVersion", resp.ModelVersion),
-		slog.Int("responseLength", len(text)),
-		slog.String("cacheName", cacheName),
-	)
-
-	return text, nil
-}
-
 // CreateCache creates a cached content for the given system prompt.
 // AC-001: Returns cacheName but does not store it internally (pure API layer).
 func (v *vertexAIClient) CreateCache(ctx context.Context, systemPrompt string) (string, error) {
-	// AC-004: Check if provider is closed
-	v.mu.RLock()
-	if v.closed {
-		v.mu.RUnlock()
-		return "", &LLMClosedError{Message: "provider is closed"}
+	if err := v.checkClosed(); err != nil {
+		return "", err
 	}
-	v.mu.RUnlock()
 
 	v.logger.Debug("creating cache",
 		slog.String("model", v.model),
