@@ -27,7 +27,11 @@
 
 ### Storage Backend
 
-<!-- TODO: ADRで決定する -->
+Google Cloud Storage を使用する。詳細は [ADR-20251228-chat-history-storage](../../adr/20251228-chat-history-storage.md) を参照。
+
+- JSONL形式で会話履歴を保存（1ファイル = 1 SourceID、1行 = 1メッセージ）
+- Read-Modify-Write パターンでメッセージを追加
+- Generation preconditions で競合を検出
 
 ### History Scope
 
