@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+
 	"yuruppu/internal/agent"
 
 	"github.com/stretchr/testify/assert"

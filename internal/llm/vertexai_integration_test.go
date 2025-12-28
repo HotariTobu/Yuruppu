@@ -24,7 +24,7 @@ func resolveGCPCredentials(t *testing.T) (projectID, region, model string) {
 
 	// Use MetadataClient to resolve values (same pattern as main.go)
 	httpClient := &http.Client{Timeout: 2 * time.Second}
-	metadataClient := gcp.NewMetadataClient(gcp.DefaultMetadataServerURL, httpClient, slog.Default())
+	metadataClient := gcp.New(gcp.DefaultMetadataServerURL, httpClient, slog.Default())
 
 	projectID = metadataClient.GetProjectID(os.Getenv("GCP_PROJECT_ID"))
 	if projectID == "" {
@@ -50,7 +50,7 @@ func TestVertexAI_Integration_NewClient(t *testing.T) {
 
 	ctx := context.Background()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, model, slog.Default())
+	client, err := llm.New(ctx, projectID, region, model, slog.Default())
 
 	require.NoError(t, err, "NewVertexAIClient should succeed with valid credentials")
 	assert.NotNil(t, client, "client should not be nil")
@@ -63,7 +63,7 @@ func TestVertexAI_Integration_GenerateText(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := llm.NewVertexAIClient(ctx, projectID, region, model, slog.Default())
+	client, err := llm.New(ctx, projectID, region, model, slog.Default())
 	require.NoError(t, err, "NewVertexAIClient should succeed")
 
 	response, err := client.GenerateText(ctx, "You are a helpful assistant.", "Say hello in one word.")

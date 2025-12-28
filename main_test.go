@@ -5,7 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
-	"yuruppu/internal/line"
+
+	"yuruppu/internal/line/server"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1107,11 +1108,11 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 // then /webhook endpoint is accessible.
 func TestCreateHandler(t *testing.T) {
 	// Given: Create a server directly
-	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	srv, err := server.New("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	// When: Create handler
-	handler := createHandler(server)
+	handler := createHandler(srv)
 
 	// Then: Should return non-nil handler
 	assert.NotNil(t, handler, "handler should not be nil")

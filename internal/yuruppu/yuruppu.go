@@ -2,10 +2,13 @@
 package yuruppu
 
 import (
+	// Standard library
 	"context"
 	_ "embed"
 	"log/slog"
 	"time"
+
+	// Internal packages
 	"yuruppu/internal/agent"
 	"yuruppu/internal/llm"
 )

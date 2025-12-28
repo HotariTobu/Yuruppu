@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	// Standard library
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,11 +18,11 @@ type MetadataClient struct {
 	logger     *slog.Logger
 }
 
-// NewMetadataClient creates a new MetadataClient.
+// New creates a new MetadataClient.
 // The baseURL should be DefaultMetadataServerURL in production.
 // The httpClient should have an appropriate timeout configured.
 // The logger is used for error logging.
-func NewMetadataClient(baseURL string, httpClient *http.Client, logger *slog.Logger) *MetadataClient {
+func New(baseURL string, httpClient *http.Client, logger *slog.Logger) *MetadataClient {
 	return &MetadataClient{
 		baseURL:    baseURL,
 		httpClient: httpClient,

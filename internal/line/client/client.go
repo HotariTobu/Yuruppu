@@ -1,10 +1,15 @@
-package line
+package client
 
 import (
+	// Standard library
 	"log/slog"
 	"strings"
 
+	// Third-party packages
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
+
+	// Internal packages
+	"yuruppu/internal/line"
 )
 
 // Client sends messages via LINE Messaging API.
@@ -13,14 +18,14 @@ type Client struct {
 	logger *slog.Logger
 }
 
-// NewClient creates a new LINE messaging client.
+// New creates a new LINE messaging client.
 // channelToken is the LINE channel access token for API calls.
 // logger is the structured logger for the client.
 // Returns an error if channelToken is empty after trimming whitespace.
-func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
+func New(channelToken string, logger *slog.Logger) (*Client, error) {
 	channelToken = strings.TrimSpace(channelToken)
 	if channelToken == "" {
-		return nil, &ConfigError{Variable: "channelToken"}
+		return nil, &line.ConfigError{Variable: "channelToken"}
 	}
 
 	// Create messaging API client using LINE SDK

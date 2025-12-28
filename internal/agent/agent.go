@@ -2,11 +2,14 @@
 package agent
 
 import (
+	// Standard library
 	"context"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
+
+	// Internal packages
 	"yuruppu/internal/llm"
 )
 

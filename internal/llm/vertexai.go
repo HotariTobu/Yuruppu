@@ -1,6 +1,7 @@
 package llm
 
 import (
+	// Standard library
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	// Third-party packages
 	"google.golang.org/genai"
 )
 
@@ -28,7 +30,7 @@ type vertexAIClient struct {
 	mu        sync.RWMutex // Protects closed field
 }
 
-// NewVertexAIClient creates a new Vertex AI client.
+// New creates a new Vertex AI client.
 // FR-003: Load LLM API credentials from environment variables
 // AC-012: Bot initializes LLM client successfully when credentials are set
 // AC-013: Bot fails to start during initialization if credentials are missing
@@ -39,7 +41,7 @@ type vertexAIClient struct {
 // model is the Gemini model name to use.
 // logger is the structured logger for the client.
 // Returns an error if projectID, region, or model is empty or whitespace-only.
-func NewVertexAIClient(ctx context.Context, projectID string, region string, model string, logger *slog.Logger) (Provider, error) {
+func New(ctx context.Context, projectID string, region string, model string, logger *slog.Logger) (Provider, error) {
 	// Handle nil context gracefully (SDK may require non-nil context)
 	if ctx == nil {
 		ctx = context.Background()

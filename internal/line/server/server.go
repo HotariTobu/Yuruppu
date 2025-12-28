@@ -1,45 +1,55 @@
-package line
+package server
 
 import (
+	// Standard library
 	"context"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	// Third-party packages
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
+
+	// Internal packages
+	"yuruppu/internal/line"
 )
 
-// ConfigError represents an error related to missing or invalid configuration.
-type ConfigError struct {
-	Variable string
-}
-
-func (e *ConfigError) Error() string {
-	return "Missing required configuration: " + e.Variable
+// Handler handles incoming LINE messages by type.
+// Each method receives a context with timeout and message-specific parameters.
+// The error return is used for logging purposes only - the HTTP response
+// is already sent before handler execution.
+type Handler interface {
+	HandleText(ctx context.Context, replyToken, userID, text string) error
+	HandleImage(ctx context.Context, replyToken, userID, messageID string) error
+	HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, replyToken, userID, messageID string) error
+	HandleAudio(ctx context.Context, replyToken, userID, messageID string) error
+	HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context, replyToken, userID string) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
 type Server struct {
 	channelSecret  string
-	handlers       []MessageHandler
+	handlers       []Handler
 	handlerTimeout time.Duration
 	logger         *slog.Logger
 }
 
-// NewServer creates a new LINE webhook server.
+// New creates a new LINE webhook server.
 // channelSecret is the LINE channel secret for signature verification.
 // timeout is the timeout for handler execution (must be positive).
 // logger is the structured logger for the server.
 // Returns an error if channelSecret is empty or timeout is not positive.
-func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
+func New(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
 	channelSecret = strings.TrimSpace(channelSecret)
 	if channelSecret == "" {
-		return nil, &ConfigError{Variable: "channelSecret"}
+		return nil, &line.ConfigError{Variable: "channelSecret"}
 	}
 
 	if timeout <= 0 {
-		return nil, &ConfigError{Variable: "timeout"}
+		return nil, &line.ConfigError{Variable: "timeout"}
 	}
 
 	return &Server{
@@ -52,7 +62,7 @@ func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger)
 // RegisterHandler registers a message handler.
 // Multiple handlers can be registered and all will be invoked for each message.
 // Handler methods are invoked asynchronously in goroutines after HTTP 200 is returned.
-func (s *Server) RegisterHandler(handler MessageHandler) {
+func (s *Server) RegisterHandler(handler Handler) {
 	s.handlers = append(s.handlers, handler)
 }
 
@@ -110,7 +120,7 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 }
 
 // invokeHandler invokes a single handler with panic recovery.
-func (s *Server) invokeHandler(handler MessageHandler, msgEvent webhook.MessageEvent, replyToken, userID string) {
+func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent, replyToken, userID string) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("handler panicked",

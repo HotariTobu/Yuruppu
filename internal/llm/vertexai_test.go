@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+
 	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +64,7 @@ func TestNewVertexAIClient_MissingProjectID(t *testing.T) {
 			// (projectID is set via function parameter, not env var for test isolation)
 
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), tt.projectID, "test-region", "test-model", discardLogger())
+			client, err := llm.New(context.Background(), tt.projectID, "test-region", "test-model", discardLogger())
 
 			// Then: Should return error indicating missing projectID
 			if tt.wantErr {
@@ -122,7 +123,7 @@ func TestNewVertexAIClient_EmptyRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID but empty/whitespace region
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", tt.region, "test-model", discardLogger())
+			client, err := llm.New(context.Background(), "test-project-id", tt.region, "test-model", discardLogger())
 
 			// Then: Should return error indicating missing region
 			if tt.wantErr {
@@ -173,7 +174,7 @@ func TestNewVertexAIClient_EmptyModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Valid project ID and region but empty/whitespace model
 			// When: Attempt to create Vertex AI client
-			client, err := llm.NewVertexAIClient(context.Background(), "test-project-id", "test-region", tt.model, discardLogger())
+			client, err := llm.New(context.Background(), "test-project-id", "test-region", tt.model, discardLogger())
 
 			// Then: Should return error indicating missing model
 			if tt.wantErr {

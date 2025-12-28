@@ -1,19 +1,21 @@
-package line_test
+package client_test
 
 import (
 	"log/slog"
 	"testing"
+
 	"yuruppu/internal/line"
+	"yuruppu/internal/line/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
-// NewClient Tests
+// New Tests
 // =============================================================================
 
-func TestNewClient(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.New(slog.DiscardHandler)
@@ -42,31 +44,19 @@ func TestNewClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := line.NewClient(tt.channelToken, logger)
+			c, err := client.New(tt.channelToken, logger)
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Nil(t, client)
+				assert.Nil(t, c)
 
 				configErr, ok := err.(*line.ConfigError)
 				require.True(t, ok, "error should be *line.ConfigError")
 				assert.Equal(t, tt.errVariable, configErr.Variable)
 			} else {
 				require.NoError(t, err)
-				assert.NotNil(t, client)
+				assert.NotNil(t, c)
 			}
 		})
 	}
-}
-
-// =============================================================================
-// ConfigError Tests
-// =============================================================================
-
-func TestConfigError_Message(t *testing.T) {
-	t.Parallel()
-
-	err := &line.ConfigError{Variable: "channelToken"}
-	expected := "Missing required configuration: channelToken"
-	assert.Equal(t, expected, err.Error())
 }

@@ -1,4 +1,4 @@
-package line_test
+package server_test
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
 	"yuruppu/internal/line"
+	"yuruppu/internal/line/server"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,7 @@ func computeSignature(body []byte, channelSecret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// mockHandler is a test implementation of line.MessageHandler.
+// mockHandler is a test implementation of server.Handler.
 type mockHandler struct {
 	mu              sync.Mutex
 	textMessages    []textMessage
@@ -70,7 +72,7 @@ type audioMessage struct {
 }
 
 type locationMessage struct {
-	replyToken, userID string
+	replyToken, userID  string
 	latitude, longitude float64
 }
 
@@ -149,10 +151,10 @@ func (m *mockHandler) HandleUnknown(ctx context.Context, replyToken, userID stri
 }
 
 // =============================================================================
-// NewServer Tests
+// New Tests
 // =============================================================================
 
-func TestNewServer(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -181,39 +183,39 @@ func TestNewServer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server, err := line.NewServer(tt.channelSecret, 30*time.Second, discardLogger())
+			s, err := server.New(tt.channelSecret, 30*time.Second, discardLogger())
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Nil(t, server)
+				assert.Nil(t, s)
 			} else {
 				require.NoError(t, err)
-				assert.NotNil(t, server)
+				assert.NotNil(t, s)
 			}
 		})
 	}
 }
 
-func TestNewServer_ZeroTimeout(t *testing.T) {
+func TestNew_ZeroTimeout(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", 0, discardLogger())
+	s, err := server.New("test-secret", 0, discardLogger())
 
 	require.Error(t, err, "zero timeout should be rejected")
-	assert.Nil(t, server)
+	assert.Nil(t, s)
 
 	var configErr *line.ConfigError
 	require.ErrorAs(t, err, &configErr)
 	assert.Equal(t, "timeout", configErr.Variable)
 }
 
-func TestNewServer_NegativeTimeout(t *testing.T) {
+func TestNew_NegativeTimeout(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", -5*time.Second, discardLogger())
+	s, err := server.New("test-secret", -5*time.Second, discardLogger())
 
 	require.Error(t, err, "negative timeout should be rejected")
-	assert.Nil(t, server)
+	assert.Nil(t, s)
 
 	var configErr *line.ConfigError
 	require.ErrorAs(t, err, &configErr)
@@ -227,16 +229,16 @@ func TestNewServer_NegativeTimeout(t *testing.T) {
 func TestServer_RegisterHandler(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.New("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
 
 	// Should not panic
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	// Can register multiple handlers
-	server.RegisterHandler(&mockHandler{})
+	s.RegisterHandler(&mockHandler{})
 }
 
 // =============================================================================
@@ -246,7 +248,7 @@ func TestServer_RegisterHandler(t *testing.T) {
 func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.New("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -254,7 +256,7 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	req.Header.Set("X-Line-Signature", "invalid-signature")
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -262,14 +264,14 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 	t.Parallel()
 
-	server, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.New("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -278,7 +280,7 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -288,7 +290,7 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -301,7 +303,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -310,7 +312,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 		close(done)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -329,7 +331,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -352,7 +354,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -362,7 +364,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 		wg.Done()
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -388,7 +390,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -417,7 +419,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -426,7 +428,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 		handlerCalled = true
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -444,7 +446,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -457,7 +459,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -466,7 +468,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 		close(done)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -485,7 +487,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -506,7 +508,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -515,7 +517,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 		close(done)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -534,7 +536,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -556,7 +558,7 @@ func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -565,7 +567,7 @@ func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 		close(done)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -584,7 +586,7 @@ func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -606,7 +608,7 @@ func TestServer_HandleWebhook_NoHandler(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{
@@ -628,7 +630,7 @@ func TestServer_HandleWebhook_NoHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	assert.NotPanics(t, func() {
-		server.HandleWebhook(w, req)
+		s.HandleWebhook(w, req)
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -638,7 +640,7 @@ func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler1 := &mockHandler{}
@@ -653,8 +655,8 @@ func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
 		wg.Done()
 		return nil
 	}
-	server.RegisterHandler(handler1)
-	server.RegisterHandler(handler2)
+	s.RegisterHandler(handler1)
+	s.RegisterHandler(handler2)
 
 	body := `{
 		"events": [
@@ -673,7 +675,7 @@ func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -706,7 +708,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -716,7 +718,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 		close(handlerDone)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -737,7 +739,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	start := time.Now()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 	responseTime := time.Since(start)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -754,7 +756,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -765,7 +767,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 		close(done)
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -784,7 +786,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	select {
 	case <-done:
@@ -801,7 +803,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 
 	channelSecret := "test-secret"
 	shortTimeout := 100 * time.Millisecond
-	server, err := line.NewServer(channelSecret, shortTimeout, discardLogger())
+	s, err := server.New(channelSecret, shortTimeout, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -818,7 +820,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 		}
 		return nil
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -837,7 +839,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 	req.Header.Set("X-Line-Signature", signature)
 
 	w := httptest.NewRecorder()
-	server.HandleWebhook(w, req)
+	s.HandleWebhook(w, req)
 
 	select {
 	case <-handlerStarted:
@@ -856,7 +858,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	server, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.New(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -865,7 +867,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 		close(panicTriggered)
 		panic("test panic")
 	}
-	server.RegisterHandler(handler)
+	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [
@@ -886,7 +888,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	assert.NotPanics(t, func() {
-		server.HandleWebhook(w, req)
+		s.HandleWebhook(w, req)
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)

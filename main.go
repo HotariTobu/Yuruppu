@@ -1,6 +1,7 @@
 package main
 
 import (
+	// Standard library
 	"context"
 	"errors"
 	"fmt"
@@ -12,8 +13,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	// Internal packages
 	"yuruppu/internal/gcp"
-	"yuruppu/internal/line"
+	"yuruppu/internal/line/client"
+	"yuruppu/internal/line/server"
 	"yuruppu/internal/llm"
 	"yuruppu/internal/yuruppu"
 )
@@ -122,10 +126,10 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
-// messageHandler implements line.MessageHandler.
+// messageHandler implements the MessageHandler interface from yuruppu/internal/line.
 type messageHandler struct {
 	yuruppu *yuruppu.Yuruppu
-	client  *line.Client
+	client  *client.Client
 	logger  *slog.Logger
 }
 
@@ -180,9 +184,9 @@ func (h *messageHandler) HandleUnknown(ctx context.Context, replyToken, userID s
 
 // createHandler creates and returns an http.Handler with registered routes.
 // AC-004: /webhook endpoint is registered with server.HandleWebhook.
-func createHandler(server *line.Server) http.Handler {
+func createHandler(srv *server.Server) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", server.HandleWebhook)
+	mux.HandleFunc("/webhook", srv.HandleWebhook)
 	return mux
 }
 
@@ -199,13 +203,13 @@ func main() {
 
 	// Initialize components
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	server, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
+	srv, err := server.New(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	client, err := line.NewClient(config.ChannelAccessToken, logger)
+	lineClient, err := client.New(config.ChannelAccessToken, logger)
 	if err != nil {
 		logger.Error("failed to initialize client", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -214,12 +218,12 @@ func main() {
 	// Resolve project ID and region from Cloud Run metadata with env var fallback
 	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
 	metadataHTTPClient := &http.Client{Timeout: gcpMetadataTimeout}
-	metadataClient := gcp.NewMetadataClient(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
+	metadataClient := gcp.New(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
 	// Create LLM provider (pure API layer)
-	llmProvider, err := llm.NewVertexAIClient(context.Background(), projectID, region, config.LLMModel, logger)
+	llmProvider, err := llm.New(context.Background(), projectID, region, config.LLMModel, logger)
 	if err != nil {
 		logger.Error("failed to initialize LLM provider", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -230,14 +234,14 @@ func main() {
 	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
 
 	// Register message handler
-	server.RegisterHandler(&messageHandler{
+	srv.RegisterHandler(&messageHandler{
 		yuruppu: yuruppuAgent,
-		client:  client,
+		client:  lineClient,
 		logger:  logger,
 	})
 
 	// Create HTTP server with graceful shutdown support
-	handler := createHandler(server)
+	handler := createHandler(srv)
 	httpServer := &http.Server{
 		Addr:              ":" + config.Port,
 		Handler:           handler,
