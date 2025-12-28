@@ -20,8 +20,7 @@
 
 ### Non-Functional Requirements
 
-- [ ] NFR-001: 履歴の読み書きはメッセージ処理のレイテンシに大きな影響を与えない（+100ms以内）
-- [ ] NFR-002: ストレージ障害時は応答を生成しない（エラーログのみ）
+- [ ] NFR-001: ストレージ障害時は応答を生成しない（エラーログのみ）
 
 ## Design Decisions
 
@@ -73,7 +72,6 @@ type ConversationHistory struct {
 |------------|-----------|----------|
 | StorageReadError | 履歴の読み込みに失敗 | 応答を生成しない、エラーログ出力 |
 | StorageWriteError | 履歴の保存に失敗 | 応答を生成しない、エラーログ出力 |
-| StorageTimeoutError | ストレージ操作がタイムアウト | 応答を生成しない、エラーログ出力 |
 
 ## Acceptance Criteria
 
@@ -102,7 +100,7 @@ type ConversationHistory struct {
   - ユーザーAとの1:1チャットの履歴のみがLLMリクエストに含まれる
   - ボットは「ラーメン」と回答する（寿司ではない）
 
-### AC-004: ストレージ障害時の動作 [NFR-002]
+### AC-004: ストレージ障害時の動作 [NFR-001]
 
 - **Given**: ストレージが利用不可能
 - **When**: ユーザーがメッセージを送信する
