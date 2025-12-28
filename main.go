@@ -18,9 +18,10 @@ import (
 	"yuruppu/internal/line/client"
 	"yuruppu/internal/line/server"
 	"yuruppu/internal/llm"
+	"yuruppu/internal/storage"
 	"yuruppu/internal/yuruppu"
 
-	"cloud.google.com/go/storage"
+	gcsstorage "cloud.google.com/go/storage"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -175,29 +176,29 @@ func main() {
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
 	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
 
-	// Create history storage if bucket is configured
-	// Per NFR-001: storage operations should add at most 100ms to message processing latency
-	var historyStorage history.Storage
-	var gcsClient *storage.Client
+	// Create history repository if bucket is configured
+	var historyRepo *history.Repository
+	var gcsClient *gcsstorage.Client
 	if config.HistoryBucket != "" {
 		var err error
-		gcsClient, err = storage.NewClient(context.Background())
+		gcsClient, err = gcsstorage.NewClient(context.Background())
 		if err != nil {
 			logger.Error("failed to create GCS client", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		gcsStorage := history.NewGCSStorage(gcsClient, config.HistoryBucket)
-		historyStorage = history.NewTimeoutStorage(gcsStorage, history.DefaultStorageTimeout)
-		logger.Info("chat history enabled",
-			slog.String("bucket", config.HistoryBucket),
-			slog.Duration("timeout", history.DefaultStorageTimeout),
-		)
+		gcsStorage := storage.NewGCSStorage(gcsClient, config.HistoryBucket)
+		historyRepo, err = history.NewRepository(gcsStorage)
+		if err != nil {
+			logger.Error("failed to create history repository", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
 	} else {
 		logger.Info("chat history disabled (HISTORY_BUCKET not set)")
 	}
 
 	// Register message handler
-	srv.RegisterHandler(bot.New(yuruppuAgent, lineClient, logger, historyStorage))
+	srv.RegisterHandler(bot.New(yuruppuAgent, lineClient, logger, historyRepo))
 
 	// Create HTTP server with graceful shutdown support
 	mux := http.NewServeMux()

@@ -1,28 +1,33 @@
 package history
 
-// StorageReadError is returned when reading from storage fails.
-type StorageReadError struct {
+import "errors"
+
+// ErrNilStorage is returned when storage is nil.
+var ErrNilStorage = errors.New("storage cannot be nil")
+
+// ValidationError is returned when input validation fails.
+type ValidationError struct {
 	Message string
 }
 
-func (e *StorageReadError) Error() string {
+func (e *ValidationError) Error() string {
 	return e.Message
 }
 
-// StorageWriteError is returned when writing to storage fails.
-type StorageWriteError struct {
+// ReadError is returned when reading history fails.
+type ReadError struct {
 	Message string
 }
 
-func (e *StorageWriteError) Error() string {
+func (e *ReadError) Error() string {
 	return e.Message
 }
 
-// StorageTimeoutError is returned when storage operation times out.
-type StorageTimeoutError struct {
+// WriteError is returned when writing history fails.
+type WriteError struct {
 	Message string
 }
 
-func (e *StorageTimeoutError) Error() string {
+func (e *WriteError) Error() string {
 	return e.Message
 }

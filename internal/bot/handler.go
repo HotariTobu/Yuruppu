@@ -24,27 +24,30 @@ type Handler struct {
 	responder Responder
 	sender    Sender
 	logger    *slog.Logger
-	storage   history.Storage
+	history   *history.Repository
 }
 
 // New creates a new Handler with the given dependencies.
-// storage can be nil if history storage is not needed.
-func New(responder Responder, sender Sender, logger *slog.Logger, storage history.Storage) *Handler {
+// historyRepo can be nil if history storage is not needed.
+// logger defaults to a discard handler if nil.
+func New(responder Responder, sender Sender, logger *slog.Logger, historyRepo *history.Repository) *Handler {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	return &Handler{
 		responder: responder,
 		sender:    sender,
 		logger:    logger,
-		storage:   storage,
+		history:   historyRepo,
 	}
 }
 
 func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
-	// Load history if storage is configured (FR-002)
-	// Per NFR-002: storage errors prevent sending a response
+	// Load history if configured (FR-002)
 	var conversationHistory []history.Message
-	if h.storage != nil {
+	if h.history != nil {
 		var err error
-		conversationHistory, err = h.storage.GetHistory(ctx, userID)
+		conversationHistory, err = h.history.GetHistory(ctx, userID)
 		if err != nil {
 			h.logger.ErrorContext(ctx, "failed to load history",
 				slog.String("userID", userID),
@@ -63,9 +66,8 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 		return err
 	}
 
-	// Save to history if storage is configured (FR-001)
-	// Per NFR-002: storage errors prevent sending a response
-	if h.storage != nil {
+	// Save to history if configured (FR-001)
+	if h.history != nil {
 		now := time.Now()
 		userMsg := history.Message{
 			Role:      "user",
@@ -77,7 +79,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 			Content:   response,
 			Timestamp: now,
 		}
-		if err := h.storage.AppendMessages(ctx, userID, userMsg, botMsg); err != nil {
+		if err := h.history.AppendMessages(ctx, userID, userMsg, botMsg); err != nil {
 			h.logger.ErrorContext(ctx, "failed to save history",
 				slog.String("userID", userID),
 				slog.Any("error", err),

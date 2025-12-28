@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"testing"
@@ -15,34 +16,34 @@ import (
 
 // Compile-time interface satisfaction checks
 var (
-	_ Responder       = (*mockResponder)(nil)
-	_ Sender          = (*mockSender)(nil)
-	_ server.Handler  = (*Handler)(nil)
-	_ history.Storage = (*mockStorage)(nil)
+	_ Responder      = (*mockResponder)(nil)
+	_ Sender         = (*mockSender)(nil)
+	_ server.Handler = (*Handler)(nil)
 )
 
 func TestNew(t *testing.T) {
 	t.Run("creates handler with dependencies", func(t *testing.T) {
 		responder := &mockResponder{}
 		sender := &mockSender{}
-		storage := &mockStorage{}
+		historyRepo, err := history.NewRepository(&mockStorage{})
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
 		require.NotNil(t, h)
 		assert.Equal(t, responder, h.responder)
 		assert.Equal(t, sender, h.sender)
-		assert.Equal(t, logger, h.logger)
-		assert.Equal(t, storage, h.storage)
+		assert.NotNil(t, h.logger) // logger should never be nil
+		assert.Equal(t, historyRepo, h.history)
 	})
 
-	t.Run("accepts nil logger and storage", func(t *testing.T) {
+	t.Run("uses discard logger when nil logger passed", func(t *testing.T) {
 		h := New(&mockResponder{}, &mockSender{}, nil, nil)
 
 		require.NotNil(t, h)
-		assert.Nil(t, h.logger)
-		assert.Nil(t, h.storage)
+		assert.NotNil(t, h.logger) // should be discard handler, not nil
+		assert.Nil(t, h.history)
 	})
 }
 
@@ -178,21 +179,23 @@ func TestHandler_HandleUnknown(t *testing.T) {
 func TestHandler_HistoryContext(t *testing.T) {
 	t.Run("loads history and passes to responder", func(t *testing.T) {
 		existingHistory := []history.Message{
-			{Role: "user", Content: "My name is Taro"},
-			{Role: "assistant", Content: "Nice to meet you, Taro!"},
+			{Role: "user", Content: "My name is Taro", Timestamp: time.Now()},
+			{Role: "assistant", Content: "Nice to meet you, Taro!", Timestamp: time.Now()},
 		}
+		mockStore := &mockStorage{data: serializeHistory(existingHistory), generation: 1}
 		responder := &mockResponder{response: "Hello Taro!"}
 		sender := &mockSender{}
-		storage := &mockStorage{history: existingHistory}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Do you remember my name?")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Do you remember my name?")
 
 		require.NoError(t, err)
-		// Verify history was loaded
-		assert.Equal(t, 1, storage.getCallCount)
-		assert.Equal(t, "user-123", storage.lastGetSourceID)
+		// Verify history was loaded (read once for GetHistory, once for AppendMessages)
+		assert.Equal(t, 2, mockStore.readCallCount)
+		assert.Equal(t, "user-123.jsonl", mockStore.lastReadKey)
 		// Verify history was passed to responder
 		require.Len(t, responder.lastHistory, 2)
 		assert.Equal(t, "My name is Taro", responder.lastHistory[0].Content)
@@ -200,42 +203,47 @@ func TestHandler_HistoryContext(t *testing.T) {
 	})
 
 	t.Run("passes empty history when no history exists", func(t *testing.T) {
+		mockStore := &mockStorage{} // nil data = no history
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
-		storage := &mockStorage{history: []history.Message{}} // empty history
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, storage.getCallCount)
+		// Read once for GetHistory, once for AppendMessages
+		assert.Equal(t, 2, mockStore.readCallCount)
 		assert.Empty(t, responder.lastHistory)
 	})
 
-	t.Run("does not respond when history read fails (NFR-002)", func(t *testing.T) {
+	t.Run("does not respond when history read fails", func(t *testing.T) {
+		mockStore := &mockStorage{readErr: errors.New("GCS read failed")}
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
-		storage := &mockStorage{getErr: &history.StorageReadError{Message: "GCS read failed"}}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		require.Error(t, err)
-		var storageErr *history.StorageReadError
-		assert.True(t, errors.As(err, &storageErr), "error should be StorageReadError")
+		var readErr *history.ReadError
+		assert.True(t, errors.As(err, &readErr), "error should be history.ReadError")
 		// Responder should not be called when history read fails
 		assert.Empty(t, responder.lastMessage)
 		// Sender should not be called when history read fails
 		assert.Equal(t, 0, sender.callCount)
 	})
 
-	t.Run("passes nil history when storage is nil", func(t *testing.T) {
+	t.Run("passes nil history when history is nil", func(t *testing.T) {
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, nil) // no storage
+		h := New(responder, sender, logger, nil) // no history
 
 		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
@@ -245,87 +253,119 @@ func TestHandler_HistoryContext(t *testing.T) {
 }
 
 // =============================================================================
-// History Storage Integration Tests (FR-001, NFR-002)
+// History Storage Integration Tests (FR-001)
 // =============================================================================
 
 func TestHandler_HistoryIntegration(t *testing.T) {
 	t.Run("saves user message and bot response to history after successful reply", func(t *testing.T) {
+		mockStore := &mockStorage{}
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
-		storage := &mockStorage{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		require.NoError(t, err)
-		// Verify storage was called with correct messages
-		require.Equal(t, 1, storage.appendCallCount)
-		assert.Equal(t, "user-123", storage.lastSourceID)
-		assert.Equal(t, "user", storage.lastUserMsg.Role)
-		assert.Equal(t, "Hi", storage.lastUserMsg.Content)
-		assert.Equal(t, "assistant", storage.lastBotMsg.Role)
-		assert.Equal(t, "Hello!", storage.lastBotMsg.Content)
+		// Verify storage was called
+		require.Equal(t, 1, mockStore.writeCallCount)
+		assert.Equal(t, "user-123.jsonl", mockStore.lastWriteKey)
+		// Should use generation 0 for new file (DoesNotExist precondition)
+		assert.Equal(t, int64(0), mockStore.lastWriteGeneration)
+
+		// Parse the written data to verify messages
+		messages := parseHistory(mockStore.lastWriteData)
+		require.Len(t, messages, 2)
+		assert.Equal(t, "user", messages[0].Role)
+		assert.Equal(t, "Hi", messages[0].Content)
+		assert.Equal(t, "assistant", messages[1].Role)
+		assert.Equal(t, "Hello!", messages[1].Content)
 		// Verify timestamps are set (within 1 second of now)
-		assert.WithinDuration(t, time.Now(), storage.lastUserMsg.Timestamp, time.Second)
-		assert.WithinDuration(t, time.Now(), storage.lastBotMsg.Timestamp, time.Second)
+		assert.WithinDuration(t, time.Now(), messages[0].Timestamp, time.Second)
+		assert.WithinDuration(t, time.Now(), messages[1].Timestamp, time.Second)
+	})
+
+	t.Run("uses generation precondition when appending to existing history", func(t *testing.T) {
+		existingHistory := []history.Message{
+			{Role: "user", Content: "Previous message", Timestamp: time.Now()},
+		}
+		mockStore := &mockStorage{
+			data:       serializeHistory(existingHistory),
+			generation: 12345,
+		}
+		responder := &mockResponder{response: "Hello!"}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h := New(responder, sender, logger, historyRepo)
+
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+
+		require.NoError(t, err)
+		// Should use existing generation for update
+		assert.Equal(t, int64(12345), mockStore.lastWriteGeneration)
 	})
 
 	t.Run("does not save history when responder fails", func(t *testing.T) {
+		mockStore := &mockStorage{}
 		responder := &mockResponder{err: errors.New("LLM failed")}
 		sender := &mockSender{}
-		storage := &mockStorage{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		require.Error(t, err)
-		assert.Equal(t, 0, storage.appendCallCount, "storage should not be called when responder fails")
+		assert.Equal(t, 0, mockStore.writeCallCount, "storage should not be called when responder fails")
 	})
 
 	t.Run("saves history even when sender fails", func(t *testing.T) {
-		// History is saved BEFORE sending (per NFR-002: storage errors must prevent response)
+		// History is saved BEFORE sending
 		// If storage succeeds and sender fails, history is already saved
+		mockStore := &mockStorage{}
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{err: errors.New("LINE API failed")}
-		storage := &mockStorage{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		require.Error(t, err)
 		// Storage was called before sender, so history is saved
-		assert.Equal(t, 1, storage.appendCallCount)
+		assert.Equal(t, 1, mockStore.writeCallCount)
 	})
 
-	t.Run("does not respond when storage fails (NFR-002)", func(t *testing.T) {
+	t.Run("does not respond when storage fails", func(t *testing.T) {
+		mockStore := &mockStorage{writeErr: errors.New("GCS failed")}
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
-		storage := &mockStorage{appendErr: &history.StorageWriteError{Message: "GCS failed"}}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, storage)
+		h := New(responder, sender, logger, historyRepo)
 
-		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
 		// Should return error (logged by server)
 		require.Error(t, err)
-		var storageErr *history.StorageWriteError
-		assert.True(t, errors.As(err, &storageErr), "error should be StorageWriteError")
-		// Sender should still be called because we need to send the response
-		// But since storage failed, we don't send
-		// Actually per NFR-002: "do not respond when storage fails" - sender should NOT be called
-		// Re-reading NFR-002: "ストレージ障害時は応答を生成しない" = "do not generate response when storage fails"
-		// This means we should not send a reply when storage write fails
+		var writeErr *history.WriteError
+		assert.True(t, errors.As(err, &writeErr), "error should be history.WriteError")
+		// Sender should NOT be called when storage fails
 		assert.Equal(t, 0, sender.callCount, "sender should not be called when storage fails")
 	})
 
-	t.Run("works without storage (nil storage)", func(t *testing.T) {
+	t.Run("works without history (nil history)", func(t *testing.T) {
 		responder := &mockResponder{response: "Hello!"}
 		sender := &mockSender{}
 		logger := slog.New(slog.DiscardHandler)
-		h := New(responder, sender, logger, nil) // no storage
+		h := New(responder, sender, logger, nil) // no history
 
 		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
 
@@ -345,9 +385,9 @@ type mockResponder struct {
 	lastHistory []history.Message
 }
 
-func (m *mockResponder) Respond(ctx context.Context, userMessage string, history []history.Message) (string, error) {
+func (m *mockResponder) Respond(ctx context.Context, userMessage string, hist []history.Message) (string, error) {
 	m.lastMessage = userMessage
-	m.lastHistory = history
+	m.lastHistory = hist
 	if m.err != nil {
 		return "", m.err
 	}
@@ -368,38 +408,89 @@ func (m *mockSender) SendReply(replyToken string, text string) error {
 	return m.err
 }
 
+// mockStorage implements storage.Storage interface
 type mockStorage struct {
-	// GetHistory behavior
-	history         []history.Message
-	getErr          error
-	getCallCount    int
-	lastGetSourceID string
+	// Read behavior
+	data          []byte
+	generation    int64
+	readErr       error
+	readCallCount int
+	lastReadKey   string
 
-	// AppendMessages behavior
-	appendErr       error
-	appendCallCount int
-	lastSourceID    string
-	lastUserMsg     history.Message
-	lastBotMsg      history.Message
+	// Write behavior
+	writeErr            error
+	writeCallCount      int
+	lastWriteKey        string
+	lastWriteData       []byte
+	lastWriteGeneration int64
 }
 
-func (m *mockStorage) GetHistory(ctx context.Context, sourceID string) ([]history.Message, error) {
-	m.getCallCount++
-	m.lastGetSourceID = sourceID
-	if m.getErr != nil {
-		return nil, m.getErr
+func (m *mockStorage) Read(ctx context.Context, key string) ([]byte, int64, error) {
+	m.readCallCount++
+	m.lastReadKey = key
+	if m.readErr != nil {
+		return nil, 0, m.readErr
 	}
-	return m.history, nil
+	return m.data, m.generation, nil
 }
 
-func (m *mockStorage) AppendMessages(ctx context.Context, sourceID string, userMsg, botMsg history.Message) error {
-	m.appendCallCount++
-	m.lastSourceID = sourceID
-	m.lastUserMsg = userMsg
-	m.lastBotMsg = botMsg
-	return m.appendErr
+func (m *mockStorage) Write(ctx context.Context, key string, data []byte, expectedGeneration int64) error {
+	m.writeCallCount++
+	m.lastWriteKey = key
+	m.lastWriteData = data
+	m.lastWriteGeneration = expectedGeneration
+	return m.writeErr
 }
 
 func (m *mockStorage) Close(ctx context.Context) error {
 	return nil
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+// serializeHistory converts messages to JSONL bytes
+func serializeHistory(messages []history.Message) []byte {
+	result := make([]byte, 0, len(messages)*100) // pre-allocate
+	for _, msg := range messages {
+		data, err := json.Marshal(msg)
+		if err != nil {
+			panic(err) // test helper only
+		}
+		result = append(result, data...)
+		result = append(result, '\n')
+	}
+	return result
+}
+
+// parseHistory converts JSONL bytes to messages
+func parseHistory(data []byte) []history.Message {
+	var messages []history.Message
+	lines := splitLines(data)
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var msg history.Message
+		if err := json.Unmarshal(line, &msg); err == nil {
+			messages = append(messages, msg)
+		}
+	}
+	return messages
+}
+
+func splitLines(data []byte) [][]byte {
+	var lines [][]byte
+	start := 0
+	for i, b := range data {
+		if b == '\n' {
+			lines = append(lines, data[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+	return lines
 }
