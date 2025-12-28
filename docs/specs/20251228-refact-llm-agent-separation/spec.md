@@ -166,8 +166,37 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 ## Implementation Notes
 
 - Agent's interface is intentionally different from Provider's interface
-- SystemPrompt moves from `internal/yuruppu/prompt/system.txt` usage in Handler to Agent initialization
-- main.go reads SystemPrompt and passes to Agent
+- SystemPrompt is embedded in `internal/yuruppu/yuruppu.go` via `go:embed`
+- Yuruppu wrapper encapsulates Agent and system prompt
+
+## Actual Implementation (Updated)
+
+The implementation uses a 3-layer architecture for better separation of concerns:
+
+```
+internal/
+  llm/
+    provider.go      - LLM API (pure API layer)
+  agent/
+    agent.go         - Generic Agent (cache management)
+  yuruppu/
+    yuruppu.go       - Yuruppu character (wraps Agent, embeds prompt)
+    handler.go       - Handler created from Yuruppu
+```
+
+Dependency flow: `yuruppu -> agent -> llm`
+
+```go
+// main.go
+provider := llm.NewVertexAIClient(...)
+yuruppuAgent := yuruppu.New(provider, logger)
+handler := yuruppuAgent.NewHandler(client)
+```
+
+This differs from the original spec design but achieves better:
+- **Reusability**: Generic `agent` package can be reused for other characters
+- **Encapsulation**: System prompt embedded in Yuruppu (not passed from main)
+- **Clear Layering**: Character -> behavior -> API separation
 
 ## Change History
 
@@ -177,3 +206,4 @@ Thread-safety: Concurrent cache recreation attempts are prevented using mutex.
 | 2025-12-28 | 1.1 | Add interface design, resource ownership, cache lifecycle details | - |
 | 2025-12-28 | 1.2 | Add error handling details, migration path | - |
 | 2025-12-28 | 1.3 | Design phase: Extend Provider interface with cache methods (ADR: 20251228-provider-cache-interface) | - |
+| 2025-12-28 | 1.4 | Implementation: Agent moved to `internal/agent`, Yuruppu wrapper introduced for 3-layer architecture | - |

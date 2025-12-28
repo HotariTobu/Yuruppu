@@ -16,7 +16,6 @@ import (
 	"yuruppu/internal/line"
 	"yuruppu/internal/llm"
 	"yuruppu/internal/yuruppu"
-	"yuruppu/internal/yuruppu/prompt"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -170,11 +169,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create Agent (manages system prompt and caching)
-	llmAgent := llm.NewAgent(llmProvider, prompt.SystemPrompt, logger)
+	// Create Yuruppu agent (manages system prompt and caching)
+	yuruppuAgent := yuruppu.New(llmProvider, logger)
 
-	// Create yuruppu handler and register callback
-	yHandler := yuruppu.NewHandler(llmAgent, client, logger)
+	// Create handler from Yuruppu and register callback
+	yHandler := yuruppuAgent.NewHandler(client)
 	server.OnMessage(createMessageCallback(yHandler))
 
 	// Create HTTP server with graceful shutdown support
@@ -211,9 +210,9 @@ func main() {
 		logger.Error("failed to shutdown HTTP server gracefully", slog.String("error", err.Error()))
 	}
 
-	// Close Agent first (cleans up cache)
-	if err := llmAgent.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close LLM agent", slog.String("error", err.Error()))
+	// Close Yuruppu agent first (cleans up cache)
+	if err := yuruppuAgent.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close Yuruppu agent", slog.String("error", err.Error()))
 	}
 
 	// Close Provider (cleans up API connections)
