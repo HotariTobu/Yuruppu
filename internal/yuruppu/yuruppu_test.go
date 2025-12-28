@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"testing"
 	"time"
+	"yuruppu/internal/llm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	historyPkg "yuruppu/internal/history"
 )
 
 // TestSystemPrompt_NotEmpty verifies systemPrompt is embedded and non-empty.
@@ -52,7 +55,7 @@ func TestYuruppu_Respond(t *testing.T) {
 		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
-		response, err := yuruppu.Respond(ctx, "Hello")
+		response, err := yuruppu.Respond(ctx, "Hello", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello from Yuruppu!", response)
@@ -67,10 +70,49 @@ func TestYuruppu_Respond(t *testing.T) {
 		yuruppu := New(mockProvider, time.Hour, logger)
 
 		ctx := context.Background()
-		_, err := yuruppu.Respond(ctx, "Hello")
+		_, err := yuruppu.Respond(ctx, "Hello", nil)
 
 		require.Error(t, err)
 		assert.Equal(t, "LLM error", err.Error())
+	})
+
+	t.Run("passes history to agent (FR-002)", func(t *testing.T) {
+		mockProvider := &mockProvider{
+			cacheName: "cache-123",
+			response:  "I remember you, Taro!",
+		}
+		logger := slog.New(slog.DiscardHandler)
+		yuruppuBot := New(mockProvider, time.Hour, logger)
+
+		ctx := context.Background()
+		history := []historyPkg.Message{
+			{Role: "user", Content: "My name is Taro"},
+			{Role: "assistant", Content: "Nice to meet you!"},
+		}
+		response, err := yuruppuBot.Respond(ctx, "Do you remember me?", history)
+
+		require.NoError(t, err)
+		assert.Equal(t, "I remember you, Taro!", response)
+		// Verify history was converted to llm.Message and passed to provider
+		require.Len(t, mockProvider.lastHistory, 2)
+		assert.Equal(t, "My name is Taro", mockProvider.lastHistory[0].Content)
+		assert.Equal(t, "user", mockProvider.lastHistory[0].Role)
+	})
+
+	t.Run("works with nil history", func(t *testing.T) {
+		mockProvider := &mockProvider{
+			cacheName: "cache-123",
+			response:  "Hello!",
+		}
+		logger := slog.New(slog.DiscardHandler)
+		yuruppu := New(mockProvider, time.Hour, logger)
+
+		ctx := context.Background()
+		response, err := yuruppu.Respond(ctx, "Hi", nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Hello!", response)
+		assert.Nil(t, mockProvider.lastHistory)
 	})
 }
 
@@ -116,16 +158,19 @@ type mockProvider struct {
 	deleteCacheErr   error
 	generateTextErr  error
 	deleteCacheCalls int
+	lastHistory      []llm.Message
 }
 
-func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
+	m.lastHistory = history
 	if m.generateTextErr != nil {
 		return "", m.generateTextErr
 	}
 	return m.response, nil
 }
 
-func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
+	m.lastHistory = history
 	return m.response, nil
 }
 

@@ -9,7 +9,9 @@ import (
 
 // Responder generates a response for a given message.
 type Responder interface {
-	Respond(ctx context.Context, userMessage string) (string, error)
+	// Respond generates a response for a given message with optional conversation history.
+	// history may be nil if no history is available.
+	Respond(ctx context.Context, userMessage string, history []history.Message) (string, error)
 }
 
 // Sender sends a reply message.
@@ -37,7 +39,22 @@ func New(responder Responder, sender Sender, logger *slog.Logger, storage histor
 }
 
 func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
-	response, err := h.responder.Respond(ctx, text)
+	// Load history if storage is configured (FR-002)
+	// Per NFR-002: storage errors prevent sending a response
+	var conversationHistory []history.Message
+	if h.storage != nil {
+		var err error
+		conversationHistory, err = h.storage.GetHistory(ctx, userID)
+		if err != nil {
+			h.logger.ErrorContext(ctx, "failed to load history",
+				slog.String("userID", userID),
+				slog.Any("error", err),
+			)
+			return err
+		}
+	}
+
+	response, err := h.responder.Respond(ctx, text, conversationHistory)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "LLM call failed",
 			slog.String("userID", userID),

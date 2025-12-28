@@ -86,10 +86,11 @@ func New(ctx context.Context, projectID string, region string, model string, log
 // GenerateText generates a text response given a system prompt and user message.
 // TR-002: Implements Provider interface for LLM abstraction
 // AC-001: Pure API layer - no caching logic. The system prompt is sent directly with each request.
+// history provides optional conversation context (may be nil).
 //
 // The context can be used for timeout and cancellation.
 // NFR-001: LLM API total request timeout should be configurable via context
-func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []Message) (string, error) {
 	if err := v.checkClosed(); err != nil {
 		return "", err
 	}
@@ -97,10 +98,14 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 	v.logger.Debug("generating text",
 		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
+		slog.Int("historyLength", len(history)),
 	)
 
+	// Build conversation contents: history + current user message
+	contents := v.buildContents(history, userMessage)
+
 	budget := disabledThinkingBudget
-	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), &genai.GenerateContentConfig{
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, contents, &genai.GenerateContentConfig{
 		ThinkingConfig: &genai.ThinkingConfig{
 			ThinkingBudget: &budget,
 		},
@@ -119,7 +124,8 @@ func (v *vertexAIClient) GenerateText(ctx context.Context, systemPrompt, userMes
 
 // GenerateTextCached generates a text response using a cached system prompt.
 // AC-001: Uses provided cacheName directly (pure API layer, no internal state).
-func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+// history provides optional conversation context (may be nil).
+func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []Message) (string, error) {
 	if err := v.checkClosed(); err != nil {
 		return "", err
 	}
@@ -127,11 +133,15 @@ func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, user
 	v.logger.Debug("generating text with cache",
 		slog.String("model", v.model),
 		slog.Int("userMessageLength", len(userMessage)),
+		slog.Int("historyLength", len(history)),
 		slog.String("cacheName", cacheName),
 	)
 
+	// Build conversation contents: history + current user message
+	contents := v.buildContents(history, userMessage)
+
 	budget := disabledThinkingBudget
-	resp, err := v.client.Models.GenerateContent(ctx, v.model, genai.Text(userMessage), &genai.GenerateContentConfig{
+	resp, err := v.client.Models.GenerateContent(ctx, v.model, contents, &genai.GenerateContentConfig{
 		ThinkingConfig: &genai.ThinkingConfig{
 			ThinkingBudget: &budget,
 		},
@@ -147,6 +157,39 @@ func (v *vertexAIClient) GenerateTextCached(ctx context.Context, cacheName, user
 	}
 
 	return v.extractTextFromResponse(resp)
+}
+
+// buildContents builds the conversation contents from history and current user message.
+// Returns []*genai.Content suitable for GenerateContent API.
+func (v *vertexAIClient) buildContents(history []Message, userMessage string) []*genai.Content {
+	// If no history, just return the current user message
+	if len(history) == 0 {
+		return genai.Text(userMessage)
+	}
+
+	// Build contents: history + current user message
+	contents := make([]*genai.Content, 0, len(history)+1)
+
+	// Add history messages
+	for _, msg := range history {
+		role := msg.Role
+		// Gemini uses "model" for assistant role
+		if role == "assistant" {
+			role = "model"
+		}
+		contents = append(contents, &genai.Content{
+			Role:  role,
+			Parts: []*genai.Part{{Text: msg.Content}},
+		})
+	}
+
+	// Add current user message
+	contents = append(contents, &genai.Content{
+		Role:  "user",
+		Parts: []*genai.Part{{Text: userMessage}},
+	})
+
+	return contents
 }
 
 // checkClosed checks if the provider is closed and returns an error if so.

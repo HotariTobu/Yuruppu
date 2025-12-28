@@ -77,8 +77,9 @@ func New(provider llm.Provider, systemPrompt string, cacheTTL time.Duration, log
 }
 
 // GenerateText generates a text response given a user message.
+// history provides optional conversation context (may be nil).
 // Returns ClosedError if the Agent has been closed.
-func (a *Agent) GenerateText(ctx context.Context, userMessage string) (string, error) {
+func (a *Agent) GenerateText(ctx context.Context, userMessage string, history []llm.Message) (string, error) {
 	// Check if Agent is closed
 	a.closedMu.RLock()
 	if a.closed {
@@ -94,16 +95,16 @@ func (a *Agent) GenerateText(ctx context.Context, userMessage string) (string, e
 
 	if cacheName == "" {
 		// Fallback mode: use non-cached path
-		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage)
+		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage, history)
 	}
 
-	return a.generateWithCache(ctx, cacheName, userMessage)
+	return a.generateWithCache(ctx, cacheName, userMessage, history)
 }
 
 // generateWithCache attempts to generate text using the cache.
 // If cache error is detected, it attempts recreation and retry.
-func (a *Agent) generateWithCache(ctx context.Context, cacheName, userMessage string) (string, error) {
-	response, err := a.provider.GenerateTextCached(ctx, cacheName, userMessage)
+func (a *Agent) generateWithCache(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
+	response, err := a.provider.GenerateTextCached(ctx, cacheName, userMessage, history)
 	if err == nil {
 		return response, nil
 	}
@@ -114,11 +115,11 @@ func (a *Agent) generateWithCache(ctx context.Context, cacheName, userMessage st
 	}
 
 	// Cache error detected, attempt recreation
-	return a.handleCacheErrorAndRetry(ctx, userMessage, err)
+	return a.handleCacheErrorAndRetry(ctx, userMessage, history, err)
 }
 
 // handleCacheErrorAndRetry handles cache errors by attempting cache recreation.
-func (a *Agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string, originalErr error) (string, error) {
+func (a *Agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string, history []llm.Message, originalErr error) (string, error) {
 	a.logger.Warn("cache error detected, attempting recreation",
 		slog.Any("error", originalErr),
 	)
@@ -130,17 +131,17 @@ func (a *Agent) handleCacheErrorAndRetry(ctx context.Context, userMessage string
 		a.logger.Warn("cache recreation failed, falling back to non-cached mode",
 			slog.Any("error", recreateErr),
 		)
-		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage)
+		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage, history)
 	}
 
 	// Retry with recreated cache
-	response, retryErr := a.provider.GenerateTextCached(ctx, newCacheName, userMessage)
+	response, retryErr := a.provider.GenerateTextCached(ctx, newCacheName, userMessage, history)
 	if retryErr != nil {
 		// If retry also fails, fall back to non-cached mode
 		a.logger.Warn("retry with recreated cache failed, falling back to non-cached mode",
 			slog.Any("error", retryErr),
 		)
-		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage)
+		return a.provider.GenerateText(ctx, a.systemPrompt, userMessage, history)
 	}
 
 	return response, nil

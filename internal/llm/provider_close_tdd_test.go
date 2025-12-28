@@ -43,14 +43,14 @@ type testProviderImpl struct {
 	closed bool
 }
 
-func (t *testProviderImpl) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (t *testProviderImpl) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if t.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}
 	return "test response", nil
 }
 
-func (t *testProviderImpl) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (t *testProviderImpl) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if t.closed {
 		return "", &llm.LLMClosedError{Message: "provider is closed"}
 	}

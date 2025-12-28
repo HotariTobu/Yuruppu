@@ -172,6 +172,79 @@ func TestHandler_HandleUnknown(t *testing.T) {
 }
 
 // =============================================================================
+// History Context Tests (FR-002)
+// =============================================================================
+
+func TestHandler_HistoryContext(t *testing.T) {
+	t.Run("loads history and passes to responder", func(t *testing.T) {
+		existingHistory := []history.Message{
+			{Role: "user", Content: "My name is Taro"},
+			{Role: "assistant", Content: "Nice to meet you, Taro!"},
+		}
+		responder := &mockResponder{response: "Hello Taro!"}
+		sender := &mockSender{}
+		storage := &mockStorage{history: existingHistory}
+		logger := slog.New(slog.DiscardHandler)
+		h := New(responder, sender, logger, storage)
+
+		err := h.HandleText(context.Background(), "reply-token", "user-123", "Do you remember my name?")
+
+		require.NoError(t, err)
+		// Verify history was loaded
+		assert.Equal(t, 1, storage.getCallCount)
+		assert.Equal(t, "user-123", storage.lastGetSourceID)
+		// Verify history was passed to responder
+		require.Len(t, responder.lastHistory, 2)
+		assert.Equal(t, "My name is Taro", responder.lastHistory[0].Content)
+		assert.Equal(t, "Nice to meet you, Taro!", responder.lastHistory[1].Content)
+	})
+
+	t.Run("passes empty history when no history exists", func(t *testing.T) {
+		responder := &mockResponder{response: "Hello!"}
+		sender := &mockSender{}
+		storage := &mockStorage{history: []history.Message{}} // empty history
+		logger := slog.New(slog.DiscardHandler)
+		h := New(responder, sender, logger, storage)
+
+		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, storage.getCallCount)
+		assert.Empty(t, responder.lastHistory)
+	})
+
+	t.Run("does not respond when history read fails (NFR-002)", func(t *testing.T) {
+		responder := &mockResponder{response: "Hello!"}
+		sender := &mockSender{}
+		storage := &mockStorage{getErr: &history.StorageReadError{Message: "GCS read failed"}}
+		logger := slog.New(slog.DiscardHandler)
+		h := New(responder, sender, logger, storage)
+
+		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+
+		require.Error(t, err)
+		var storageErr *history.StorageReadError
+		assert.True(t, errors.As(err, &storageErr), "error should be StorageReadError")
+		// Responder should not be called when history read fails
+		assert.Empty(t, responder.lastMessage)
+		// Sender should not be called when history read fails
+		assert.Equal(t, 0, sender.callCount)
+	})
+
+	t.Run("passes nil history when storage is nil", func(t *testing.T) {
+		responder := &mockResponder{response: "Hello!"}
+		sender := &mockSender{}
+		logger := slog.New(slog.DiscardHandler)
+		h := New(responder, sender, logger, nil) // no storage
+
+		err := h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+
+		require.NoError(t, err)
+		assert.Nil(t, responder.lastHistory)
+	})
+}
+
+// =============================================================================
 // History Storage Integration Tests (FR-001, NFR-002)
 // =============================================================================
 
@@ -269,10 +342,12 @@ type mockResponder struct {
 	response    string
 	err         error
 	lastMessage string
+	lastHistory []history.Message
 }
 
-func (m *mockResponder) Respond(ctx context.Context, userMessage string) (string, error) {
+func (m *mockResponder) Respond(ctx context.Context, userMessage string, history []history.Message) (string, error) {
 	m.lastMessage = userMessage
+	m.lastHistory = history
 	if m.err != nil {
 		return "", m.err
 	}

@@ -66,7 +66,7 @@ func TestVertexAI_Integration_GenerateText(t *testing.T) {
 	client, err := llm.New(ctx, projectID, region, model, slog.Default())
 	require.NoError(t, err, "NewVertexAIClient should succeed")
 
-	response, err := client.GenerateText(ctx, "You are a helpful assistant.", "Say hello in one word.")
+	response, err := client.GenerateText(ctx, "You are a helpful assistant.", "Say hello in one word.", nil)
 
 	require.NoError(t, err, "GenerateText should succeed")
 	assert.NotEmpty(t, response, "response should not be empty")

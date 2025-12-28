@@ -41,7 +41,7 @@ func TestProvider_InterfaceExists(t *testing.T) {
 		systemPrompt := "You are Yuruppu, a friendly LINE bot."
 		userMessage := "Hello!"
 
-		got, err := mock.GenerateText(ctx, systemPrompt, userMessage)
+		got, err := mock.GenerateText(ctx, systemPrompt, userMessage, nil)
 
 		// Then: Should work as expected
 		require.NoError(t, err)
@@ -58,8 +58,8 @@ func TestProvider_InterfaceExists(t *testing.T) {
 		ctx2 := context.WithValue(context.Background(), "key", "value")
 
 		// Then: Should accept both contexts without error
-		_, err1 := mock.GenerateText(ctx1, "system", "user")
-		_, err2 := mock.GenerateText(ctx2, "system", "user")
+		_, err1 := mock.GenerateText(ctx1, "system", "user", nil)
+		_, err2 := mock.GenerateText(ctx2, "system", "user", nil)
 
 		require.NoError(t, err1, "should accept background context")
 		require.NoError(t, err2, "should accept context with values")
@@ -73,7 +73,7 @@ func TestProvider_InterfaceExists(t *testing.T) {
 
 		// When: Call GenerateText
 		ctx := context.Background()
-		response, err := mock.GenerateText(ctx, "system", "user")
+		response, err := mock.GenerateText(ctx, "system", "user", nil)
 
 		// Then: Should return error and empty string
 		require.Error(t, err)
@@ -94,7 +94,7 @@ func TestProvider_MethodSignature(t *testing.T) {
 		systemPrompt := "You are Yuruppu, a friendly bot that responds in Japanese."
 		userMessage := "Tell me a joke"
 
-		response, err := mock.GenerateText(ctx, systemPrompt, userMessage)
+		response, err := mock.GenerateText(ctx, systemPrompt, userMessage, nil)
 
 		// Then: Should return response
 		require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestProvider_MethodSignature(t *testing.T) {
 
 		// When: Call with empty system prompt
 		ctx := context.Background()
-		response, err := mock.GenerateText(ctx, "", "user message")
+		response, err := mock.GenerateText(ctx, "", "user message", nil)
 
 		// Then: Should still work (implementation decides how to handle)
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestProvider_MethodSignature(t *testing.T) {
 
 		// When: Call with empty user message
 		ctx := context.Background()
-		response, err := mock.GenerateText(ctx, "system prompt", "")
+		response, err := mock.GenerateText(ctx, "system prompt", "", nil)
 
 		// Then: Should still work (implementation decides how to handle)
 		require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestProvider_MethodSignature(t *testing.T) {
 		longSystemPrompt := "You are Yuruppu. " + string(make([]byte, 1000))
 		longUserMessage := "Hello. " + string(make([]byte, 5000))
 
-		_, err := mock.GenerateText(ctx, longSystemPrompt, longUserMessage)
+		_, err := mock.GenerateText(ctx, longSystemPrompt, longUserMessage, nil)
 
 		// Then: Should not panic or error on long inputs
 		require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestProvider_ContextCancellation(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// When: Call GenerateText with cancelled context
-		_, err := mock.GenerateText(ctx, "system", "user")
+		_, err := mock.GenerateText(ctx, "system", "user", nil)
 
 		// Then: Should return context cancelled error
 		require.Error(t, err)
@@ -176,7 +176,7 @@ func TestProvider_ContextCancellation(t *testing.T) {
 		defer cancel()
 
 		// When: Call GenerateText
-		_, err := mock.GenerateText(ctx, "system", "user")
+		_, err := mock.GenerateText(ctx, "system", "user", nil)
 
 		// Then: Should return deadline exceeded error
 		require.Error(t, err)
@@ -671,7 +671,7 @@ func TestProvider_Close(t *testing.T) {
 
 		// Given: Provider is functioning normally before Close
 		ctx := context.Background()
-		response, err := provider.GenerateText(ctx, "system", "user")
+		response, err := provider.GenerateText(ctx, "system", "user", nil)
 		require.NoError(t, err, "GenerateText should work before Close")
 		assert.Equal(t, "test response", response)
 
@@ -680,7 +680,7 @@ func TestProvider_Close(t *testing.T) {
 		require.NoError(t, err, "Close should succeed")
 
 		// Then: Subsequent GenerateText calls return an error
-		response, err = provider.GenerateText(ctx, "system", "user")
+		response, err = provider.GenerateText(ctx, "system", "user", nil)
 		require.Error(t, err, "GenerateText should return error after Close")
 		assert.Empty(t, response, "Response should be empty after Close")
 		assert.Contains(t, err.Error(), "closed",
@@ -698,9 +698,9 @@ func TestProvider_Close(t *testing.T) {
 		require.NoError(t, err)
 
 		// When: Multiple GenerateText calls are made after Close
-		_, err1 := provider.GenerateText(ctx, "system1", "user1")
-		_, err2 := provider.GenerateText(ctx, "system2", "user2")
-		_, err3 := provider.GenerateText(ctx, "system3", "user3")
+		_, err1 := provider.GenerateText(ctx, "system1", "user1", nil)
+		_, err2 := provider.GenerateText(ctx, "system2", "user2", nil)
+		_, err3 := provider.GenerateText(ctx, "system3", "user3", nil)
 
 		// Then: All calls should return errors
 		assert.Error(t, err1, "First GenerateText after Close should error")
@@ -754,13 +754,13 @@ func TestProvider_CloseOrder(t *testing.T) {
 		ctx := context.Background()
 
 		// When: GenerateText is called, then Close, then GenerateText again
-		_, err1 := provider.GenerateText(ctx, "system", "user")
+		_, err1 := provider.GenerateText(ctx, "system", "user", nil)
 		require.NoError(t, err1, "First GenerateText should succeed")
 
 		err2 := provider.Close(ctx)
 		require.NoError(t, err2, "Close should succeed")
 
-		_, err3 := provider.GenerateText(ctx, "system", "user")
+		_, err3 := provider.GenerateText(ctx, "system", "user", nil)
 
 		// Then: Second GenerateText should fail
 		assert.Error(t, err3, "GenerateText after Close should fail")
@@ -783,7 +783,7 @@ func TestProvider_InterfaceHasCacheMethods(t *testing.T) {
 
 		// When: Call GenerateTextCached
 		ctx := context.Background()
-		response, err := provider.GenerateTextCached(ctx, "cache-name", "message")
+		response, err := provider.GenerateTextCached(ctx, "cache-name", "message", nil)
 
 		// Then: Method should be callable through interface
 		require.NoError(t, err)
@@ -830,7 +830,7 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 		cacheName := "test-cache-123"
 		userMessage := "Hello from user"
 
-		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage)
+		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage, nil)
 
 		// Then: Should use the provided cacheName
 		require.NoError(t, err)
@@ -852,13 +852,13 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 		cache2 := "cache-beta"
 		cache3 := "cache-gamma"
 
-		_, _ = mock.GenerateTextCached(ctx, cache1, "message1")
+		_, _ = mock.GenerateTextCached(ctx, cache1, "message1", nil)
 		assert.Equal(t, cache1, mock.lastUsedCacheName)
 
-		_, _ = mock.GenerateTextCached(ctx, cache2, "message2")
+		_, _ = mock.GenerateTextCached(ctx, cache2, "message2", nil)
 		assert.Equal(t, cache2, mock.lastUsedCacheName)
 
-		_, _ = mock.GenerateTextCached(ctx, cache3, "message3")
+		_, _ = mock.GenerateTextCached(ctx, cache3, "message3", nil)
 		assert.Equal(t, cache3, mock.lastUsedCacheName)
 
 		// Then: Should accept and use each cache name
@@ -872,7 +872,7 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 
 		// When: Call GenerateTextCached
 		ctx := context.Background()
-		response, err := mock.GenerateTextCached(ctx, "test-cache", "message")
+		response, err := mock.GenerateTextCached(ctx, "test-cache", "message", nil)
 
 		// Then: Should return error
 		require.Error(t, err)
@@ -888,7 +888,7 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 
 		// When: Call with empty user message
 		ctx := context.Background()
-		response, err := mock.GenerateTextCached(ctx, "cache-name", "")
+		response, err := mock.GenerateTextCached(ctx, "cache-name", "", nil)
 
 		// Then: Should not error (implementation decides behavior)
 		require.NoError(t, err)
@@ -906,7 +906,7 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// When: Call GenerateTextCached with cancelled context
-		_, err := mock.GenerateTextCached(ctx, "cache-name", "message")
+		_, err := mock.GenerateTextCached(ctx, "cache-name", "message", nil)
 
 		// Then: Should return context cancelled error
 		require.Error(t, err)
@@ -926,7 +926,7 @@ func TestProvider_GenerateTextCached(t *testing.T) {
 		require.NoError(t, err)
 
 		// When: Call GenerateTextCached after Close
-		response, err := mock.GenerateTextCached(ctx, "cache-name", "message")
+		response, err := mock.GenerateTextCached(ctx, "cache-name", "message", nil)
 
 		// Then: Should return error
 		require.Error(t, err)
@@ -1235,7 +1235,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		require.NotEmpty(t, cacheName)
 
 		// When: Use cache for generation
-		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage)
+		response, err := mock.GenerateTextCached(ctx, cacheName, userMessage, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "Response from cache", response)
 		assert.Equal(t, cacheName, mock.lastUsedCacheName)
@@ -1262,7 +1262,7 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 
 		// When: Use different cache (provider doesn't validate)
 		cache2 := "different-cache-name"
-		_, err = mock.GenerateTextCached(ctx, cache2, "message")
+		_, err = mock.GenerateTextCached(ctx, cache2, "message", nil)
 		require.NoError(t, err)
 
 		// Then: Provider accepts any cache name (no internal state validation)
@@ -1288,11 +1288,11 @@ func TestProvider_CacheMethodsIntegration(t *testing.T) {
 		require.NoError(t, err3)
 
 		// When: Use different caches
-		_, err := mock.GenerateTextCached(ctx, cache1, "msg1")
+		_, err := mock.GenerateTextCached(ctx, cache1, "msg1", nil)
 		require.NoError(t, err)
-		_, err = mock.GenerateTextCached(ctx, cache2, "msg2")
+		_, err = mock.GenerateTextCached(ctx, cache2, "msg2", nil)
 		require.NoError(t, err)
-		_, err = mock.GenerateTextCached(ctx, cache3, "msg3")
+		_, err = mock.GenerateTextCached(ctx, cache3, "msg3", nil)
 		require.NoError(t, err)
 
 		// Then: All caches work independently
@@ -1314,7 +1314,7 @@ type mockProvider struct {
 	closed       bool
 }
 
-func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	// Check context cancellation if requested
 	if m.checkContext {
 		select {
@@ -1330,7 +1330,7 @@ func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessa
 	return m.response, nil
 }
 
-func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.checkContext {
 		select {
 		case <-ctx.Done():
@@ -1374,7 +1374,7 @@ type mockProviderWithClose struct {
 	closed   bool
 }
 
-func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -1385,7 +1385,7 @@ func (m *mockProviderWithClose) GenerateText(ctx context.Context, systemPrompt, 
 	return m.response, nil
 }
 
-func (m *mockProviderWithClose) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockProviderWithClose) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -1428,7 +1428,7 @@ type mockProviderWithCache struct {
 	cacheCounter           int
 }
 
-func (m *mockProviderWithCache) GenerateText(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+func (m *mockProviderWithCache) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
@@ -1447,7 +1447,7 @@ func (m *mockProviderWithCache) GenerateText(ctx context.Context, systemPrompt, 
 	return m.response, nil
 }
 
-func (m *mockProviderWithCache) GenerateTextCached(ctx context.Context, cacheName, userMessage string) (string, error) {
+func (m *mockProviderWithCache) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
 	if m.closed {
 		return "", errors.New("provider is closed")
 	}
