@@ -5,8 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
-	"yuruppu/internal/llm"
+	"yuruppu/internal/agent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,33 +25,49 @@ func TestSystemPrompt_NotEmpty(t *testing.T) {
 // =============================================================================
 
 func TestYuruppu_New(t *testing.T) {
-	t.Run("creates Yuruppu with provider", func(t *testing.T) {
-		mockProvider := &mockProvider{}
+	t.Run("creates Yuruppu with agent", func(t *testing.T) {
+		mockAgent := &mockAgent{}
 		logger := slog.New(slog.DiscardHandler)
 
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
 
+		require.NoError(t, err)
 		require.NotNil(t, yuruppu)
 		assert.NotNil(t, yuruppu.agent)
+		assert.True(t, mockAgent.configureCalled)
 	})
 
 	t.Run("creates Yuruppu with nil logger", func(t *testing.T) {
-		mockProvider := &mockProvider{}
+		mockAgent := &mockAgent{}
 
-		yuruppu := New(mockProvider, time.Hour, nil)
+		yuruppu, err := New(mockAgent, nil)
 
+		require.NoError(t, err)
 		require.NotNil(t, yuruppu)
+	})
+
+	t.Run("returns error when Configure fails", func(t *testing.T) {
+		mockAgent := &mockAgent{
+			configureErr: errors.New("configure failed"),
+		}
+		logger := slog.New(slog.DiscardHandler)
+
+		yuruppu, err := New(mockAgent, logger)
+
+		require.Error(t, err)
+		assert.Nil(t, yuruppu)
+		assert.Equal(t, "configure failed", err.Error())
 	})
 }
 
 func TestYuruppu_Respond(t *testing.T) {
 	t.Run("delegates to agent successfully", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-			response:  "Hello from Yuruppu!",
+		mockAgent := &mockAgent{
+			response: "Hello from Yuruppu!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
 		response, err := yuruppu.Respond(ctx, "Hello", nil)
@@ -62,27 +77,27 @@ func TestYuruppu_Respond(t *testing.T) {
 	})
 
 	t.Run("returns error from agent", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			createCacheErr:  errors.New("cache failed"),
+		mockAgent := &mockAgent{
 			generateTextErr: errors.New("LLM error"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
-		_, err := yuruppu.Respond(ctx, "Hello", nil)
+		_, err = yuruppu.Respond(ctx, "Hello", nil)
 
 		require.Error(t, err)
 		assert.Equal(t, "LLM error", err.Error())
 	})
 
 	t.Run("passes history to agent (FR-002)", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-			response:  "I remember you, Taro!",
+		mockAgent := &mockAgent{
+			response: "I remember you, Taro!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppuBot := New(mockProvider, time.Hour, logger)
+		yuruppuBot, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
 		history := []historyPkg.Message{
@@ -93,75 +108,79 @@ func TestYuruppu_Respond(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "I remember you, Taro!", response)
-		// Verify history was converted to llm.Message and passed to provider
-		require.Len(t, mockProvider.lastHistory, 2)
-		assert.Equal(t, "My name is Taro", mockProvider.lastHistory[0].Content)
-		assert.Equal(t, "user", mockProvider.lastHistory[0].Role)
+		// Verify history was converted to agent.Message and passed to agent
+		require.Len(t, mockAgent.lastHistory, 2)
+		assert.Equal(t, "My name is Taro", mockAgent.lastHistory[0].Content)
+		assert.Equal(t, "user", mockAgent.lastHistory[0].Role)
 	})
 
 	t.Run("works with nil history", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-			response:  "Hello!",
+		mockAgent := &mockAgent{
+			response: "Hello!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
 		response, err := yuruppu.Respond(ctx, "Hi", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello!", response)
-		assert.Nil(t, mockProvider.lastHistory)
+		assert.Nil(t, mockAgent.lastHistory)
 	})
 }
 
 func TestYuruppu_Close(t *testing.T) {
 	t.Run("delegates to agent successfully", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName: "cache-123",
-		}
+		mockAgent := &mockAgent{}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
-		err := yuruppu.Close(ctx)
+		err = yuruppu.Close(ctx)
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, mockProvider.deleteCacheCalls)
+		assert.True(t, mockAgent.closeCalled)
 	})
 
-	t.Run("handles close error gracefully", func(t *testing.T) {
-		mockProvider := &mockProvider{
-			cacheName:      "cache-123",
-			deleteCacheErr: errors.New("delete failed"),
+	t.Run("returns error from agent", func(t *testing.T) {
+		mockAgent := &mockAgent{
+			closeErr: errors.New("close failed"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu := New(mockProvider, time.Hour, logger)
+		yuruppu, err := New(mockAgent, logger)
+		require.NoError(t, err)
 
 		ctx := context.Background()
-		err := yuruppu.Close(ctx)
+		err = yuruppu.Close(ctx)
 
-		// Agent logs error but returns nil
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Equal(t, "close failed", err.Error())
 	})
 }
 
 // =============================================================================
-// Mock Provider for Yuruppu Tests
+// Mock Agent for Yuruppu Tests
 // =============================================================================
 
-type mockProvider struct {
-	response         string
-	cacheName        string
-	createCacheErr   error
-	deleteCacheErr   error
-	generateTextErr  error
-	deleteCacheCalls int
-	lastHistory      []llm.Message
+type mockAgent struct {
+	response        string
+	configureErr    error
+	generateTextErr error
+	closeErr        error
+	configureCalled bool
+	closeCalled     bool
+	lastHistory     []agent.Message
 }
 
-func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessage string, history []llm.Message) (string, error) {
+func (m *mockAgent) Configure(ctx context.Context, systemPrompt string) error {
+	m.configureCalled = true
+	return m.configureErr
+}
+
+func (m *mockAgent) GenerateText(ctx context.Context, userMessage string, history []agent.Message) (string, error) {
 	m.lastHistory = history
 	if m.generateTextErr != nil {
 		return "", m.generateTextErr
@@ -169,23 +188,7 @@ func (m *mockProvider) GenerateText(ctx context.Context, systemPrompt, userMessa
 	return m.response, nil
 }
 
-func (m *mockProvider) GenerateTextCached(ctx context.Context, cacheName, userMessage string, history []llm.Message) (string, error) {
-	m.lastHistory = history
-	return m.response, nil
-}
-
-func (m *mockProvider) CreateCachedConfig(ctx context.Context, systemPrompt string, ttl time.Duration) (string, error) {
-	if m.createCacheErr != nil {
-		return "", m.createCacheErr
-	}
-	return m.cacheName, nil
-}
-
-func (m *mockProvider) DeleteCachedConfig(ctx context.Context, cacheName string) error {
-	m.deleteCacheCalls++
-	return m.deleteCacheErr
-}
-
-func (m *mockProvider) Close(ctx context.Context) error {
-	return nil
+func (m *mockAgent) Close(ctx context.Context) error {
+	m.closeCalled = true
+	return m.closeErr
 }
