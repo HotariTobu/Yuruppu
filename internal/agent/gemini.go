@@ -15,12 +15,15 @@ import (
 // disabledThinkingBudget disables the thinking feature in Gemini models.
 const disabledThinkingBudget = int32(0)
 
+// minCacheTokens is the minimum token count required for Gemini context caching.
+const minCacheTokens = 1024
+
 // GeminiAgent is an implementation of Agent using Google Gemini via Vertex AI.
 type GeminiAgent struct {
-	client    *genai.Client
-	model     string
-	cacheName string
-	logger    *slog.Logger
+	client        *genai.Client
+	model         string
+	contentConfig *genai.GenerateContentConfig
+	logger        *slog.Logger
 
 	closedMu sync.RWMutex // Protects closed field
 	closed   bool
@@ -71,36 +74,66 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 		return nil, fmt.Errorf("failed to create Vertex AI client: %w", err)
 	}
 
-	// Create cache with system prompt
-	logger.Debug("creating cache",
+	// Count tokens in system prompt
+	systemInstruction := genai.NewContentFromText(systemPrompt, genai.RoleUser)
+	tokenResp, err := client.Models.CountTokens(ctx, model, nil, &genai.CountTokensConfig{
+		SystemInstruction: systemInstruction,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count tokens: %w", err)
+	}
+
+	tokenCount := tokenResp.TotalTokens
+	logger.Debug("system prompt token count",
 		slog.String("model", model),
-		slog.Int("systemPromptLength", len(systemPrompt)),
-		slog.Duration("ttl", cacheTTL),
+		slog.Int("tokenCount", int(tokenCount)),
+		slog.Int("minCacheTokens", minCacheTokens),
 	)
+
+	agent := &GeminiAgent{
+		client: client,
+		model:  model,
+		logger: logger,
+	}
+
+	budget := disabledThinkingBudget
+	thinkingConfig := &genai.ThinkingConfig{
+		ThinkingBudget: &budget,
+	}
+
+	// Skip cache if token count is below minimum
+	if tokenCount < minCacheTokens {
+		logger.Debug("cache skipped: token count below minimum")
+		agent.contentConfig = &genai.GenerateContentConfig{
+			SystemInstruction: systemInstruction,
+			ThinkingConfig:    thinkingConfig,
+		}
+		return agent, nil
+	}
+
+	// Create cache with system prompt
+	logger.Debug("creating cache", slog.Duration("ttl", cacheTTL))
 
 	cache, err := client.Caches.Create(ctx, model, &genai.CreateCachedContentConfig{
 		TTL:               cacheTTL,
-		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+		SystemInstruction: systemInstruction,
 		DisplayName:       "yuruppu-system-prompt",
 	})
 	if err != nil {
-		logger.Error("cache creation failed",
-			slog.String("model", model),
-			slog.Any("error", err),
-		)
 		return nil, fmt.Errorf("failed to create cache: %w", err)
 	}
 
-	logger.Info("cache created successfully",
+	logger.Debug("cache created successfully",
 		slog.String("cacheName", cache.Name),
+		slog.Any("usageMetadata", cache.UsageMetadata),
 	)
 
-	return &GeminiAgent{
-		client:    client,
-		model:     model,
-		cacheName: cache.Name,
-		logger:    logger,
-	}, nil
+	agent.contentConfig = &genai.GenerateContentConfig{
+		ThinkingConfig: thinkingConfig,
+		CachedContent:  cache.Name,
+	}
+
+	return agent, nil
 }
 
 // GenerateText generates a text response for the conversation history.
@@ -119,27 +152,15 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (stri
 		return "", errors.New("last message in history must be from user")
 	}
 
-	g.logger.Debug("generating text with cache",
+	g.logger.Debug("generating text",
 		slog.String("model", g.model),
 		slog.Int("historyLength", len(history)),
-		slog.String("cacheName", g.cacheName),
 	)
 
 	contents := g.buildContentsFromHistory(history)
 
-	budget := disabledThinkingBudget
-	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, &genai.GenerateContentConfig{
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &budget,
-		},
-		CachedContent: g.cacheName,
-	})
+	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, g.contentConfig)
 	if err != nil {
-		g.logger.Error("LLM API call failed",
-			slog.String("model", g.model),
-			slog.String("cacheName", g.cacheName),
-			slog.Any("error", err),
-		)
 		return "", mapAPIError(err)
 	}
 
@@ -157,17 +178,18 @@ func (g *GeminiAgent) Close(ctx context.Context) error {
 	g.closed = true
 	g.closedMu.Unlock()
 
-	// Delete cache if client is available
-	if g.client != nil && g.cacheName != "" {
-		_, err := g.client.Caches.Delete(ctx, g.cacheName, nil)
+	// Delete cache if it was created
+	cacheName := g.contentConfig.CachedContent
+	if cacheName != "" {
+		_, err := g.client.Caches.Delete(ctx, cacheName, nil)
 		if err != nil {
 			g.logger.Warn("cache deletion failed during close",
-				slog.String("cacheName", g.cacheName),
+				slog.String("cacheName", cacheName),
 				slog.Any("error", err),
 			)
 		} else {
 			g.logger.Debug("cache deleted during close",
-				slog.String("cacheName", g.cacheName),
+				slog.String("cacheName", cacheName),
 			)
 		}
 	}

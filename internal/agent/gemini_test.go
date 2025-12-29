@@ -260,7 +260,10 @@ func TestErrorTypes_Error(t *testing.T) {
 // =============================================================================
 
 func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
-	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
+	g := &GeminiAgent{
+		logger:        slog.New(slog.DiscardHandler),
+		contentConfig: &genai.GenerateContentConfig{},
+	}
 
 	// Close the agent
 	err := g.Close(context.Background())
@@ -283,7 +286,10 @@ func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 }
 
 func TestGeminiAgent_Close_Idempotent(t *testing.T) {
-	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
+	g := &GeminiAgent{
+		logger:        slog.New(slog.DiscardHandler),
+		contentConfig: &genai.GenerateContentConfig{},
+	}
 
 	// Close multiple times should not error
 	for i := range 3 {
@@ -296,8 +302,7 @@ func TestGeminiAgent_Close_Idempotent(t *testing.T) {
 
 func TestGeminiAgent_GenerateText_EmptyHistory(t *testing.T) {
 	g := &GeminiAgent{
-		logger:    slog.New(slog.DiscardHandler),
-		cacheName: "test-cache", // Simulate configured state
+		logger: slog.New(slog.DiscardHandler),
 	}
 
 	_, err := g.GenerateText(context.Background(), []Message{})
@@ -312,8 +317,7 @@ func TestGeminiAgent_GenerateText_EmptyHistory(t *testing.T) {
 
 func TestGeminiAgent_GenerateText_LastMessageNotUser(t *testing.T) {
 	g := &GeminiAgent{
-		logger:    slog.New(slog.DiscardHandler),
-		cacheName: "test-cache", // Simulate configured state
+		logger: slog.New(slog.DiscardHandler),
 	}
 
 	history := []Message{
