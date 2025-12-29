@@ -1,10 +1,7 @@
 // Package agent provides the Agent interface for LLM interactions.
 package agent
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 // Message represents a single message in conversation history.
 type Message struct {
@@ -24,12 +21,4 @@ type Agent interface {
 	// Close is idempotent (safe to call multiple times).
 	// After Close, subsequent GenerateText calls return ClosedError.
 	Close(ctx context.Context) error
-}
-
-// Config holds configuration for creating an Agent.
-type Config struct {
-	ProjectID string
-	Region    string
-	Model     string
-	CacheTTL  time.Duration
 }
