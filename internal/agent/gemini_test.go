@@ -244,7 +244,6 @@ func TestErrorTypes_Error(t *testing.T) {
 		{"ResponseError", &ResponseError{Message: "response"}, "response"},
 		{"AuthError", &AuthError{Message: "auth", StatusCode: 401}, "auth"},
 		{"ClosedError", &ClosedError{Message: "closed"}, "closed"},
-		{"NotConfiguredError", &NotConfiguredError{Message: "not configured"}, "not configured"},
 	}
 
 	for _, tt := range tests {
@@ -259,22 +258,6 @@ func TestErrorTypes_Error(t *testing.T) {
 // =============================================================================
 // Lifecycle Tests
 // =============================================================================
-
-func TestGeminiAgent_GenerateText_BeforeConfigure(t *testing.T) {
-	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
-
-	history := []Message{{Role: "user", Content: "hello"}}
-	_, err := g.GenerateText(context.Background(), history)
-
-	if err == nil {
-		t.Fatal("expected error for GenerateText before Configure")
-	}
-
-	var notConfiguredErr *NotConfiguredError
-	if !errors.As(err, &notConfiguredErr) {
-		t.Fatalf("expected NotConfiguredError, got %T: %v", err, err)
-	}
-}
 
 func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}

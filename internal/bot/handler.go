@@ -3,16 +3,11 @@ package bot
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
+	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
 )
-
-// Responder generates a response for a given message.
-type Responder interface {
-	// Respond generates a response for the conversation history.
-	// The last message in history must be the user message to respond to.
-	Respond(ctx context.Context, history []history.Message) (string, error)
-}
 
 // Sender sends a reply message.
 type Sender interface {
@@ -21,23 +16,33 @@ type Sender interface {
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
-	history   *history.Repository
-	responder Responder
-	sender    Sender
-	logger    *slog.Logger
+	history *history.Repository
+	agent   agent.Agent
+	sender  Sender
+	logger  *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
+// Panics if historyRepo, agent, or sender is nil.
 // logger defaults to a discard handler if nil.
-func NewHandler(historyRepo *history.Repository, responder Responder, sender Sender, logger *slog.Logger) *Handler {
+func NewHandler(historyRepo *history.Repository, ag agent.Agent, sender Sender, logger *slog.Logger) *Handler {
+	if historyRepo == nil {
+		panic("historyRepo is required")
+	}
+	if ag == nil {
+		panic("agent is required")
+	}
+	if sender == nil {
+		panic("sender is required")
+	}
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	return &Handler{
-		history:   historyRepo,
-		responder: responder,
-		sender:    sender,
-		logger:    logger,
+		history: historyRepo,
+		agent:   ag,
+		sender:  sender,
+		logger:  logger,
 	}
 }
 
@@ -56,7 +61,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 
 	// Step 2: Append user message and save to history
 	userMessage := history.Message{Role: "user", Content: text, Timestamp: now}
-	historyWithUser := append(conversationHistory, userMessage)
+	historyWithUser := slices.Concat(conversationHistory, []history.Message{userMessage})
 	if err := h.history.PutHistory(ctx, userID, historyWithUser, generation); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save user message to history",
 			slog.String("userID", userID),
@@ -66,9 +71,14 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 	}
 
 	// Step 3: Generate response
-	response, err := h.responder.Respond(ctx, historyWithUser)
+	// Convert history.Message to agent.Message
+	agentHistory := make([]agent.Message, len(historyWithUser))
+	for i, m := range historyWithUser {
+		agentHistory[i] = agent.Message{Role: m.Role, Content: m.Content}
+	}
+	response, err := h.agent.GenerateText(ctx, agentHistory)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "LLM call failed",
+		h.logger.ErrorContext(ctx, "failed to generate response",
 			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
@@ -95,7 +105,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 		return err
 	}
 	assistantMessage := history.Message{Role: "assistant", Content: response, Timestamp: time.Now()}
-	historyWithAssistant := append(currentHistory, assistantMessage)
+	historyWithAssistant := slices.Concat(currentHistory, []history.Message{assistantMessage})
 	if err := h.history.PutHistory(ctx, userID, historyWithAssistant, newGeneration); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
 			slog.String("userID", userID),

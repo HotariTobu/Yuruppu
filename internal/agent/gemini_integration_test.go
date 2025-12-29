@@ -35,12 +35,10 @@ func TestGeminiAgent_Integration_GenerateText(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, nil)
+	systemPrompt := "You are a helpful assistant. Respond briefly."
+	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
 	require.NoError(t, err)
 	defer a.Close(ctx)
-
-	err = a.Configure(ctx, "You are a helpful assistant. Respond briefly.")
-	require.NoError(t, err)
 
 	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
 	require.NoError(t, err)
@@ -51,12 +49,10 @@ func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, nil)
+	systemPrompt := "You are a helpful assistant. Respond briefly."
+	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
 	require.NoError(t, err)
 	defer a.Close(ctx)
-
-	err = a.Configure(ctx, "You are a helpful assistant. Respond briefly.")
-	require.NoError(t, err)
 
 	history := []agent.Message{
 		{Role: "user", Content: "My name is Taro"},
