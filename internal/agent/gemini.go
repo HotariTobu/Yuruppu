@@ -57,7 +57,7 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 
 	// Handle nil logger
 	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(nil, nil))
+		logger = slog.New(slog.DiscardHandler)
 	}
 
 	// Create Vertex AI client
@@ -124,17 +124,21 @@ func (g *GeminiAgent) Configure(ctx context.Context, systemPrompt string) error 
 	return g.configureErr
 }
 
-// GenerateText generates a text response given a user message.
-// history provides optional conversation context (may be nil).
+// GenerateText generates a text response for the conversation history.
+// The last message in history must be the user message to respond to.
 // Returns NotConfiguredError if Configure has not been called.
-func (g *GeminiAgent) GenerateText(ctx context.Context, userMessage string, history []Message) (string, error) {
+func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (string, error) {
 	if err := g.checkClosed(); err != nil {
 		return "", err
 	}
 
 	// Validate input
-	if strings.TrimSpace(userMessage) == "" {
-		return "", errors.New("userMessage is required")
+	if len(history) == 0 {
+		return "", errors.New("history is required")
+	}
+	lastMsg := history[len(history)-1]
+	if lastMsg.Role != "user" {
+		return "", errors.New("last message in history must be from user")
 	}
 
 	g.cacheNameMu.Lock()
@@ -147,12 +151,11 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, userMessage string, hist
 
 	g.logger.Debug("generating text with cache",
 		slog.String("model", g.model),
-		slog.Int("userMessageLength", len(userMessage)),
 		slog.Int("historyLength", len(history)),
 		slog.String("cacheName", cacheName),
 	)
 
-	contents := g.buildContents(history, userMessage)
+	contents := g.buildContentsFromHistory(history)
 
 	budget := disabledThinkingBudget
 	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, &genai.GenerateContentConfig{
@@ -218,13 +221,9 @@ func (g *GeminiAgent) checkClosed() error {
 	return nil
 }
 
-// buildContents builds the conversation contents from history and current user message.
-func (g *GeminiAgent) buildContents(history []Message, userMessage string) []*genai.Content {
-	if len(history) == 0 {
-		return genai.Text(userMessage)
-	}
-
-	contents := make([]*genai.Content, 0, len(history)+1)
+// buildContentsFromHistory builds the conversation contents from history.
+func (g *GeminiAgent) buildContentsFromHistory(history []Message) []*genai.Content {
+	contents := make([]*genai.Content, 0, len(history))
 
 	for _, msg := range history {
 		role := msg.Role
@@ -237,11 +236,6 @@ func (g *GeminiAgent) buildContents(history []Message, userMessage string) []*ge
 			Parts: []*genai.Part{{Text: msg.Content}},
 		})
 	}
-
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: []*genai.Part{{Text: userMessage}},
-	})
 
 	return contents
 }

@@ -52,19 +52,19 @@ func (m *metadataServerMock) Start(t *testing.T) *httptest.Server {
 }
 
 // =============================================================================
-// NewMetadataClient Tests
+// NewClient Tests
 // =============================================================================
 
-// TestNew tests creating MetadataClient.
+// TestNewClient tests creating MetadataClient.
 // AC-001: MetadataClient can be created with configurable timeout and logger
-func TestNew(t *testing.T) {
+func TestNewClient(t *testing.T) {
 	t.Run("creates client with provided parameters", func(t *testing.T) {
 		// Given: Parameters for MetadataClient
 		httpClient := &http.Client{Timeout: 5 * time.Second}
 		logger := discardLogger()
 
 		// When: Create MetadataClient
-		client := gcp.New(gcp.DefaultMetadataServerURL, httpClient, logger)
+		client := gcp.NewClient(gcp.DefaultMetadataServerURL, httpClient, logger)
 
 		// Then: Should create client successfully
 		assert.NotNil(t, client, "client should not be nil")
@@ -161,7 +161,7 @@ func TestMetadataClient_GetProjectID(t *testing.T) {
 			defer server.Close()
 
 			// Create client with test server URL
-			client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+			client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get project ID with fallback
 			got := client.GetProjectID(tt.fallbackProjectID)
@@ -183,7 +183,7 @@ func TestMetadataClient_GetProjectID_EmptyFallback(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+		client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID with empty fallback
 		got := client.GetProjectID("")
@@ -207,7 +207,7 @@ func TestMetadataClient_GetProjectID_MetadataHeaders(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+		client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID
 		_ = client.GetProjectID("test-fallback-project")
@@ -232,7 +232,7 @@ func TestMetadataClient_GetProjectID_ProductionEndpoint(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+		client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get project ID
 		_ = client.GetProjectID("test-fallback-project")
@@ -306,7 +306,7 @@ func TestMetadataClient_GetProjectID_EdgeCases(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+			client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get project ID with fallback
 			got := client.GetProjectID(tt.fallbackProjectID)
@@ -360,7 +360,7 @@ func testGetProjectIDTimeout(t *testing.T, serverDelay time.Duration, fallbackPr
 	}
 
 	// Create MetadataClient with test HTTP client (baseURL doesn't matter with custom transport)
-	client := gcp.New("http://test", httpClient, discardLogger())
+	client := gcp.NewClient("http://test", httpClient, discardLogger())
 
 	// Channel to signal server goroutine completion
 	serverDone := make(chan struct{})
@@ -516,7 +516,7 @@ func TestMetadataClient_GetRegion(t *testing.T) {
 			server := tt.metadataServer.Start(t)
 			defer server.Close()
 
-			client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+			client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region with fallback
 			got := client.GetRegion(tt.fallbackRegion)
@@ -566,7 +566,7 @@ func TestMetadataClient_GetRegion_ParsingFormats(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+			client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region
 			got := client.GetRegion(tt.fallbackRegion)
@@ -591,7 +591,7 @@ func TestMetadataClient_GetRegion_MetadataHeaders(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+		client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get region
 		_ = client.GetRegion("test-region")
@@ -616,7 +616,7 @@ func TestMetadataClient_GetRegion_ProductionEndpoint(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+		client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 		// When: Get region
 		_ = client.GetRegion("test-region")
@@ -702,7 +702,7 @@ func TestMetadataClient_GetRegion_EdgeCases(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := gcp.New(server.URL, http.DefaultClient, discardLogger())
+			client := gcp.NewClient(server.URL, http.DefaultClient, discardLogger())
 
 			// When: Get region with fallback
 			got := client.GetRegion(tt.fallbackRegion)
@@ -756,7 +756,7 @@ func testGetRegionTimeout(t *testing.T, serverDelay time.Duration, fallbackRegio
 	}
 
 	// Create MetadataClient with test HTTP client (baseURL doesn't matter with custom transport)
-	client := gcp.New("http://test", httpClient, discardLogger())
+	client := gcp.NewClient("http://test", httpClient, discardLogger())
 
 	// Channel to signal server goroutine completion
 	serverDone := make(chan struct{})

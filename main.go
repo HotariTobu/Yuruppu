@@ -16,8 +16,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/gcp"
 	"yuruppu/internal/history"
-	"yuruppu/internal/line/client"
-	"yuruppu/internal/line/server"
+	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/yuruppu"
 
@@ -146,13 +145,13 @@ func main() {
 
 	// Initialize components
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	srv, err := server.New(config.ChannelSecret, llmTimeout, logger)
+	srv, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	lineClient, err := client.New(config.ChannelAccessToken, logger)
+	lineClient, err := line.NewClient(config.ChannelAccessToken, logger)
 	if err != nil {
 		logger.Error("failed to initialize client", slog.Any("error", err))
 		os.Exit(1)
@@ -161,7 +160,7 @@ func main() {
 	// Resolve project ID and region from Cloud Run metadata with env var fallback
 	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
 	metadataHTTPClient := &http.Client{Timeout: gcpMetadataTimeout}
-	metadataClient := gcp.New(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
+	metadataClient := gcp.NewClient(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
@@ -174,7 +173,7 @@ func main() {
 	}
 
 	// Create Yuruppu agent (configures system prompt)
-	yuruppuAgent, err := yuruppu.New(geminiAgent, logger)
+	yuruppuAgent, err := yuruppu.NewResponder(geminiAgent, logger)
 	if err != nil {
 		logger.Error("failed to initialize Yuruppu agent", slog.Any("error", err))
 		os.Exit(1)
@@ -202,7 +201,7 @@ func main() {
 	}
 
 	// Register message handler
-	srv.RegisterHandler(bot.New(yuruppuAgent, lineClient, logger, historyRepo))
+	srv.RegisterHandler(bot.NewHandler(historyRepo, yuruppuAgent, lineClient, logger))
 
 	// Create HTTP server with graceful shutdown support
 	mux := http.NewServeMux()
