@@ -76,9 +76,14 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 
 	// Count tokens in system prompt
 	systemInstruction := genai.NewContentFromText(systemPrompt, genai.RoleUser)
-	tokenResp, err := client.Models.CountTokens(ctx, model, nil, &genai.CountTokensConfig{
-		SystemInstruction: systemInstruction,
-	})
+	tokenResp, err := client.Models.CountTokens(
+		ctx,
+		model,
+		genai.Text(""),
+		&genai.CountTokensConfig{
+			SystemInstruction: systemInstruction,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count tokens: %w", err)
 	}
