@@ -17,25 +17,22 @@ const disabledThinkingBudget = int32(0)
 
 // GeminiAgent is an implementation of Agent using Google Gemini via Vertex AI.
 type GeminiAgent struct {
-	client   *genai.Client
-	model    string
-	cacheTTL time.Duration
-	logger   *slog.Logger
+	client    *genai.Client
+	model     string
+	cacheName string
+	logger    *slog.Logger
 
-	cacheName     string       // Set after Configure. Empty means not configured.
-	cacheNameMu   sync.Mutex   // Protects cacheName
-	configureOnce sync.Once    // Ensures Configure runs only once
-	configureErr  error        // Stores error from Configure
-	closedMu      sync.RWMutex // Protects closed field
-	closed        bool
+	closedMu sync.RWMutex // Protects closed field
+	closed   bool
 }
 
 // NewGeminiAgent creates a new GeminiAgent with Vertex AI backend.
 // projectID, region: GCP credentials
 // model: Gemini model name
 // cacheTTL: TTL for the cached system prompt
+// systemPrompt: System prompt to cache
 // logger: Structured logger (if nil, a discard logger is created)
-func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheTTL time.Duration, logger *slog.Logger) (Agent, error) {
+func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheTTL time.Duration, systemPrompt string, logger *slog.Logger) (Agent, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -44,6 +41,7 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 	projectID = strings.TrimSpace(projectID)
 	region = strings.TrimSpace(region)
 	model = strings.TrimSpace(model)
+	systemPrompt = strings.TrimSpace(systemPrompt)
 
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
@@ -53,6 +51,9 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 	}
 	if model == "" {
 		return nil, errors.New("model is required")
+	}
+	if systemPrompt == "" {
+		return nil, errors.New("systemPrompt is required")
 	}
 
 	// Handle nil logger
@@ -70,63 +71,40 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 		return nil, fmt.Errorf("failed to create Vertex AI client: %w", err)
 	}
 
-	return &GeminiAgent{
-		client:   client,
-		model:    model,
-		cacheTTL: cacheTTL,
-		logger:   logger,
-	}, nil
-}
+	// Create cache with system prompt
+	logger.Debug("creating cache",
+		slog.String("model", model),
+		slog.Int("systemPromptLength", len(systemPrompt)),
+		slog.Duration("ttl", cacheTTL),
+	)
 
-// Configure sets up the system prompt and creates cache.
-// Must be called before GenerateText.
-// Configure is idempotent - subsequent calls return the same result as the first call.
-func (g *GeminiAgent) Configure(ctx context.Context, systemPrompt string) error {
-	if err := g.checkClosed(); err != nil {
-		return err
-	}
-
-	// Validate input
-	if strings.TrimSpace(systemPrompt) == "" {
-		return errors.New("systemPrompt is required")
-	}
-
-	g.configureOnce.Do(func() {
-		g.logger.Debug("creating cache",
-			slog.String("model", g.model),
-			slog.Int("systemPromptLength", len(systemPrompt)),
-			slog.Duration("ttl", g.cacheTTL),
-		)
-
-		cache, err := g.client.Caches.Create(ctx, g.model, &genai.CreateCachedContentConfig{
-			TTL:               g.cacheTTL,
-			SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
-			DisplayName:       "yuruppu-system-prompt",
-		})
-		if err != nil {
-			g.logger.Error("cache creation failed",
-				slog.String("model", g.model),
-				slog.Any("error", err),
-			)
-			g.configureErr = fmt.Errorf("failed to create cache: %w", err)
-			return
-		}
-
-		g.cacheNameMu.Lock()
-		g.cacheName = cache.Name
-		g.cacheNameMu.Unlock()
-
-		g.logger.Info("cache created successfully",
-			slog.String("cacheName", cache.Name),
-		)
+	cache, err := client.Caches.Create(ctx, model, &genai.CreateCachedContentConfig{
+		TTL:               cacheTTL,
+		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+		DisplayName:       "yuruppu-system-prompt",
 	})
+	if err != nil {
+		logger.Error("cache creation failed",
+			slog.String("model", model),
+			slog.Any("error", err),
+		)
+		return nil, fmt.Errorf("failed to create cache: %w", err)
+	}
 
-	return g.configureErr
+	logger.Info("cache created successfully",
+		slog.String("cacheName", cache.Name),
+	)
+
+	return &GeminiAgent{
+		client:    client,
+		model:     model,
+		cacheName: cache.Name,
+		logger:    logger,
+	}, nil
 }
 
 // GenerateText generates a text response for the conversation history.
 // The last message in history must be the user message to respond to.
-// Returns NotConfiguredError if Configure has not been called.
 func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (string, error) {
 	if err := g.checkClosed(); err != nil {
 		return "", err
@@ -141,18 +119,10 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (stri
 		return "", errors.New("last message in history must be from user")
 	}
 
-	g.cacheNameMu.Lock()
-	cacheName := g.cacheName
-	g.cacheNameMu.Unlock()
-
-	if cacheName == "" {
-		return "", &NotConfiguredError{Message: "agent is not configured: call Configure first"}
-	}
-
 	g.logger.Debug("generating text with cache",
 		slog.String("model", g.model),
 		slog.Int("historyLength", len(history)),
-		slog.String("cacheName", cacheName),
+		slog.String("cacheName", g.cacheName),
 	)
 
 	contents := g.buildContentsFromHistory(history)
@@ -162,12 +132,12 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (stri
 		ThinkingConfig: &genai.ThinkingConfig{
 			ThinkingBudget: &budget,
 		},
-		CachedContent: cacheName,
+		CachedContent: g.cacheName,
 	})
 	if err != nil {
 		g.logger.Error("LLM API call failed",
 			slog.String("model", g.model),
-			slog.String("cacheName", cacheName),
+			slog.String("cacheName", g.cacheName),
 			slog.Any("error", err),
 		)
 		return "", mapAPIError(err)
@@ -187,22 +157,17 @@ func (g *GeminiAgent) Close(ctx context.Context) error {
 	g.closed = true
 	g.closedMu.Unlock()
 
-	// Get cache name
-	g.cacheNameMu.Lock()
-	cacheName := g.cacheName
-	g.cacheNameMu.Unlock()
-
-	// Delete cache if it exists
-	if cacheName != "" {
-		_, err := g.client.Caches.Delete(ctx, cacheName, nil)
+	// Delete cache if client is available
+	if g.client != nil && g.cacheName != "" {
+		_, err := g.client.Caches.Delete(ctx, g.cacheName, nil)
 		if err != nil {
 			g.logger.Warn("cache deletion failed during close",
-				slog.String("cacheName", cacheName),
+				slog.String("cacheName", g.cacheName),
 				slog.Any("error", err),
 			)
 		} else {
 			g.logger.Debug("cache deleted during close",
-				slog.String("cacheName", cacheName),
+				slog.String("cacheName", g.cacheName),
 			)
 		}
 	}

@@ -164,18 +164,11 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	// Create Gemini agent
+	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
-	geminiAgent, err := agent.NewGeminiAgent(context.Background(), projectID, region, config.LLMModel, llmCacheTTL, logger)
+	geminiAgent, err := agent.NewGeminiAgent(context.Background(), projectID, region, config.LLMModel, llmCacheTTL, yuruppu.SystemPrompt, logger)
 	if err != nil {
 		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
-		os.Exit(1)
-	}
-
-	// Create Yuruppu agent (configures system prompt)
-	yuruppuAgent, err := yuruppu.NewResponder(geminiAgent, logger)
-	if err != nil {
-		logger.Error("failed to initialize Yuruppu agent", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -201,7 +194,7 @@ func main() {
 	}
 
 	// Register message handler
-	srv.RegisterHandler(bot.NewHandler(historyRepo, yuruppuAgent, lineClient, logger))
+	srv.RegisterHandler(bot.NewHandler(historyRepo, geminiAgent, lineClient, logger))
 
 	// Create HTTP server with graceful shutdown support
 	mux := http.NewServeMux()
@@ -238,9 +231,9 @@ func main() {
 		logger.Error("failed to shutdown HTTP server gracefully", slog.Any("error", err))
 	}
 
-	// Close Yuruppu agent (cleans up cache and API connections)
-	if err := yuruppuAgent.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close Yuruppu agent", slog.Any("error", err))
+	// Close Gemini agent (cleans up cache and API connections)
+	if err := geminiAgent.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close Gemini agent", slog.Any("error", err))
 	}
 
 	// Close GCS client if it was created

@@ -65,15 +65,6 @@ func (e *ClosedError) Error() string {
 	return e.Message
 }
 
-// NotConfiguredError represents an error when Configure has not been called.
-type NotConfiguredError struct {
-	Message string
-}
-
-func (e *NotConfiguredError) Error() string {
-	return e.Message
-}
-
 // mapAPIError maps Vertex AI API errors to custom error types.
 func mapAPIError(err error) error {
 	if err == nil {

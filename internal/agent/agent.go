@@ -8,21 +8,15 @@ import (
 
 // Message represents a single message in conversation history.
 type Message struct {
-	Role    string // "user" or "model"
+	Role    string // "user" or "assistant"
 	Content string
 }
 
 // Agent defines the interface for LLM agents.
 // Implementations may have internal caching or other optimizations.
 type Agent interface {
-	// Configure sets up the system prompt and creates cache.
-	// Must be called before GenerateText.
-	// Returns error if configuration fails.
-	Configure(ctx context.Context, systemPrompt string) error
-
 	// GenerateText generates a text response for the conversation history.
 	// The last message in history must be the user message to respond to.
-	// Returns NotConfiguredError if Configure has not been called.
 	// Returns ClosedError if the Agent has been closed.
 	GenerateText(ctx context.Context, history []Message) (string, error)
 
