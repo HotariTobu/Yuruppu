@@ -30,13 +30,15 @@ type GeminiConfig struct {
 
 // GeminiAgent is an implementation of Agent using Google Gemini via Vertex AI.
 type GeminiAgent struct {
-	client        *genai.Client
-	model         string
-	contentConfig *genai.GenerateContentConfig
-	logger        *slog.Logger
+	client                    *genai.Client
+	model                     string
+	contentConfigWithCache    *genai.GenerateContentConfig
+	contentConfigWithoutCache *genai.GenerateContentConfig
+	logger                    *slog.Logger
 
-	closedMu sync.RWMutex // Protects closed field
-	closed   bool
+	closedMu    sync.RWMutex
+	closed      bool
+	stopRefresh chan struct{}
 }
 
 // NewGeminiAgent creates a new GeminiAgent with Vertex AI backend.
@@ -107,47 +109,35 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 		slog.Int("minCacheTokens", minCacheTokens),
 	)
 
-	agent := &GeminiAgent{
-		client: client,
-		model:  model,
-		logger: logger,
-	}
-
 	budget := disabledThinkingBudget
 	thinkingConfig := &genai.ThinkingConfig{
 		ThinkingBudget: &budget,
 	}
 
-	// Skip cache if token count is below minimum
-	if tokenCount < minCacheTokens {
-		logger.Debug("cache skipped: token count below minimum")
-		agent.contentConfig = &genai.GenerateContentConfig{
+	agent := &GeminiAgent{
+		client: client,
+		model:  model,
+		logger: logger,
+		contentConfigWithCache: &genai.GenerateContentConfig{
+			CachedContent:  "",
+			ThinkingConfig: thinkingConfig,
+		},
+		contentConfigWithoutCache: &genai.GenerateContentConfig{
 			SystemInstruction: systemInstruction,
 			ThinkingConfig:    thinkingConfig,
+		},
+		stopRefresh: make(chan struct{}),
+	}
+
+	if tokenCount < minCacheTokens {
+		logger.Debug("cache skipped: token count below minimum")
+	} else {
+		cachedContentConfig := &genai.CreateCachedContentConfig{
+			DisplayName:       cacheDisplayName,
+			TTL:               cfg.CacheTTL,
+			SystemInstruction: systemInstruction,
 		}
-		return agent, nil
-	}
-
-	// Create cache with system prompt
-	logger.Debug("creating cache", slog.Duration("ttl", cfg.CacheTTL))
-
-	cache, err := client.Caches.Create(ctx, model, &genai.CreateCachedContentConfig{
-		DisplayName:       cacheDisplayName,
-		TTL:               cfg.CacheTTL,
-		SystemInstruction: systemInstruction,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cache: %w", err)
-	}
-
-	logger.Debug("cache created successfully",
-		slog.String("cacheName", cache.Name),
-		slog.Any("usageMetadata", cache.UsageMetadata),
-	)
-
-	agent.contentConfig = &genai.GenerateContentConfig{
-		ThinkingConfig: thinkingConfig,
-		CachedContent:  cache.Name,
+		go agent.refreshCache(ctx, cachedContentConfig)
 	}
 
 	return agent, nil
@@ -176,7 +166,12 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (stri
 
 	contents := g.buildContentsFromHistory(history)
 
-	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, g.contentConfig)
+	config := g.contentConfigWithCache
+	if config.CachedContent == "" {
+		config = g.contentConfigWithoutCache
+	}
+
+	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
 		return "", mapAPIError(err)
 	}
@@ -185,7 +180,6 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (stri
 }
 
 // Close releases any resources held by the agent.
-// Deletes the cache if it was created.
 func (g *GeminiAgent) Close(ctx context.Context) error {
 	g.closedMu.Lock()
 	if g.closed {
@@ -193,26 +187,54 @@ func (g *GeminiAgent) Close(ctx context.Context) error {
 		return nil
 	}
 	g.closed = true
+	close(g.stopRefresh)
 	g.closedMu.Unlock()
-
-	// Delete cache if it was created
-	cacheName := g.contentConfig.CachedContent
-	if cacheName != "" {
-		_, err := g.client.Caches.Delete(ctx, cacheName, nil)
-		if err != nil {
-			g.logger.Warn("cache deletion failed during close",
-				slog.String("cacheName", cacheName),
-				slog.Any("error", err),
-			)
-		} else {
-			g.logger.Debug("cache deleted during close",
-				slog.String("cacheName", cacheName),
-			)
-		}
-	}
 
 	g.logger.Debug("agent closed", slog.String("model", g.model))
 	return nil
+}
+
+// refreshCache periodically refreshes the cache TTL.
+func (g *GeminiAgent) refreshCache(ctx context.Context, cfg *genai.CreateCachedContentConfig) {
+	ticker := time.NewTicker(cfg.TTL / 2)
+	defer ticker.Stop()
+
+	createCache := func() {
+		cache, err := g.client.Caches.Create(ctx, g.model, cfg)
+		if err == nil {
+			g.contentConfigWithCache.CachedContent = cache.Name
+			g.logger.Debug("cache created", slog.String("cacheName", cache.Name))
+		} else {
+			g.logger.Warn("cache creation failed", slog.Any("error", err))
+		}
+	}
+
+	updateCache := func(cacheName string) {
+		_, err := g.client.Caches.Update(ctx, cacheName, &genai.UpdateCachedContentConfig{
+			TTL: cfg.TTL,
+		})
+		if err == nil {
+			g.logger.Debug("cache refreshed")
+		} else {
+			g.contentConfigWithCache.CachedContent = ""
+			g.logger.Warn("cache refresh failed", slog.Any("error", err))
+		}
+	}
+
+	for {
+		cacheName := g.contentConfigWithCache.CachedContent
+		if cacheName == "" {
+			createCache()
+		} else {
+			updateCache(cacheName)
+		}
+
+		select {
+		case <-g.stopRefresh:
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // checkClosed checks if the agent is closed and returns an error if so.

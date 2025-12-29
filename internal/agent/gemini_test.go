@@ -286,8 +286,10 @@ func TestErrorTypes_Error(t *testing.T) {
 
 func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 	g := &GeminiAgent{
-		logger:        slog.New(slog.DiscardHandler),
-		contentConfig: &genai.GenerateContentConfig{},
+		logger:                    slog.New(slog.DiscardHandler),
+		contentConfigWithCache:    &genai.GenerateContentConfig{},
+		contentConfigWithoutCache: &genai.GenerateContentConfig{},
+		stopRefresh:               make(chan struct{}),
 	}
 
 	// Close the agent
@@ -312,8 +314,10 @@ func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 
 func TestGeminiAgent_Close_Idempotent(t *testing.T) {
 	g := &GeminiAgent{
-		logger:        slog.New(slog.DiscardHandler),
-		contentConfig: &genai.GenerateContentConfig{},
+		logger:                    slog.New(slog.DiscardHandler),
+		contentConfigWithCache:    &genai.GenerateContentConfig{},
+		contentConfigWithoutCache: &genai.GenerateContentConfig{},
+		stopRefresh:               make(chan struct{}),
 	}
 
 	// Close multiple times should not error

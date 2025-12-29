@@ -109,9 +109,12 @@ func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
+	// Wait for async cache creation
+	time.Sleep(2 * time.Second)
+
 	// Verify cache was created
 	logOutput := logBuf.String()
-	assert.Contains(t, logOutput, "cache created successfully")
+	assert.Contains(t, logOutput, "cache created")
 
 	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
 	require.NoError(t, err)
