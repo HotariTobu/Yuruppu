@@ -7,13 +7,14 @@ import (
 	"net"
 	"net/url"
 	"testing"
+	"yuruppu/internal/message"
 
 	"google.golang.org/genai"
 )
 
 func TestBuildContentsFromHistory_SingleMessage(t *testing.T) {
 	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
-	history := []Message{
+	history := []message.Message{
 		{Role: "user", Content: "hello"},
 	}
 	contents := g.buildContentsFromHistory(history)
@@ -31,7 +32,7 @@ func TestBuildContentsFromHistory_SingleMessage(t *testing.T) {
 
 func TestBuildContentsFromHistory_MultipleMessages(t *testing.T) {
 	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
-	history := []Message{
+	history := []message.Message{
 		{Role: "user", Content: "first message"},
 		{Role: "assistant", Content: "first response"},
 		{Role: "user", Content: "second message"},
@@ -298,7 +299,7 @@ func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 	}
 
 	// GenerateText should return ClosedError
-	history := []Message{{Role: "user", Content: "hello"}}
+	history := []message.Message{{Role: "user", Content: "hello"}}
 	_, err = g.GenerateText(context.Background(), history)
 
 	if err == nil {
@@ -332,7 +333,7 @@ func TestGeminiAgent_GenerateText_EmptyHistory(t *testing.T) {
 		logger: slog.New(slog.DiscardHandler),
 	}
 
-	_, err := g.GenerateText(context.Background(), []Message{})
+	_, err := g.GenerateText(context.Background(), []message.Message{})
 
 	if err == nil {
 		t.Fatal("expected error for empty history")
@@ -347,7 +348,7 @@ func TestGeminiAgent_GenerateText_LastMessageNotUser(t *testing.T) {
 		logger: slog.New(slog.DiscardHandler),
 	}
 
-	history := []Message{
+	history := []message.Message{
 		{Role: "user", Content: "hello"},
 		{Role: "assistant", Content: "hi there"},
 	}

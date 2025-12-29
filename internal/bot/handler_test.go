@@ -10,6 +10,7 @@ import (
 	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	"yuruppu/internal/message"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -248,7 +249,7 @@ func TestHandler_HandleUnknown(t *testing.T) {
 
 func TestHandler_HistoryContext(t *testing.T) {
 	t.Run("loads history and passes to agent with user message", func(t *testing.T) {
-		existingHistory := []history.Message{
+		existingHistory := []message.Message{
 			{Role: "user", Content: "My name is Taro", Timestamp: time.Now()},
 			{Role: "assistant", Content: "Nice to meet you, Taro!", Timestamp: time.Now()},
 		}
@@ -351,7 +352,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 	})
 
 	t.Run("uses generation precondition when appending to existing history", func(t *testing.T) {
-		existingHistory := []history.Message{
+		existingHistory := []message.Message{
 			{Role: "user", Content: "Previous message", Timestamp: time.Now()},
 		}
 		mockStore := &mockStorage{
@@ -481,11 +482,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 type mockAgent struct {
 	response    string
 	err         error
-	lastHistory []agent.Message
+	lastHistory []message.Message
 	lastMessage string // extracted from last message in history
 }
 
-func (m *mockAgent) GenerateText(ctx context.Context, hist []agent.Message) (string, error) {
+func (m *mockAgent) GenerateText(ctx context.Context, hist []message.Message) (string, error) {
 	m.lastHistory = hist
 	if len(hist) > 0 {
 		m.lastMessage = hist[len(hist)-1].Content
@@ -571,7 +572,7 @@ func (m *mockStorage) Close(ctx context.Context) error {
 // =============================================================================
 
 // serializeHistory converts messages to JSONL bytes
-func serializeHistory(messages []history.Message) []byte {
+func serializeHistory(messages []message.Message) []byte {
 	result := make([]byte, 0, len(messages)*100) // pre-allocate
 	for _, msg := range messages {
 		data, err := json.Marshal(msg)
@@ -585,14 +586,14 @@ func serializeHistory(messages []history.Message) []byte {
 }
 
 // parseHistory converts JSONL bytes to messages
-func parseHistory(data []byte) []history.Message {
-	var messages []history.Message
+func parseHistory(data []byte) []message.Message {
+	var messages []message.Message
 	lines := splitLines(data)
 	for _, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
-		var msg history.Message
+		var msg message.Message
 		if err := json.Unmarshal(line, &msg); err == nil {
 			messages = append(messages, msg)
 		}

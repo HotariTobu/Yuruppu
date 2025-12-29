@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"yuruppu/internal/agent"
+	"yuruppu/internal/message"
 )
 
 func requireGCPCredentials(t *testing.T) (projectID, region, model string) {
@@ -51,7 +52,7 @@ func TestGeminiAgent_Integration_GenerateText(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
-	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
+	response, err := a.GenerateText(ctx, []message.Message{{Role: "user", Content: "Say hello"}})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 }
@@ -73,7 +74,7 @@ func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
-	history := []agent.Message{
+	history := []message.Message{
 		{Role: "user", Content: "My name is Taro"},
 		{Role: "assistant", Content: "Nice to meet you, Taro!"},
 		{Role: "user", Content: "What is my name?"},
@@ -116,7 +117,7 @@ func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
 	logOutput := logBuf.String()
 	assert.Contains(t, logOutput, "cache created")
 
-	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
+	response, err := a.GenerateText(ctx, []message.Message{{Role: "user", Content: "Say hello"}})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 }
