@@ -140,7 +140,7 @@ func main() {
 	// Load configuration
 	config, err := loadConfig()
 	if err != nil {
-		logger.Error("failed to load configuration", slog.String("error", err.Error()))
+		logger.Error("failed to load configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -148,13 +148,13 @@ func main() {
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
 	srv, err := server.New(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
-		logger.Error("failed to initialize server", slog.String("error", err.Error()))
+		logger.Error("failed to initialize server", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	lineClient, err := client.New(config.ChannelAccessToken, logger)
 	if err != nil {
-		logger.Error("failed to initialize client", slog.String("error", err.Error()))
+		logger.Error("failed to initialize client", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -169,14 +169,14 @@ func main() {
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
 	geminiAgent, err := agent.NewGeminiAgent(context.Background(), projectID, region, config.LLMModel, llmCacheTTL, logger)
 	if err != nil {
-		logger.Error("failed to initialize Gemini agent", slog.String("error", err.Error()))
+		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// Create Yuruppu agent (configures system prompt)
 	yuruppuAgent, err := yuruppu.New(geminiAgent, logger)
 	if err != nil {
-		logger.Error("failed to initialize Yuruppu agent", slog.String("error", err.Error()))
+		logger.Error("failed to initialize Yuruppu agent", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -187,13 +187,13 @@ func main() {
 		var err error
 		gcsClient, err = gcsstorage.NewClient(context.Background())
 		if err != nil {
-			logger.Error("failed to create GCS client", slog.String("error", err.Error()))
+			logger.Error("failed to create GCS client", slog.Any("error", err))
 			os.Exit(1)
 		}
 		gcsStorage := storage.NewGCSStorage(gcsClient, config.HistoryBucket)
 		historyRepo, err = history.NewRepository(gcsStorage)
 		if err != nil {
-			logger.Error("failed to create history repository", slog.String("error", err.Error()))
+			logger.Error("failed to create history repository", slog.Any("error", err))
 			os.Exit(1)
 		}
 		logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
@@ -221,7 +221,7 @@ func main() {
 	go func() {
 		logger.Info("server starting", slog.String("port", config.Port))
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("server failed", slog.String("error", err.Error()))
+			logger.Error("server failed", slog.Any("error", err))
 			os.Exit(1)
 		}
 	}()
@@ -236,18 +236,18 @@ func main() {
 
 	// Shutdown HTTP server gracefully
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("failed to shutdown HTTP server gracefully", slog.String("error", err.Error()))
+		logger.Error("failed to shutdown HTTP server gracefully", slog.Any("error", err))
 	}
 
 	// Close Yuruppu agent (cleans up cache and API connections)
 	if err := yuruppuAgent.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close Yuruppu agent", slog.String("error", err.Error()))
+		logger.Error("failed to close Yuruppu agent", slog.Any("error", err))
 	}
 
 	// Close GCS client if it was created
 	if gcsClient != nil {
 		if err := gcsClient.Close(); err != nil {
-			logger.Error("failed to close GCS client", slog.String("error", err.Error()))
+			logger.Error("failed to close GCS client", slog.Any("error", err))
 		}
 	}
 

@@ -22,10 +22,12 @@ type GeminiAgent struct {
 	cacheTTL time.Duration
 	logger   *slog.Logger
 
-	cacheName string       // Set after Configure. Empty means not configured.
-	mu        sync.Mutex   // Protects cacheName
-	closedMu  sync.RWMutex // Protects closed field
-	closed    bool
+	cacheName     string       // Set after Configure. Empty means not configured.
+	cacheNameMu   sync.Mutex   // Protects cacheName
+	configureOnce sync.Once    // Ensures Configure runs only once
+	configureErr  error        // Stores error from Configure
+	closedMu      sync.RWMutex // Protects closed field
+	closed        bool
 }
 
 // NewGeminiAgent creates a new GeminiAgent with Vertex AI backend.
@@ -78,44 +80,48 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 
 // Configure sets up the system prompt and creates cache.
 // Must be called before GenerateText.
+// Configure is idempotent - subsequent calls return the same result as the first call.
 func (g *GeminiAgent) Configure(ctx context.Context, systemPrompt string) error {
 	if err := g.checkClosed(); err != nil {
 		return err
 	}
 
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	// Already configured
-	if g.cacheName != "" {
-		return nil
+	// Validate input
+	if strings.TrimSpace(systemPrompt) == "" {
+		return errors.New("systemPrompt is required")
 	}
 
-	g.logger.Debug("creating cache",
-		slog.String("model", g.model),
-		slog.Int("systemPromptLength", len(systemPrompt)),
-		slog.Duration("ttl", g.cacheTTL),
-	)
-
-	cache, err := g.client.Caches.Create(ctx, g.model, &genai.CreateCachedContentConfig{
-		TTL:               g.cacheTTL,
-		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
-		DisplayName:       "yuruppu-system-prompt",
-	})
-	if err != nil {
-		g.logger.Error("cache creation failed",
+	g.configureOnce.Do(func() {
+		g.logger.Debug("creating cache",
 			slog.String("model", g.model),
-			slog.Any("error", err),
+			slog.Int("systemPromptLength", len(systemPrompt)),
+			slog.Duration("ttl", g.cacheTTL),
 		)
-		return fmt.Errorf("failed to create cache: %w", err)
-	}
 
-	g.cacheName = cache.Name
-	g.logger.Info("cache created successfully",
-		slog.String("cacheName", cache.Name),
-	)
+		cache, err := g.client.Caches.Create(ctx, g.model, &genai.CreateCachedContentConfig{
+			TTL:               g.cacheTTL,
+			SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+			DisplayName:       "yuruppu-system-prompt",
+		})
+		if err != nil {
+			g.logger.Error("cache creation failed",
+				slog.String("model", g.model),
+				slog.Any("error", err),
+			)
+			g.configureErr = fmt.Errorf("failed to create cache: %w", err)
+			return
+		}
 
-	return nil
+		g.cacheNameMu.Lock()
+		g.cacheName = cache.Name
+		g.cacheNameMu.Unlock()
+
+		g.logger.Info("cache created successfully",
+			slog.String("cacheName", cache.Name),
+		)
+	})
+
+	return g.configureErr
 }
 
 // GenerateText generates a text response given a user message.
@@ -126,9 +132,14 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, userMessage string, hist
 		return "", err
 	}
 
-	g.mu.Lock()
+	// Validate input
+	if strings.TrimSpace(userMessage) == "" {
+		return "", errors.New("userMessage is required")
+	}
+
+	g.cacheNameMu.Lock()
 	cacheName := g.cacheName
-	g.mu.Unlock()
+	g.cacheNameMu.Unlock()
 
 	if cacheName == "" {
 		return "", &NotConfiguredError{Message: "agent is not configured: call Configure first"}
@@ -174,9 +185,9 @@ func (g *GeminiAgent) Close(ctx context.Context) error {
 	g.closedMu.Unlock()
 
 	// Get cache name
-	g.mu.Lock()
+	g.cacheNameMu.Lock()
 	cacheName := g.cacheName
-	g.mu.Unlock()
+	g.cacheNameMu.Unlock()
 
 	// Delete cache if it exists
 	if cacheName != "" {
@@ -193,7 +204,7 @@ func (g *GeminiAgent) Close(ctx context.Context) error {
 		}
 	}
 
-	g.logger.Debug("agent closed")
+	g.logger.Debug("agent closed", slog.String("model", g.model))
 	return nil
 }
 
