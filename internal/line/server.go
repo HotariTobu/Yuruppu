@@ -15,13 +15,13 @@ import (
 // The error return is used for logging purposes only - the HTTP response
 // is already sent before handler execution.
 type Handler interface {
-	HandleText(ctx context.Context, replyToken, userID, text string) error
-	HandleImage(ctx context.Context, replyToken, userID, messageID string) error
-	HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error
-	HandleVideo(ctx context.Context, replyToken, userID, messageID string) error
-	HandleAudio(ctx context.Context, replyToken, userID, messageID string) error
-	HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error
-	HandleUnknown(ctx context.Context, replyToken, userID string) error
+	HandleText(ctx context.Context, replyToken, sourceID, text string) error
+	HandleImage(ctx context.Context, replyToken, sourceID, messageID string) error
+	HandleSticker(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, replyToken, sourceID, messageID string) error
+	HandleAudio(ctx context.Context, replyToken, sourceID, messageID string) error
+	HandleLocation(ctx context.Context, replyToken, sourceID string, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context, replyToken, sourceID string) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -118,13 +118,13 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 	sourceID := extractSourceID(msgEvent.Source)
 
 	for _, handler := range s.handlers {
-		go s.invokeHandler(handler, msgEvent, replyToken, sourceID)
+		go s.invokeHandler(handler, replyToken, sourceID, msgEvent)
 	}
 }
 
 // invokeHandler invokes a single handler with panic recovery.
 // sourceID identifies the conversation source (user ID for 1:1, group ID for groups, room ID for rooms).
-func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent, replyToken, sourceID string) {
+func (s *Server) invokeHandler(handler Handler, replyToken, sourceID string, msgEvent webhook.MessageEvent) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("handler panicked",

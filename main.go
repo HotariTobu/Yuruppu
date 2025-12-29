@@ -24,6 +24,7 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
+	Endpoint                  string // Webhook endpoint path (required)
 	Port                      string // Server port (default: 8080)
 	ChannelSecret             string
 	ChannelAccessToken        string
@@ -51,12 +52,17 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
-// Returns error if required environment variables (LINE credentials, LLM_MODEL, HISTORY_BUCKET) are missing or empty after trimming whitespace.
+// It reads ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
+// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, HISTORY_BUCKET) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables (order matches Config struct)
+	endpoint := strings.TrimSpace(os.Getenv("ENDPOINT"))
+	if endpoint == "" {
+		return nil, errors.New("ENDPOINT is required")
+	}
+
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
 		port = defaultPort
@@ -121,6 +127,7 @@ func loadConfig() (*Config, error) {
 	}
 
 	return &Config{
+		Endpoint:                  endpoint,
 		Port:                      port,
 		ChannelSecret:             channelSecret,
 		ChannelAccessToken:        channelAccessToken,
@@ -181,7 +188,14 @@ func main() {
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
-	geminiAgent, err := agent.NewGeminiAgent(context.Background(), projectID, region, config.LLMModel, llmCacheTTL, yuruppu.SystemPrompt, logger)
+	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            config.LLMModel,
+		CacheTTL:         llmCacheTTL,
+		CacheDisplayName: "yuruppu-system-prompt",
+		SystemPrompt:     yuruppu.SystemPrompt,
+	}, logger)
 	if err != nil {
 		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
 		os.Exit(1)
@@ -198,14 +212,20 @@ func main() {
 		logger.Error("failed to create history repository", slog.Any("error", err))
 		os.Exit(1)
 	}
-	logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
+
+	// Create message handler
+	messageHandler, err := bot.NewHandler(historyRepo, geminiAgent, lineClient, logger)
+	if err != nil {
+		logger.Error("failed to create message handler", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Register message handler
-	lineServer.RegisterHandler(bot.NewHandler(historyRepo, geminiAgent, lineClient, logger))
+	lineServer.RegisterHandler(messageHandler)
 
 	// Create HTTP server with graceful shutdown support
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", lineServer.HandleWebhook)
+	mux.HandleFunc(config.Endpoint, lineServer.HandleWebhook)
 	httpServer := &http.Server{
 		Addr:              ":" + config.Port,
 		Handler:           mux,
@@ -218,7 +238,10 @@ func main() {
 
 	// Start HTTP server in a goroutine
 	go func() {
-		logger.Info("server starting", slog.String("port", config.Port))
+		logger.Info("server starting",
+			slog.String("endpoint", config.Endpoint),
+			slog.String("port", config.Port),
+		)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("server failed", slog.Any("error", err))
 			os.Exit(1)

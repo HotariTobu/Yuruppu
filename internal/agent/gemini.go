@@ -18,6 +18,16 @@ const disabledThinkingBudget = int32(0)
 // minCacheTokens is the minimum token count required for Gemini context caching.
 const minCacheTokens = 1024
 
+// GeminiConfig holds configuration for GeminiAgent.
+type GeminiConfig struct {
+	ProjectID        string
+	Region           string
+	Model            string
+	SystemPrompt     string
+	CacheDisplayName string
+	CacheTTL         time.Duration
+}
+
 // GeminiAgent is an implementation of Agent using Google Gemini via Vertex AI.
 type GeminiAgent struct {
 	client        *genai.Client
@@ -30,21 +40,25 @@ type GeminiAgent struct {
 }
 
 // NewGeminiAgent creates a new GeminiAgent with Vertex AI backend.
-// projectID, region: GCP credentials
-// model: Gemini model name
-// cacheTTL: TTL for the cached system prompt
-// systemPrompt: System prompt to cache
-// logger: Structured logger (if nil, a discard logger is created)
-func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheTTL time.Duration, systemPrompt string, logger *slog.Logger) (Agent, error) {
+// ctx: Context for initialization.
+// cfg: Configuration for the agent.
+// logger: Structured logger (required, returns error if nil).
+func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) (Agent, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	// Validate logger
+	if logger == nil {
+		return nil, errors.New("logger is required")
+	}
+
 	// Normalize and validate inputs
-	projectID = strings.TrimSpace(projectID)
-	region = strings.TrimSpace(region)
-	model = strings.TrimSpace(model)
-	systemPrompt = strings.TrimSpace(systemPrompt)
+	projectID := strings.TrimSpace(cfg.ProjectID)
+	region := strings.TrimSpace(cfg.Region)
+	model := strings.TrimSpace(cfg.Model)
+	systemPrompt := strings.TrimSpace(cfg.SystemPrompt)
+	cacheDisplayName := strings.TrimSpace(cfg.CacheDisplayName)
 
 	if projectID == "" {
 		return nil, errors.New("projectID is required")
@@ -58,10 +72,8 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 	if systemPrompt == "" {
 		return nil, errors.New("systemPrompt is required")
 	}
-
-	// Handle nil logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
+	if cacheDisplayName == "" {
+		return nil, errors.New("cacheDisplayName is required")
 	}
 
 	// Create Vertex AI client
@@ -117,12 +129,12 @@ func NewGeminiAgent(ctx context.Context, projectID, region, model string, cacheT
 	}
 
 	// Create cache with system prompt
-	logger.Debug("creating cache", slog.Duration("ttl", cacheTTL))
+	logger.Debug("creating cache", slog.Duration("ttl", cfg.CacheTTL))
 
 	cache, err := client.Caches.Create(ctx, model, &genai.CreateCachedContentConfig{
-		TTL:               cacheTTL,
+		DisplayName:       cacheDisplayName,
+		TTL:               cfg.CacheTTL,
 		SystemInstruction: systemInstruction,
-		DisplayName:       "yuruppu-system-prompt",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache: %w", err)
@@ -241,27 +253,30 @@ func (g *GeminiAgent) extractTextFromResponse(resp *genai.GenerateContentRespons
 		return "", &ResponseError{Message: "no candidates in response"}
 	}
 
-	if resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
+	content := resp.Candidates[0].Content
+
+	if content == nil || len(content.Parts) == 0 {
 		g.logger.Error("LLM response error",
 			slog.String("reason", "no content parts in response"),
 		)
 		return "", &ResponseError{Message: "no content parts in response"}
 	}
 
-	part := resp.Candidates[0].Content.Parts[0]
-	if part == nil {
-		g.logger.Error("LLM response error",
-			slog.String("reason", "response part is nil"),
-		)
-		return "", &ResponseError{Message: "response part is nil"}
+	// Concatenate all parts
+	var textBuilder strings.Builder
+	for _, part := range content.Parts {
+		if part == nil {
+			continue
+		}
+		textBuilder.WriteString(part.Text)
 	}
 
-	text := part.Text
+	text := textBuilder.String()
 	if text == "" {
 		g.logger.Error("LLM response error",
-			slog.String("reason", "response part has no text"),
+			slog.String("reason", "response has no text"),
 		)
-		return "", &ResponseError{Message: "response part has no text"}
+		return "", &ResponseError{Message: "response has no text"}
 	}
 
 	g.logger.Info("text generated successfully",

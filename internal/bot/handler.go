@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -23,48 +24,45 @@ type Handler struct {
 }
 
 // NewHandler creates a new Handler with the given dependencies.
-// Panics if historyRepo, agent, or sender is nil.
-// logger defaults to a discard handler if nil.
-func NewHandler(historyRepo *history.Repository, ag agent.Agent, sender Sender, logger *slog.Logger) *Handler {
+// Returns error if any dependency is nil.
+func NewHandler(historyRepo *history.Repository, agent agent.Agent, sender Sender, logger *slog.Logger) (*Handler, error) {
 	if historyRepo == nil {
-		panic("historyRepo is required")
+		return nil, fmt.Errorf("historyRepo is required")
 	}
-	if ag == nil {
-		panic("agent is required")
+	if agent == nil {
+		return nil, fmt.Errorf("agent is required")
 	}
 	if sender == nil {
-		panic("sender is required")
+		return nil, fmt.Errorf("sender is required")
 	}
 	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
+		return nil, fmt.Errorf("logger is required")
 	}
 	return &Handler{
 		history: historyRepo,
-		agent:   ag,
+		agent:   agent,
 		sender:  sender,
 		logger:  logger,
-	}
+	}, nil
 }
 
-func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
-	now := time.Now()
-
+func (h *Handler) handleMessage(ctx context.Context, replyToken, sourceID, text string) error {
 	// Step 1: Load history
-	conversationHistory, generation, err := h.history.GetHistory(ctx, userID)
+	conversationHistory, generation, err := h.history.GetHistory(ctx, sourceID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to load history",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
 	}
 
 	// Step 2: Append user message and save to history
-	userMessage := history.Message{Role: "user", Content: text, Timestamp: now}
+	userMessage := history.Message{Role: "user", Content: text, Timestamp: time.Now()}
 	historyWithUser := slices.Concat(conversationHistory, []history.Message{userMessage})
-	if err := h.history.PutHistory(ctx, userID, historyWithUser, generation); err != nil {
+	if err := h.history.PutHistory(ctx, sourceID, historyWithUser, generation); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save user message to history",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
@@ -79,7 +77,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 	response, err := h.agent.GenerateText(ctx, agentHistory)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to generate response",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
@@ -88,7 +86,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 	// Step 4: Send reply
 	if err := h.sender.SendReply(replyToken, response); err != nil {
 		h.logger.ErrorContext(ctx, "failed to send reply",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
@@ -96,19 +94,19 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 
 	// Step 5: Append assistant message and save to history
 	// Re-read to get current generation after first write
-	currentHistory, newGeneration, err := h.history.GetHistory(ctx, userID)
+	currentHistory, newGeneration, err := h.history.GetHistory(ctx, sourceID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to read history for assistant message",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
 	}
 	assistantMessage := history.Message{Role: "assistant", Content: response, Timestamp: time.Now()}
 	historyWithAssistant := slices.Concat(currentHistory, []history.Message{assistantMessage})
-	if err := h.history.PutHistory(ctx, userID, historyWithAssistant, newGeneration); err != nil {
+	if err := h.history.PutHistory(ctx, sourceID, historyWithAssistant, newGeneration); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
-			slog.String("userID", userID),
+			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
 		return err
@@ -117,30 +115,30 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 	return nil
 }
 
-func (h *Handler) HandleText(ctx context.Context, replyToken, userID, text string) error {
-	return h.handleMessage(ctx, replyToken, userID, text)
+func (h *Handler) HandleText(ctx context.Context, replyToken, sourceID, text string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, text)
 }
 
-func (h *Handler) HandleImage(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent an image]")
+func (h *Handler) HandleImage(ctx context.Context, replyToken, sourceID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent an image]")
 }
 
-func (h *Handler) HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a sticker]")
+func (h *Handler) HandleSticker(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent a sticker]")
 }
 
-func (h *Handler) HandleVideo(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a video]")
+func (h *Handler) HandleVideo(ctx context.Context, replyToken, sourceID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent a video]")
 }
 
-func (h *Handler) HandleAudio(ctx context.Context, replyToken, userID, messageID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent an audio]")
+func (h *Handler) HandleAudio(ctx context.Context, replyToken, sourceID, messageID string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent an audio]")
 }
 
-func (h *Handler) HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a location]")
+func (h *Handler) HandleLocation(ctx context.Context, replyToken, sourceID string, latitude, longitude float64) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent a location]")
 }
 
-func (h *Handler) HandleUnknown(ctx context.Context, replyToken, userID string) error {
-	return h.handleMessage(ctx, replyToken, userID, "[User sent a message]")
+func (h *Handler) HandleUnknown(ctx context.Context, replyToken, sourceID string) error {
+	return h.handleMessage(ctx, replyToken, sourceID, "[User sent a message]")
 }

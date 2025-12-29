@@ -127,6 +127,31 @@ func TestExtractTextFromResponse_ValidResponse(t *testing.T) {
 	}
 }
 
+func TestExtractTextFromResponse_MultipleParts(t *testing.T) {
+	g := &GeminiAgent{logger: slog.New(slog.DiscardHandler)}
+
+	text, err := g.extractTextFromResponse(&genai.GenerateContentResponse{
+		ModelVersion: "test-model",
+		Candidates: []*genai.Candidate{
+			{
+				Content: &genai.Content{
+					Parts: []*genai.Part{
+						{Text: "first "},
+						{Text: "second "},
+						{Text: "third"},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if text != "first second third" {
+		t.Errorf("expected 'first second third', got '%s'", text)
+	}
+}
+
 func TestMapAPIError_ContextDeadlineExceeded(t *testing.T) {
 	err := mapAPIError(context.DeadlineExceeded)
 

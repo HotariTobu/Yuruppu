@@ -188,6 +188,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       }
 
       env {
+        name  = "ENDPOINT"
+        value = var.endpoint
+      }
+
+      env {
         name  = "LLM_MODEL"
         value = var.llm_model
       }
