@@ -40,110 +40,110 @@ type mockHandler struct {
 	audioMessages   []audioMessage
 	locationMsgs    []locationMessage
 	unknownMessages []unknownMessage
-	onText          func(ctx context.Context, replyToken, userID, text string) error
-	onImage         func(ctx context.Context, replyToken, userID, messageID string) error
-	onSticker       func(ctx context.Context, replyToken, userID, packageID, stickerID string) error
-	onVideo         func(ctx context.Context, replyToken, userID, messageID string) error
-	onAudio         func(ctx context.Context, replyToken, userID, messageID string) error
-	onLocation      func(ctx context.Context, replyToken, userID string, lat, lng float64) error
-	onUnknown       func(ctx context.Context, replyToken, userID string) error
+	onText          func(ctx context.Context, replyToken, sourceID, text string) error
+	onImage         func(ctx context.Context, replyToken, sourceID, messageID string) error
+	onSticker       func(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error
+	onVideo         func(ctx context.Context, replyToken, sourceID, messageID string) error
+	onAudio         func(ctx context.Context, replyToken, sourceID, messageID string) error
+	onLocation      func(ctx context.Context, replyToken, sourceID string, lat, lng float64) error
+	onUnknown       func(ctx context.Context, replyToken, sourceID string) error
 }
 
 type textMessage struct {
-	replyToken, userID, text string
+	replyToken, sourceID, text string
 }
 
 type imageMessage struct {
-	replyToken, userID, messageID string
+	replyToken, sourceID, messageID string
 }
 
 type stickerMessage struct {
-	replyToken, userID, packageID, stickerID string
+	replyToken, sourceID, packageID, stickerID string
 }
 
 type videoMessage struct {
-	replyToken, userID, messageID string
+	replyToken, sourceID, messageID string
 }
 
 type audioMessage struct {
-	replyToken, userID, messageID string
+	replyToken, sourceID, messageID string
 }
 
 type locationMessage struct {
-	replyToken, userID  string
-	latitude, longitude float64
+	replyToken, sourceID string
+	latitude, longitude  float64
 }
 
 type unknownMessage struct {
-	replyToken, userID string
+	replyToken, sourceID string
 }
 
-func (m *mockHandler) HandleText(ctx context.Context, replyToken, userID, text string) error {
+func (m *mockHandler) HandleText(ctx context.Context, replyToken, sourceID, text string) error {
 	m.mu.Lock()
-	m.textMessages = append(m.textMessages, textMessage{replyToken, userID, text})
+	m.textMessages = append(m.textMessages, textMessage{replyToken, sourceID, text})
 	m.mu.Unlock()
 	if m.onText != nil {
-		return m.onText(ctx, replyToken, userID, text)
+		return m.onText(ctx, replyToken, sourceID, text)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleImage(ctx context.Context, replyToken, userID, messageID string) error {
+func (m *mockHandler) HandleImage(ctx context.Context, replyToken, sourceID, messageID string) error {
 	m.mu.Lock()
-	m.imageMessages = append(m.imageMessages, imageMessage{replyToken, userID, messageID})
+	m.imageMessages = append(m.imageMessages, imageMessage{replyToken, sourceID, messageID})
 	m.mu.Unlock()
 	if m.onImage != nil {
-		return m.onImage(ctx, replyToken, userID, messageID)
+		return m.onImage(ctx, replyToken, sourceID, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleSticker(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
+func (m *mockHandler) HandleSticker(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error {
 	m.mu.Lock()
-	m.stickerMessages = append(m.stickerMessages, stickerMessage{replyToken, userID, packageID, stickerID})
+	m.stickerMessages = append(m.stickerMessages, stickerMessage{replyToken, sourceID, packageID, stickerID})
 	m.mu.Unlock()
 	if m.onSticker != nil {
-		return m.onSticker(ctx, replyToken, userID, packageID, stickerID)
+		return m.onSticker(ctx, replyToken, sourceID, packageID, stickerID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleVideo(ctx context.Context, replyToken, userID, messageID string) error {
+func (m *mockHandler) HandleVideo(ctx context.Context, replyToken, sourceID, messageID string) error {
 	m.mu.Lock()
-	m.videoMessages = append(m.videoMessages, videoMessage{replyToken, userID, messageID})
+	m.videoMessages = append(m.videoMessages, videoMessage{replyToken, sourceID, messageID})
 	m.mu.Unlock()
 	if m.onVideo != nil {
-		return m.onVideo(ctx, replyToken, userID, messageID)
+		return m.onVideo(ctx, replyToken, sourceID, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleAudio(ctx context.Context, replyToken, userID, messageID string) error {
+func (m *mockHandler) HandleAudio(ctx context.Context, replyToken, sourceID, messageID string) error {
 	m.mu.Lock()
-	m.audioMessages = append(m.audioMessages, audioMessage{replyToken, userID, messageID})
+	m.audioMessages = append(m.audioMessages, audioMessage{replyToken, sourceID, messageID})
 	m.mu.Unlock()
 	if m.onAudio != nil {
-		return m.onAudio(ctx, replyToken, userID, messageID)
+		return m.onAudio(ctx, replyToken, sourceID, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleLocation(ctx context.Context, replyToken, userID string, latitude, longitude float64) error {
+func (m *mockHandler) HandleLocation(ctx context.Context, replyToken, sourceID string, latitude, longitude float64) error {
 	m.mu.Lock()
-	m.locationMsgs = append(m.locationMsgs, locationMessage{replyToken, userID, latitude, longitude})
+	m.locationMsgs = append(m.locationMsgs, locationMessage{replyToken, sourceID, latitude, longitude})
 	m.mu.Unlock()
 	if m.onLocation != nil {
-		return m.onLocation(ctx, replyToken, userID, latitude, longitude)
+		return m.onLocation(ctx, replyToken, sourceID, latitude, longitude)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleUnknown(ctx context.Context, replyToken, userID string) error {
+func (m *mockHandler) HandleUnknown(ctx context.Context, replyToken, sourceID string) error {
 	m.mu.Lock()
-	m.unknownMessages = append(m.unknownMessages, unknownMessage{replyToken, userID})
+	m.unknownMessages = append(m.unknownMessages, unknownMessage{replyToken, sourceID})
 	m.mu.Unlock()
 	if m.onUnknown != nil {
-		return m.onUnknown(ctx, replyToken, userID)
+		return m.onUnknown(ctx, replyToken, sourceID)
 	}
 	return nil
 }
@@ -344,7 +344,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 
 	require.Len(t, handler.textMessages, 1)
 	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
-	assert.Equal(t, "test-user-id", handler.textMessages[0].userID)
+	assert.Equal(t, "test-user-id", handler.textMessages[0].sourceID)
 	assert.Equal(t, "Hello, World!", handler.textMessages[0].text)
 }
 
@@ -950,7 +950,7 @@ func TestServer_HandleWebhook_GroupSource(t *testing.T) {
 	require.Len(t, handler.textMessages, 1)
 	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
 	// For group source, sourceID should be groupId (not userId)
-	assert.Equal(t, "C1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "C1234567890abcdef", handler.textMessages[0].sourceID)
 	assert.Equal(t, "Hello from group!", handler.textMessages[0].text)
 }
 
@@ -1002,7 +1002,7 @@ func TestServer_HandleWebhook_RoomSource(t *testing.T) {
 	require.Len(t, handler.textMessages, 1)
 	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
 	// For room source, sourceID should be roomId (not userId)
-	assert.Equal(t, "R1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "R1234567890abcdef", handler.textMessages[0].sourceID)
 	assert.Equal(t, "Hello from room!", handler.textMessages[0].text)
 }
 
@@ -1054,7 +1054,7 @@ func TestServer_HandleWebhook_UserSource(t *testing.T) {
 	require.Len(t, handler.textMessages, 1)
 	assert.Equal(t, "test-reply-token", handler.textMessages[0].replyToken)
 	// For user source, sourceID should be userId
-	assert.Equal(t, "U1234567890abcdef", handler.textMessages[0].userID)
+	assert.Equal(t, "U1234567890abcdef", handler.textMessages[0].sourceID)
 	assert.Equal(t, "Hello from 1:1 chat!", handler.textMessages[0].text)
 }
 
@@ -1105,5 +1105,5 @@ func TestServer_HandleWebhook_MissingSource(t *testing.T) {
 
 	require.Len(t, handler.textMessages, 1)
 	// Missing source should result in empty sourceID
-	assert.Equal(t, "", handler.textMessages[0].userID)
+	assert.Equal(t, "", handler.textMessages[0].sourceID)
 }

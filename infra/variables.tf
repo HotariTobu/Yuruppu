@@ -32,6 +32,11 @@ variable "github_app_installation_id" {
   type        = number
 }
 
+variable "endpoint" {
+  description = "Webhook endpoint path"
+  type        = string
+}
+
 variable "llm_model" {
   description = "LLM model name"
   type        = string

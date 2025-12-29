@@ -18,12 +18,6 @@ type Message struct {
 	Timestamp time.Time `json:"Timestamp"`
 }
 
-// ConversationHistory holds messages for a specific source.
-type ConversationHistory struct {
-	SourceID string
-	Messages []Message
-}
-
 // Repository provides access to conversation history storage.
 type Repository struct {
 	storage storage.Storage
@@ -47,20 +41,18 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 		return nil, 0, &ValidationError{Message: "sourceID cannot be empty"}
 	}
 
-	key := sourceID + ".jsonl"
-
-	data, generation, err := r.storage.Read(ctx, key)
+	data, generation, err := r.storage.Read(ctx, sourceID)
 	if err != nil {
 		return nil, 0, &ReadError{Message: fmt.Sprintf("failed to read history for %s: %v", sourceID, err)}
 	}
 
 	if data == nil {
-		return []Message{}, 0, nil
+		return []Message{}, generation, nil
 	}
 
-	messages, err := r.parseJSONL(data, sourceID)
+	messages, err := r.parseJSONL(data)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, &ReadError{Message: fmt.Sprintf("failed to parse history for %s: %v", sourceID, err)}
 	}
 
 	return messages, generation, nil
@@ -74,16 +66,14 @@ func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages [
 		return &ValidationError{Message: "sourceID cannot be empty"}
 	}
 
-	key := sourceID + ".jsonl"
-
 	// Serialize to JSONL
-	data, err := r.serializeJSONL(messages, sourceID)
+	data, err := r.serializeJSONL(messages)
 	if err != nil {
-		return err // serializeJSONL already returns WriteError
+		return &WriteError{Message: fmt.Sprintf("failed to serialize history for %s: %v", sourceID, err)}
 	}
 
 	// Write with generation precondition
-	if err := r.storage.Write(ctx, key, data, expectedGeneration); err != nil {
+	if err := r.storage.Write(ctx, sourceID, "application/jsonl", data, expectedGeneration); err != nil {
 		return &WriteError{Message: fmt.Sprintf("failed to write history for %s: %v", sourceID, err)}
 	}
 
@@ -96,7 +86,7 @@ func (r *Repository) Close(ctx context.Context) error {
 }
 
 // parseJSONL parses JSONL data into messages.
-func (r *Repository) parseJSONL(data []byte, sourceID string) ([]Message, error) {
+func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 	var messages []Message
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
@@ -108,26 +98,26 @@ func (r *Repository) parseJSONL(data []byte, sourceID string) ([]Message, error)
 
 		var msg Message
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			return nil, &ReadError{Message: fmt.Sprintf("failed to parse JSONL for %s: %v", sourceID, err)}
+			return nil, err
 		}
 		messages = append(messages, msg)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, &ReadError{Message: fmt.Sprintf("failed to read history for %s: %v", sourceID, err)}
+		return nil, err
 	}
 
 	return messages, nil
 }
 
 // serializeJSONL serializes messages to JSONL format.
-func (r *Repository) serializeJSONL(messages []Message, sourceID string) ([]byte, error) {
+func (r *Repository) serializeJSONL(messages []Message) ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, msg := range messages {
 		data, err := json.Marshal(msg)
 		if err != nil {
-			return nil, &WriteError{Message: fmt.Sprintf("failed to marshal message for %s: %v", sourceID, err)}
+			return nil, err
 		}
 		buf.Write(data)
 		buf.WriteByte('\n')

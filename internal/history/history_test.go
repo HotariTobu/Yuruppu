@@ -376,87 +376,6 @@ func TestJSONL_DecodeInvalidJSON(t *testing.T) {
 }
 
 // =============================================================================
-// ConversationHistory Tests
-// =============================================================================
-
-// TestConversationHistory_Struct tests ConversationHistory struct.
-func TestConversationHistory_Struct(t *testing.T) {
-	t.Run("ConversationHistory holds SourceID and Messages", func(t *testing.T) {
-		// Given: ConversationHistory struct
-		hist := history.ConversationHistory{
-			SourceID: "U123abc",
-			Messages: []history.Message{
-				{
-					Role:      "user",
-					Content:   "Hello",
-					Timestamp: time.Now(),
-				},
-				{
-					Role:      "assistant",
-					Content:   "Hi there",
-					Timestamp: time.Now(),
-				},
-			},
-		}
-
-		// Then: Should hold SourceID and Messages
-		assert.Equal(t, "U123abc", hist.SourceID)
-		assert.Len(t, hist.Messages, 2)
-		assert.Equal(t, "user", hist.Messages[0].Role)
-		assert.Equal(t, "assistant", hist.Messages[1].Role)
-	})
-
-	t.Run("ConversationHistory with empty messages", func(t *testing.T) {
-		// Given: ConversationHistory with no messages
-		hist := history.ConversationHistory{
-			SourceID: "C789ghi",
-			Messages: []history.Message{},
-		}
-
-		// Then: Should have empty messages slice
-		assert.Equal(t, "C789ghi", hist.SourceID)
-		assert.Empty(t, hist.Messages)
-	})
-
-	t.Run("ConversationHistory for group chat", func(t *testing.T) {
-		// Given: Group chat conversation
-		hist := history.ConversationHistory{
-			SourceID: "C123group",
-			Messages: []history.Message{
-				{Role: "user", Content: "Group message 1", Timestamp: time.Now()},
-				{Role: "assistant", Content: "Response 1", Timestamp: time.Now()},
-				{Role: "user", Content: "Group message 2", Timestamp: time.Now()},
-			},
-		}
-
-		// Then: Should hold group SourceID
-		assert.Equal(t, "C123group", hist.SourceID)
-		assert.Len(t, hist.Messages, 3)
-	})
-
-	t.Run("different SourceIDs maintain separate histories", func(t *testing.T) {
-		// Given: Two different conversation histories
-		hist1 := history.ConversationHistory{
-			SourceID: "U111",
-			Messages: []history.Message{
-				{Role: "user", Content: "User 1 message", Timestamp: time.Now()},
-			},
-		}
-
-		hist2 := history.ConversationHistory{
-			SourceID: "U222",
-			Messages: []history.Message{
-				{Role: "user", Content: "User 2 message", Timestamp: time.Now()},
-			},
-		}
-
-		// Then: Should be independent
-		assert.NotEqual(t, hist1.SourceID, hist2.SourceID)
-		assert.NotEqual(t, hist1.Messages[0].Content, hist2.Messages[0].Content)
-	})
-}
-
-// =============================================================================
 // Repository Tests
 // =============================================================================
 
@@ -517,7 +436,7 @@ func (m *mockStorage) Read(ctx context.Context, key string) ([]byte, int64, erro
 	return nil, 0, nil
 }
 
-func (m *mockStorage) Write(ctx context.Context, key string, data []byte, expectedGeneration int64) error {
+func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
 	return nil
 }
 

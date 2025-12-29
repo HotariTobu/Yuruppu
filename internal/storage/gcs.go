@@ -7,10 +7,7 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
-	"google.golang.org/api/googleapi"
 )
-
-const httpPreconditionFailed = 412
 
 // GCSStorage implements Storage interface using Google Cloud Storage.
 type GCSStorage struct {
@@ -41,19 +38,21 @@ func (s *GCSStorage) Read(ctx context.Context, key string) ([]byte, int64, error
 		}
 		return nil, 0, fmt.Errorf("failed to read %s: %w", key, err)
 	}
-	defer func() { _ = reader.Close() }()
 
-	data, err := io.ReadAll(reader)
-	if err != nil {
+	data, readErr := io.ReadAll(reader)
+	generation := reader.Attrs.Generation
+	closeErr := reader.Close()
+
+	if err := errors.Join(readErr, closeErr); err != nil {
 		return nil, 0, fmt.Errorf("failed to read %s: %w", key, err)
 	}
 
-	return data, reader.Attrs.Generation, nil
+	return data, generation, nil
 }
 
 // Write stores data for a key with generation precondition.
 // Returns ErrPreconditionFailed if generation doesn't match (412).
-func (s *GCSStorage) Write(ctx context.Context, key string, data []byte, expectedGeneration int64) error {
+func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
 	obj := s.bucket.Object(key)
 
 	var writer *storage.Writer
@@ -69,31 +68,20 @@ func (s *GCSStorage) Write(ctx context.Context, key string, data []byte, expecte
 		writer = obj.NewWriter(ctx)
 	}
 
-	if _, err := writer.Write(data); err != nil {
-		_ = writer.Close()
-		if isPreconditionFailed(err) {
-			return fmt.Errorf("%w: %s", ErrPreconditionFailed, key)
-		}
-		return fmt.Errorf("failed to write %s: %w", key, err)
+	if writer == nil {
+		return fmt.Errorf("failed to create writer for %s", key)
 	}
 
-	if err := writer.Close(); err != nil {
-		if isPreconditionFailed(err) {
-			return fmt.Errorf("%w: %s", ErrPreconditionFailed, key)
-		}
+	writer.ContentType = mimetype
+
+	_, writeErr := writer.Write(data)
+	closeErr := writer.Close()
+
+	if err := errors.Join(writeErr, closeErr); err != nil {
 		return fmt.Errorf("failed to write %s: %w", key, err)
 	}
 
 	return nil
-}
-
-// isPreconditionFailed checks if error is a GCS precondition failure (HTTP 412).
-func isPreconditionFailed(err error) bool {
-	var apiErr *googleapi.Error
-	if errors.As(err, &apiErr) {
-		return apiErr.Code == httpPreconditionFailed
-	}
-	return false
 }
 
 // Close releases storage resources.

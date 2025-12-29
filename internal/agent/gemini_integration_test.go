@@ -38,8 +38,16 @@ func TestGeminiAgent_Integration_GenerateText(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
-	systemPrompt := "You are a helpful assistant. Respond briefly."
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
+	cfg := agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            model,
+		CacheTTL:         5 * time.Minute,
+		CacheDisplayName: "test-cache",
+		SystemPrompt:     "You are a helpful assistant. Respond briefly.",
+	}
+	logger := slog.New(slog.DiscardHandler)
+	a, err := agent.NewGeminiAgent(ctx, cfg, logger)
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
@@ -52,8 +60,16 @@ func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
-	systemPrompt := "You are a helpful assistant. Respond briefly."
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
+	cfg := agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            model,
+		CacheTTL:         5 * time.Minute,
+		CacheDisplayName: "test-cache-history",
+		SystemPrompt:     "You are a helpful assistant. Respond briefly.",
+	}
+	logger := slog.New(slog.DiscardHandler)
+	a, err := agent.NewGeminiAgent(ctx, cfg, logger)
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
@@ -81,7 +97,15 @@ func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, logger)
+	cfg := agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            model,
+		CacheTTL:         5 * time.Minute,
+		CacheDisplayName: "test-cache-large",
+		SystemPrompt:     systemPrompt,
+	}
+	a, err := agent.NewGeminiAgent(ctx, cfg, logger)
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
