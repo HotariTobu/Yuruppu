@@ -12,12 +12,12 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
 	"yuruppu/internal/gcp"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line/client"
 	"yuruppu/internal/line/server"
-	"yuruppu/internal/llm"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/yuruppu"
 
@@ -165,16 +165,20 @@ func main() {
 	projectID := metadataClient.GetProjectID(config.GCPProjectID)
 	region := metadataClient.GetRegion(config.GCPRegion)
 
-	// Create LLM provider (pure API layer)
-	llmProvider, err := llm.New(context.Background(), projectID, region, config.LLMModel, logger)
+	// Create Gemini agent
+	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
+	geminiAgent, err := agent.NewGeminiAgent(context.Background(), projectID, region, config.LLMModel, llmCacheTTL, logger)
 	if err != nil {
-		logger.Error("failed to initialize LLM provider", slog.String("error", err.Error()))
+		logger.Error("failed to initialize Gemini agent", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	// Create Yuruppu agent (manages system prompt and caching)
-	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
-	yuruppuAgent := yuruppu.New(llmProvider, llmCacheTTL, logger)
+	// Create Yuruppu agent (configures system prompt)
+	yuruppuAgent, err := yuruppu.New(geminiAgent, logger)
+	if err != nil {
+		logger.Error("failed to initialize Yuruppu agent", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	// Create history repository if bucket is configured
 	var historyRepo *history.Repository
@@ -235,14 +239,9 @@ func main() {
 		logger.Error("failed to shutdown HTTP server gracefully", slog.String("error", err.Error()))
 	}
 
-	// Close Yuruppu agent first (cleans up cache)
+	// Close Yuruppu agent (cleans up cache and API connections)
 	if err := yuruppuAgent.Close(shutdownCtx); err != nil {
 		logger.Error("failed to close Yuruppu agent", slog.String("error", err.Error()))
-	}
-
-	// Close Provider (cleans up API connections)
-	if err := llmProvider.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close LLM provider", slog.String("error", err.Error()))
 	}
 
 	// Close GCS client if it was created
