@@ -14,11 +14,12 @@ import (
 	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
-	"yuruppu/internal/gcp"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/yuruppu"
+
+	"cloud.google.com/go/compute/metadata"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -133,6 +134,18 @@ func loadConfig() (*Config, error) {
 	}, nil
 }
 
+func getProjectIDAndRegion(ctx context.Context) (string, string, error) {
+	if !metadata.OnGCE() {
+		return "", "", errors.New("not running on GCE")
+	}
+	projectID, err1 := metadata.ProjectIDWithContext(ctx)
+	zone, err2 := metadata.ZoneWithContext(ctx)
+	if err := errors.Join(err1, err2); err != nil {
+		return "", "", err
+	}
+	return projectID, zone[:len(zone)-2], nil
+}
+
 func main() {
 	// Create logger with JSON handler for structured logging
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -146,7 +159,7 @@ func main() {
 
 	// Initialize components
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	srv, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
+	lineServer, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.Any("error", err))
 		os.Exit(1)
@@ -159,11 +172,12 @@ func main() {
 	}
 
 	// Resolve project ID and region from Cloud Run metadata with env var fallback
-	gcpMetadataTimeout := time.Duration(config.GCPMetadataTimeoutSeconds) * time.Second
-	metadataHTTPClient := &http.Client{Timeout: gcpMetadataTimeout}
-	metadataClient := gcp.NewClient(gcp.DefaultMetadataServerURL, metadataHTTPClient, logger)
-	projectID := metadataClient.GetProjectID(config.GCPProjectID)
-	region := metadataClient.GetRegion(config.GCPRegion)
+	projectID, region, err := getProjectIDAndRegion(context.Background())
+	if err != nil {
+		logger.Warn("failed to get metadata from GCP, using fallback", slog.Any("error", err))
+		projectID = config.GCPProjectID
+		region = config.GCPRegion
+	}
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
@@ -187,11 +201,11 @@ func main() {
 	logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
 
 	// Register message handler
-	srv.RegisterHandler(bot.NewHandler(historyRepo, geminiAgent, lineClient, logger))
+	lineServer.RegisterHandler(bot.NewHandler(historyRepo, geminiAgent, lineClient, logger))
 
 	// Create HTTP server with graceful shutdown support
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook", srv.HandleWebhook)
+	mux.HandleFunc("/webhook", lineServer.HandleWebhook)
 	httpServer := &http.Server{
 		Addr:              ":" + config.Port,
 		Handler:           mux,
