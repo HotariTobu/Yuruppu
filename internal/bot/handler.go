@@ -9,9 +9,9 @@ import (
 
 // Responder generates a response for a given message.
 type Responder interface {
-	// Respond generates a response for a given message with optional conversation history.
-	// history may be nil if no history is available.
-	Respond(ctx context.Context, userMessage string, history []history.Message) (string, error)
+	// Respond generates a response for the conversation history.
+	// The last message in history must be the user message to respond to.
+	Respond(ctx context.Context, history []history.Message) (string, error)
 }
 
 // Sender sends a reply message.
@@ -21,43 +21,52 @@ type Sender interface {
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
+	history   *history.Repository
 	responder Responder
 	sender    Sender
 	logger    *slog.Logger
-	history   *history.Repository
 }
 
-// New creates a new Handler with the given dependencies.
-// historyRepo can be nil if history storage is not needed.
+// NewHandler creates a new Handler with the given dependencies.
 // logger defaults to a discard handler if nil.
-func New(responder Responder, sender Sender, logger *slog.Logger, historyRepo *history.Repository) *Handler {
+func NewHandler(historyRepo *history.Repository, responder Responder, sender Sender, logger *slog.Logger) *Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	return &Handler{
+		history:   historyRepo,
 		responder: responder,
 		sender:    sender,
 		logger:    logger,
-		history:   historyRepo,
 	}
 }
 
 func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text string) error {
-	// Load history if configured (FR-002)
-	var conversationHistory []history.Message
-	if h.history != nil {
-		var err error
-		conversationHistory, err = h.history.GetHistory(ctx, userID)
-		if err != nil {
-			h.logger.ErrorContext(ctx, "failed to load history",
-				slog.String("userID", userID),
-				slog.Any("error", err),
-			)
-			return err
-		}
+	now := time.Now()
+
+	// Step 1: Load history
+	conversationHistory, generation, err := h.history.GetHistory(ctx, userID)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "failed to load history",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
 	}
 
-	response, err := h.responder.Respond(ctx, text, conversationHistory)
+	// Step 2: Append user message and save to history
+	userMessage := history.Message{Role: "user", Content: text, Timestamp: now}
+	historyWithUser := append(conversationHistory, userMessage)
+	if err := h.history.PutHistory(ctx, userID, historyWithUser, generation); err != nil {
+		h.logger.ErrorContext(ctx, "failed to save user message to history",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	// Step 3: Generate response
+	response, err := h.responder.Respond(ctx, historyWithUser)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "LLM call failed",
 			slog.String("userID", userID),
@@ -66,30 +75,29 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, userID, text st
 		return err
 	}
 
-	// Save to history if configured (FR-001)
-	if h.history != nil {
-		now := time.Now()
-		userMsg := history.Message{
-			Role:      "user",
-			Content:   text,
-			Timestamp: now,
-		}
-		botMsg := history.Message{
-			Role:      "assistant",
-			Content:   response,
-			Timestamp: now,
-		}
-		if err := h.history.AppendMessages(ctx, userID, userMsg, botMsg); err != nil {
-			h.logger.ErrorContext(ctx, "failed to save history",
-				slog.String("userID", userID),
-				slog.Any("error", err),
-			)
-			return err
-		}
-	}
-
+	// Step 4: Send reply
 	if err := h.sender.SendReply(replyToken, response); err != nil {
 		h.logger.ErrorContext(ctx, "failed to send reply",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+
+	// Step 5: Append assistant message and save to history
+	// Re-read to get current generation after first write
+	currentHistory, newGeneration, err := h.history.GetHistory(ctx, userID)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "failed to read history for assistant message",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return err
+	}
+	assistantMessage := history.Message{Role: "assistant", Content: response, Timestamp: time.Now()}
+	historyWithAssistant := append(currentHistory, assistantMessage)
+	if err := h.history.PutHistory(ctx, userID, historyWithAssistant, newGeneration); err != nil {
+		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
 			slog.String("userID", userID),
 			slog.Any("error", err),
 		)

@@ -39,62 +39,51 @@ func NewRepository(s storage.Storage) (*Repository, error) {
 }
 
 // GetHistory retrieves conversation history for a source.
-// Returns empty slice if no history exists.
+// Returns messages and generation for optimistic locking.
+// Returns empty slice and generation 0 if no history exists.
 // Returns error if sourceID is empty.
-func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message, error) {
-	if err := validateSourceID(sourceID); err != nil {
-		return nil, err
+func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message, int64, error) {
+	if strings.TrimSpace(sourceID) == "" {
+		return nil, 0, &ValidationError{Message: "sourceID cannot be empty"}
 	}
 
 	key := sourceID + ".jsonl"
 
-	data, _, err := r.storage.Read(ctx, key)
+	data, generation, err := r.storage.Read(ctx, key)
 	if err != nil {
-		return nil, &ReadError{Message: fmt.Sprintf("failed to read history for %s: %v", sourceID, err)}
+		return nil, 0, &ReadError{Message: fmt.Sprintf("failed to read history for %s: %v", sourceID, err)}
 	}
 
 	if data == nil {
-		return []Message{}, nil
+		return []Message{}, 0, nil
 	}
 
-	return r.parseJSONL(data, sourceID)
+	messages, err := r.parseJSONL(data, sourceID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return messages, generation, nil
 }
 
-// AppendMessages saves user message and bot response atomically.
-// Uses generation precondition to detect concurrent modifications.
-// Returns error if sourceID is empty.
-func (r *Repository) AppendMessages(ctx context.Context, sourceID string, userMsg, botMsg Message) error {
-	if err := validateSourceID(sourceID); err != nil {
-		return err
+// PutHistory saves the given messages as the complete history for a source.
+// Uses expectedGeneration for optimistic locking (from GetHistory).
+// Returns error if sourceID is empty or if generation doesn't match (concurrent modification).
+func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []Message, expectedGeneration int64) error {
+	if strings.TrimSpace(sourceID) == "" {
+		return &ValidationError{Message: "sourceID cannot be empty"}
 	}
 
 	key := sourceID + ".jsonl"
 
-	// Read existing history with generation
-	data, generation, err := r.storage.Read(ctx, key)
-	if err != nil {
-		return &ReadError{Message: fmt.Sprintf("failed to read existing history for %s: %v", sourceID, err)}
-	}
-
-	var messages []Message
-	if data != nil {
-		messages, err = r.parseJSONL(data, sourceID)
-		if err != nil {
-			return err // parseJSONL already returns ReadError
-		}
-	}
-
-	// Append new messages
-	messages = append(messages, userMsg, botMsg)
-
 	// Serialize to JSONL
-	newData, err := r.serializeJSONL(messages, sourceID)
+	data, err := r.serializeJSONL(messages, sourceID)
 	if err != nil {
 		return err // serializeJSONL already returns WriteError
 	}
 
-	// Write back with generation precondition (storage handles retry)
-	if err := r.storage.Write(ctx, key, newData, generation); err != nil {
+	// Write with generation precondition
+	if err := r.storage.Write(ctx, key, data, expectedGeneration); err != nil {
 		return &WriteError{Message: fmt.Sprintf("failed to write history for %s: %v", sourceID, err)}
 	}
 
@@ -104,14 +93,6 @@ func (r *Repository) AppendMessages(ctx context.Context, sourceID string, userMs
 // Close releases repository resources.
 func (r *Repository) Close(ctx context.Context) error {
 	return r.storage.Close(ctx)
-}
-
-// validateSourceID checks if sourceID is valid.
-func validateSourceID(sourceID string) error {
-	if strings.TrimSpace(sourceID) == "" {
-		return &ValidationError{Message: "sourceID cannot be empty"}
-	}
-	return nil
 }
 
 // parseJSONL parses JSONL data into messages.

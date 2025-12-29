@@ -1,17 +1,13 @@
-package server
+package line
 
 import (
-	// Standard library
 	"context"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-	"yuruppu/internal/line"
 
-	// Third-party packages
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
-	// Internal packages
 )
 
 // Handler handles incoming LINE messages by type.
@@ -36,19 +32,19 @@ type Server struct {
 	logger         *slog.Logger
 }
 
-// New creates a new LINE webhook server.
+// NewServer creates a new LINE webhook server.
 // channelSecret is the LINE channel secret for signature verification.
 // timeout is the timeout for handler execution (must be positive).
 // logger is the structured logger for the server.
 // Returns an error if channelSecret is empty or timeout is not positive.
-func New(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
+func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
 	channelSecret = strings.TrimSpace(channelSecret)
 	if channelSecret == "" {
-		return nil, &line.ConfigError{Variable: "channelSecret"}
+		return nil, &ConfigError{Variable: "channelSecret"}
 	}
 
 	if timeout <= 0 {
-		return nil, &line.ConfigError{Variable: "timeout"}
+		return nil, &ConfigError{Variable: "timeout"}
 	}
 
 	return &Server{

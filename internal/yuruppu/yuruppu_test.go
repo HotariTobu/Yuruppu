@@ -24,12 +24,12 @@ func TestSystemPrompt_NotEmpty(t *testing.T) {
 // Yuruppu Wrapper Tests
 // =============================================================================
 
-func TestYuruppu_New(t *testing.T) {
+func TestNewResponder(t *testing.T) {
 	t.Run("creates Yuruppu with agent", func(t *testing.T) {
 		mockAgent := &mockAgent{}
 		logger := slog.New(slog.DiscardHandler)
 
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 
 		require.NoError(t, err)
 		require.NotNil(t, yuruppu)
@@ -40,7 +40,7 @@ func TestYuruppu_New(t *testing.T) {
 	t.Run("creates Yuruppu with nil logger", func(t *testing.T) {
 		mockAgent := &mockAgent{}
 
-		yuruppu, err := New(mockAgent, nil)
+		yuruppu, err := NewResponder(mockAgent, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, yuruppu)
@@ -52,7 +52,7 @@ func TestYuruppu_New(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 
 		require.Error(t, err)
 		assert.Nil(t, yuruppu)
@@ -66,11 +66,14 @@ func TestYuruppu_Respond(t *testing.T) {
 			response: "Hello from Yuruppu!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
-		response, err := yuruppu.Respond(ctx, "Hello", nil)
+		history := []historyPkg.Message{
+			{Role: "user", Content: "Hello"},
+		}
+		response, err := yuruppu.Respond(ctx, history)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello from Yuruppu!", response)
@@ -81,53 +84,64 @@ func TestYuruppu_Respond(t *testing.T) {
 			generateTextErr: errors.New("LLM error"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
-		_, err = yuruppu.Respond(ctx, "Hello", nil)
+		history := []historyPkg.Message{
+			{Role: "user", Content: "Hello"},
+		}
+		_, err = yuruppu.Respond(ctx, history)
 
 		require.Error(t, err)
 		assert.Equal(t, "LLM error", err.Error())
 	})
 
-	t.Run("passes history to agent (FR-002)", func(t *testing.T) {
+	t.Run("passes history to agent", func(t *testing.T) {
 		mockAgent := &mockAgent{
 			response: "I remember you, Taro!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppuBot, err := New(mockAgent, logger)
+		yuruppuBot, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
 		history := []historyPkg.Message{
 			{Role: "user", Content: "My name is Taro"},
 			{Role: "assistant", Content: "Nice to meet you!"},
+			{Role: "user", Content: "Do you remember me?"},
 		}
-		response, err := yuruppuBot.Respond(ctx, "Do you remember me?", history)
+		response, err := yuruppuBot.Respond(ctx, history)
 
 		require.NoError(t, err)
 		assert.Equal(t, "I remember you, Taro!", response)
-		// Verify history was converted to agent.Message and passed to agent
-		require.Len(t, mockAgent.lastHistory, 2)
+		// Verify history was passed to agent
+		require.Len(t, mockAgent.lastHistory, 3)
 		assert.Equal(t, "My name is Taro", mockAgent.lastHistory[0].Content)
 		assert.Equal(t, "user", mockAgent.lastHistory[0].Role)
+		assert.Equal(t, "Do you remember me?", mockAgent.lastHistory[2].Content)
+		assert.Equal(t, "user", mockAgent.lastHistory[2].Role)
 	})
 
-	t.Run("works with nil history", func(t *testing.T) {
+	t.Run("works with single message", func(t *testing.T) {
 		mockAgent := &mockAgent{
 			response: "Hello!",
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
-		response, err := yuruppu.Respond(ctx, "Hi", nil)
+		history := []historyPkg.Message{
+			{Role: "user", Content: "Hi"},
+		}
+		response, err := yuruppu.Respond(ctx, history)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello!", response)
-		assert.Nil(t, mockAgent.lastHistory)
+		require.Len(t, mockAgent.lastHistory, 1)
+		assert.Equal(t, "Hi", mockAgent.lastHistory[0].Content)
+		assert.Equal(t, "user", mockAgent.lastHistory[0].Role)
 	})
 }
 
@@ -135,7 +149,7 @@ func TestYuruppu_Close(t *testing.T) {
 	t.Run("delegates to agent successfully", func(t *testing.T) {
 		mockAgent := &mockAgent{}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -150,7 +164,7 @@ func TestYuruppu_Close(t *testing.T) {
 			closeErr: errors.New("close failed"),
 		}
 		logger := slog.New(slog.DiscardHandler)
-		yuruppu, err := New(mockAgent, logger)
+		yuruppu, err := NewResponder(mockAgent, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -180,7 +194,7 @@ func (m *mockAgent) Configure(ctx context.Context, systemPrompt string) error {
 	return m.configureErr
 }
 
-func (m *mockAgent) GenerateText(ctx context.Context, userMessage string, history []agent.Message) (string, error) {
+func (m *mockAgent) GenerateText(ctx context.Context, history []agent.Message) (string, error) {
 	m.lastHistory = history
 	if m.generateTextErr != nil {
 		return "", m.generateTextErr

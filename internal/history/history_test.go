@@ -477,7 +477,7 @@ func TestRepository_EmptySourceID(t *testing.T) {
 		repo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 
-		_, err = repo.GetHistory(t.Context(), "")
+		_, _, err = repo.GetHistory(t.Context(), "")
 
 		require.Error(t, err)
 		var validationErr *history.ValidationError
@@ -488,18 +488,18 @@ func TestRepository_EmptySourceID(t *testing.T) {
 		repo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 
-		_, err = repo.GetHistory(t.Context(), "   ")
+		_, _, err = repo.GetHistory(t.Context(), "   ")
 
 		require.Error(t, err)
 		var validationErr *history.ValidationError
 		assert.True(t, errors.As(err, &validationErr), "error should be ValidationError")
 	})
 
-	t.Run("AppendMessages with empty sourceID returns ValidationError", func(t *testing.T) {
+	t.Run("PutHistory with empty sourceID returns ValidationError", func(t *testing.T) {
 		repo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 
-		err = repo.AppendMessages(t.Context(), "", history.Message{}, history.Message{})
+		err = repo.PutHistory(t.Context(), "", []history.Message{}, 0)
 
 		require.Error(t, err)
 		var validationErr *history.ValidationError

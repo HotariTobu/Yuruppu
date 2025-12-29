@@ -20,11 +20,11 @@ type Agent interface {
 	// Returns error if configuration fails.
 	Configure(ctx context.Context, systemPrompt string) error
 
-	// GenerateText generates a text response given a user message.
-	// history provides optional conversation context (may be nil).
+	// GenerateText generates a text response for the conversation history.
+	// The last message in history must be the user message to respond to.
 	// Returns NotConfiguredError if Configure has not been called.
 	// Returns ClosedError if the Agent has been closed.
-	GenerateText(ctx context.Context, userMessage string, history []Message) (string, error)
+	GenerateText(ctx context.Context, history []Message) (string, error)
 
 	// Close releases any resources held by the agent.
 	// Close is idempotent (safe to call multiple times).

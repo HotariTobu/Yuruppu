@@ -18,11 +18,11 @@ type MetadataClient struct {
 	logger     *slog.Logger
 }
 
-// New creates a new MetadataClient.
+// NewClient creates a new MetadataClient.
 // The baseURL should be DefaultMetadataServerURL in production.
 // The httpClient should have an appropriate timeout configured.
 // The logger is used for error logging.
-func New(baseURL string, httpClient *http.Client, logger *slog.Logger) *MetadataClient {
+func NewClient(baseURL string, httpClient *http.Client, logger *slog.Logger) *MetadataClient {
 	return &MetadataClient{
 		baseURL:    baseURL,
 		httpClient: httpClient,
