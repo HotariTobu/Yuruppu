@@ -3,7 +3,9 @@
 package agent_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -75,9 +77,17 @@ func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
 	basePrompt := "You are a helpful assistant. "
 	systemPrompt := basePrompt + strings.Repeat("This is additional context to increase the token count. ", 200)
 
-	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
+	// Capture logs to verify cache creation
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, logger)
 	require.NoError(t, err)
 	defer a.Close(ctx)
+
+	// Verify cache was created
+	logOutput := logBuf.String()
+	assert.Contains(t, logOutput, "cache created successfully")
 
 	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
 	require.NoError(t, err)
