@@ -39,7 +39,7 @@ resource "google_project_service" "apis" {
 
 # GCS bucket for chat history storage
 resource "google_storage_bucket" "history" {
-  name                        = "${var.project_id}-yuruppu-history"
+  name                        = "yuruppu-history"
   location                    = var.region
   uniform_bucket_level_access = true
 
