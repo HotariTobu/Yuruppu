@@ -8,6 +8,7 @@ import (
 	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
+	"yuruppu/internal/message"
 )
 
 // Sender sends a reply message.
@@ -58,8 +59,8 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, sourceID, text 
 	}
 
 	// Step 2: Append user message and save to history
-	userMessage := history.Message{Role: "user", Content: text, Timestamp: time.Now()}
-	historyWithUser := slices.Concat(conversationHistory, []history.Message{userMessage})
+	userMessage := message.Message{Role: "user", Content: text, Timestamp: time.Now()}
+	historyWithUser := slices.Concat(conversationHistory, []message.Message{userMessage})
 	if err := h.history.PutHistory(ctx, sourceID, historyWithUser, generation); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save user message to history",
 			slog.String("sourceID", sourceID),
@@ -69,12 +70,7 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, sourceID, text 
 	}
 
 	// Step 3: Generate response
-	// Convert history.Message to agent.Message
-	agentHistory := make([]agent.Message, len(historyWithUser))
-	for i, m := range historyWithUser {
-		agentHistory[i] = agent.Message{Role: m.Role, Content: m.Content}
-	}
-	response, err := h.agent.GenerateText(ctx, agentHistory)
+	response, err := h.agent.GenerateText(ctx, historyWithUser)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to generate response",
 			slog.String("sourceID", sourceID),
@@ -102,8 +98,8 @@ func (h *Handler) handleMessage(ctx context.Context, replyToken, sourceID, text 
 		)
 		return err
 	}
-	assistantMessage := history.Message{Role: "assistant", Content: response, Timestamp: time.Now()}
-	historyWithAssistant := slices.Concat(currentHistory, []history.Message{assistantMessage})
+	assistantMessage := message.Message{Role: "assistant", Content: response, Timestamp: time.Now()}
+	historyWithAssistant := slices.Concat(currentHistory, []message.Message{assistantMessage})
 	if err := h.history.PutHistory(ctx, sourceID, historyWithAssistant, newGeneration); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
 			slog.String("sourceID", sourceID),

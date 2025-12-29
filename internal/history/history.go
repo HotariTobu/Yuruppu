@@ -7,16 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
+	"yuruppu/internal/message"
 	"yuruppu/internal/storage"
 )
-
-// Message represents a single message in conversation history.
-type Message struct {
-	Role      string    `json:"Role"` // "user" or "assistant"
-	Content   string    `json:"Content"`
-	Timestamp time.Time `json:"Timestamp"`
-}
 
 // Repository provides access to conversation history storage.
 type Repository struct {
@@ -36,7 +29,7 @@ func NewRepository(s storage.Storage) (*Repository, error) {
 // Returns messages and generation for optimistic locking.
 // Returns empty slice and generation 0 if no history exists.
 // Returns error if sourceID is empty.
-func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message, int64, error) {
+func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]message.Message, int64, error) {
 	if strings.TrimSpace(sourceID) == "" {
 		return nil, 0, &ValidationError{Message: "sourceID cannot be empty"}
 	}
@@ -47,7 +40,7 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 	}
 
 	if data == nil {
-		return []Message{}, generation, nil
+		return []message.Message{}, generation, nil
 	}
 
 	messages, err := r.parseJSONL(data)
@@ -61,7 +54,7 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 // PutHistory saves the given messages as the complete history for a source.
 // Uses expectedGeneration for optimistic locking (from GetHistory).
 // Returns error if sourceID is empty or if generation doesn't match (concurrent modification).
-func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []Message, expectedGeneration int64) error {
+func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []message.Message, expectedGeneration int64) error {
 	if strings.TrimSpace(sourceID) == "" {
 		return &ValidationError{Message: "sourceID cannot be empty"}
 	}
@@ -86,8 +79,8 @@ func (r *Repository) Close(ctx context.Context) error {
 }
 
 // parseJSONL parses JSONL data into messages.
-func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
-	var messages []Message
+func (r *Repository) parseJSONL(data []byte) ([]message.Message, error) {
+	var messages []message.Message
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	for scanner.Scan() {
@@ -96,7 +89,7 @@ func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 			continue
 		}
 
-		var msg Message
+		var msg message.Message
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			return nil, err
 		}
@@ -111,7 +104,7 @@ func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 }
 
 // serializeJSONL serializes messages to JSONL format.
-func (r *Repository) serializeJSONL(messages []Message) ([]byte, error) {
+func (r *Repository) serializeJSONL(messages []message.Message) ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, msg := range messages {

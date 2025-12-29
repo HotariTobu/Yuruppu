@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 	"yuruppu/internal/history"
+	"yuruppu/internal/message"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 func TestMessage_JSONMarshaling(t *testing.T) {
 	t.Run("marshal message to JSON", func(t *testing.T) {
 		// Given: A Message struct
-		msg := history.Message{
+		msg := message.Message{
 			Role:      "user",
 			Content:   "Hello, Yuruppu!",
 			Timestamp: time.Date(2025, 12, 28, 12, 0, 0, 0, time.UTC),
@@ -39,7 +40,7 @@ func TestMessage_JSONMarshaling(t *testing.T) {
 
 	t.Run("marshal assistant message", func(t *testing.T) {
 		// Given: An assistant message
-		msg := history.Message{
+		msg := message.Message{
 			Role:      "assistant",
 			Content:   "こんにちは！",
 			Timestamp: time.Now(),
@@ -56,7 +57,7 @@ func TestMessage_JSONMarshaling(t *testing.T) {
 
 	t.Run("marshal empty content message", func(t *testing.T) {
 		// Given: A message with empty content
-		msg := history.Message{
+		msg := message.Message{
 			Role:      "user",
 			Content:   "",
 			Timestamp: time.Now(),
@@ -78,7 +79,7 @@ func TestMessage_JSONUnmarshaling(t *testing.T) {
 		jsonData := `{"Role":"user","Content":"Test message","Timestamp":"2025-12-28T12:00:00Z"}`
 
 		// When: Unmarshal to Message
-		var msg history.Message
+		var msg message.Message
 		err := json.Unmarshal([]byte(jsonData), &msg)
 
 		// Then: Should succeed with correct values
@@ -93,7 +94,7 @@ func TestMessage_JSONUnmarshaling(t *testing.T) {
 		jsonData := `{"Role":"assistant","Content":"応答メッセージ","Timestamp":"2025-12-28T15:30:00Z"}`
 
 		// When: Unmarshal
-		var msg history.Message
+		var msg message.Message
 		err := json.Unmarshal([]byte(jsonData), &msg)
 
 		// Then: Should succeed
@@ -107,7 +108,7 @@ func TestMessage_JSONUnmarshaling(t *testing.T) {
 		invalidJSON := `{"Role":"user","Content":`
 
 		// When: Unmarshal
-		var msg history.Message
+		var msg message.Message
 		err := json.Unmarshal([]byte(invalidJSON), &msg)
 
 		// Then: Should return error
@@ -120,7 +121,7 @@ func TestMessage_TimestampFormat(t *testing.T) {
 	t.Run("timestamp serialized as RFC3339", func(t *testing.T) {
 		// Given: Message with specific timestamp
 		timestamp := time.Date(2025, 12, 28, 12, 30, 45, 0, time.UTC)
-		msg := history.Message{
+		msg := message.Message{
 			Role:      "user",
 			Content:   "Test",
 			Timestamp: timestamp,
@@ -138,7 +139,7 @@ func TestMessage_TimestampFormat(t *testing.T) {
 		// Given: Timestamp with JST timezone
 		jst := time.FixedZone("JST", 9*60*60)
 		timestamp := time.Date(2025, 12, 28, 21, 30, 0, 0, jst)
-		msg := history.Message{
+		msg := message.Message{
 			Role:      "user",
 			Content:   "Test",
 			Timestamp: timestamp,
@@ -154,7 +155,7 @@ func TestMessage_TimestampFormat(t *testing.T) {
 
 	t.Run("round-trip preserves timestamp", func(t *testing.T) {
 		// Given: Original message
-		original := history.Message{
+		original := message.Message{
 			Role:      "user",
 			Content:   "Test",
 			Timestamp: time.Date(2025, 12, 28, 12, 0, 0, 0, time.UTC),
@@ -164,7 +165,7 @@ func TestMessage_TimestampFormat(t *testing.T) {
 		data, err := json.Marshal(original)
 		require.NoError(t, err)
 
-		var restored history.Message
+		var restored message.Message
 		err = json.Unmarshal(data, &restored)
 		require.NoError(t, err)
 
@@ -181,7 +182,7 @@ func TestMessage_TimestampFormat(t *testing.T) {
 func TestJSONL_EncodeMessages(t *testing.T) {
 	t.Run("encode multiple messages to JSONL", func(t *testing.T) {
 		// Given: Multiple messages
-		messages := []history.Message{
+		messages := []message.Message{
 			{
 				Role:      "user",
 				Content:   "First message",
@@ -215,7 +216,7 @@ func TestJSONL_EncodeMessages(t *testing.T) {
 
 		// Each line should be valid JSON
 		for _, line := range lines {
-			var msg history.Message
+			var msg message.Message
 			err := json.Unmarshal([]byte(line), &msg)
 			require.NoError(t, err, "Each line should be valid JSON")
 		}
@@ -223,7 +224,7 @@ func TestJSONL_EncodeMessages(t *testing.T) {
 
 	t.Run("encode empty message slice to JSONL", func(t *testing.T) {
 		// Given: Empty message slice
-		messages := []history.Message{}
+		messages := []message.Message{}
 
 		// When: Encode to JSONL
 		var builder strings.Builder
@@ -240,7 +241,7 @@ func TestJSONL_EncodeMessages(t *testing.T) {
 
 	t.Run("encode single message to JSONL", func(t *testing.T) {
 		// Given: Single message
-		messages := []history.Message{
+		messages := []message.Message{
 			{
 				Role:      "user",
 				Content:   "Only message",
@@ -274,9 +275,9 @@ func TestJSONL_DecodeMessages(t *testing.T) {
 
 		// When: Decode JSONL
 		lines := strings.Split(strings.TrimSpace(jsonl), "\n")
-		var messages []history.Message
+		var messages []message.Message
 		for _, line := range lines {
-			var msg history.Message
+			var msg message.Message
 			err := json.Unmarshal([]byte(line), &msg)
 			require.NoError(t, err)
 			messages = append(messages, msg)
@@ -296,12 +297,12 @@ func TestJSONL_DecodeMessages(t *testing.T) {
 
 		// When: Decode
 		lines := strings.Split(strings.TrimSpace(jsonl), "\n")
-		var messages []history.Message
+		var messages []message.Message
 		for _, line := range lines {
 			if line == "" {
 				continue
 			}
-			var msg history.Message
+			var msg message.Message
 			err := json.Unmarshal([]byte(line), &msg)
 			require.NoError(t, err)
 			messages = append(messages, msg)
@@ -319,12 +320,12 @@ func TestJSONL_DecodeMessages(t *testing.T) {
 
 		// When: Decode (skipping blank lines)
 		lines := strings.Split(jsonl, "\n")
-		var messages []history.Message
+		var messages []message.Message
 		for _, line := range lines {
 			if strings.TrimSpace(line) == "" {
 				continue
 			}
-			var msg history.Message
+			var msg message.Message
 			err := json.Unmarshal([]byte(line), &msg)
 			require.NoError(t, err)
 			messages = append(messages, msg)
@@ -342,7 +343,7 @@ func TestJSONL_DecodeInvalidJSON(t *testing.T) {
 		invalidLine := `{"Role":"user","Content":`
 
 		// When: Decode
-		var msg history.Message
+		var msg message.Message
 		err := json.Unmarshal([]byte(invalidLine), &msg)
 
 		// Then: Should return error
@@ -357,10 +358,10 @@ func TestJSONL_DecodeInvalidJSON(t *testing.T) {
 
 		// When: Decode
 		lines := strings.Split(strings.TrimSpace(jsonl), "\n")
-		var messages []history.Message
+		var messages []message.Message
 		var decodeErr error
 		for _, line := range lines {
-			var msg history.Message
+			var msg message.Message
 			err := json.Unmarshal([]byte(line), &msg)
 			if err != nil {
 				decodeErr = err
@@ -418,7 +419,7 @@ func TestRepository_EmptySourceID(t *testing.T) {
 		repo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 
-		err = repo.PutHistory(t.Context(), "", []history.Message{}, 0)
+		err = repo.PutHistory(t.Context(), "", []message.Message{}, 0)
 
 		require.Error(t, err)
 		var validationErr *history.ValidationError

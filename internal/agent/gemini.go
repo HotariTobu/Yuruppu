@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"yuruppu/internal/message"
 
 	"google.golang.org/genai"
 )
@@ -149,7 +150,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 
 // GenerateText generates a text response for the conversation history.
 // The last message in history must be the user message to respond to.
-func (g *GeminiAgent) GenerateText(ctx context.Context, history []Message) (string, error) {
+func (g *GeminiAgent) GenerateText(ctx context.Context, history []message.Message) (string, error) {
 	if err := g.checkClosed(); err != nil {
 		return "", err
 	}
@@ -253,7 +254,7 @@ func (g *GeminiAgent) checkClosed() error {
 }
 
 // buildContentsFromHistory builds the conversation contents from history.
-func (g *GeminiAgent) buildContentsFromHistory(history []Message) []*genai.Content {
+func (g *GeminiAgent) buildContentsFromHistory(history []message.Message) []*genai.Content {
 	contents := make([]*genai.Content, 0, len(history))
 
 	for _, msg := range history {
