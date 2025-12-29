@@ -5,6 +5,7 @@ package agent_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,4 +65,21 @@ func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	assert.Contains(t, response, "Taro")
+}
+
+func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
+	projectID, region, model := requireGCPCredentials(t)
+	ctx := context.Background()
+
+	// Create a system prompt with 1024+ tokens to trigger caching
+	basePrompt := "You are a helpful assistant. "
+	systemPrompt := basePrompt + strings.Repeat("This is additional context to increase the token count. ", 200)
+
+	a, err := agent.NewGeminiAgent(ctx, projectID, region, model, 5*time.Minute, systemPrompt, nil)
+	require.NoError(t, err)
+	defer a.Close(ctx)
+
+	response, err := a.GenerateText(ctx, []agent.Message{{Role: "user", Content: "Say hello"}})
+	require.NoError(t, err)
+	assert.NotEmpty(t, response)
 }
