@@ -24,25 +24,21 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	Endpoint                  string // Webhook endpoint path (required)
-	Port                      string // Server port (default: 8080)
-	ChannelSecret             string
-	ChannelAccessToken        string
-	GCPMetadataTimeoutSeconds int    // GCP metadata server timeout in seconds (default: 2)
-	GCPProjectID              string // Optional: auto-detected on Cloud Run
-	GCPRegion                 string // Optional: auto-detected on Cloud Run
-	LLMModel                  string // Required: LLM model name
-	LLMCacheTTLMinutes        int    // LLM cache TTL in minutes (default: 60)
-	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
-	HistoryBucket             string // GCS bucket for chat history
+	Endpoint           string // Webhook endpoint path (required)
+	Port               string // Server port (default: 8080)
+	ChannelSecret      string
+	ChannelAccessToken string
+	GCPProjectID       string // Optional: auto-detected on Cloud Run
+	GCPRegion          string // Optional: auto-detected on Cloud Run
+	LLMModel           string // Required: LLM model name
+	LLMCacheTTLMinutes int    // LLM cache TTL in minutes (default: 60)
+	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
+	HistoryBucket      string // GCS bucket for chat history
 }
 
 const (
 	// defaultPort is the default server port.
 	defaultPort = "8080"
-
-	// defaultGCPMetadataTimeoutSeconds is the default GCP metadata server timeout in seconds.
-	defaultGCPMetadataTimeoutSeconds = 2
 
 	// defaultLLMCacheTTLMinutes is the default LLM cache TTL in minutes.
 	defaultLLMCacheTTLMinutes = 60
@@ -52,7 +48,7 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
+// It reads ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
 // Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, HISTORY_BUCKET) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
@@ -79,16 +75,6 @@ func loadConfig() (*Config, error) {
 	// Validate LINE_CHANNEL_ACCESS_TOKEN
 	if channelAccessToken == "" {
 		return nil, errors.New("LINE_CHANNEL_ACCESS_TOKEN is required")
-	}
-
-	// Parse GCP metadata timeout
-	gcpMetadataTimeoutSeconds := defaultGCPMetadataTimeoutSeconds
-	if env := os.Getenv("GCP_METADATA_TIMEOUT_SECONDS"); env != "" {
-		parsed, err := strconv.Atoi(env)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("GCP_METADATA_TIMEOUT_SECONDS must be a positive integer: %s", env)
-		}
-		gcpMetadataTimeoutSeconds = parsed
 	}
 
 	gcpProjectID := strings.TrimSpace(os.Getenv("GCP_PROJECT_ID"))
@@ -127,17 +113,16 @@ func loadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Endpoint:                  endpoint,
-		Port:                      port,
-		ChannelSecret:             channelSecret,
-		ChannelAccessToken:        channelAccessToken,
-		GCPMetadataTimeoutSeconds: gcpMetadataTimeoutSeconds,
-		GCPProjectID:              gcpProjectID,
-		GCPRegion:                 gcpRegion,
-		LLMModel:                  llmModel,
-		LLMCacheTTLMinutes:        llmCacheTTLMinutes,
-		LLMTimeoutSeconds:         llmTimeoutSeconds,
-		HistoryBucket:             historyBucket,
+		Endpoint:           endpoint,
+		Port:               port,
+		ChannelSecret:      channelSecret,
+		ChannelAccessToken: channelAccessToken,
+		GCPProjectID:       gcpProjectID,
+		GCPRegion:          gcpRegion,
+		LLMModel:           llmModel,
+		LLMCacheTTLMinutes: llmCacheTTLMinutes,
+		LLMTimeoutSeconds:  llmTimeoutSeconds,
+		HistoryBucket:      historyBucket,
 	}, nil
 }
 
