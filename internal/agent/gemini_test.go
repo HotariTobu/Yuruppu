@@ -289,7 +289,6 @@ func TestGeminiAgent_GenerateText_AfterClose(t *testing.T) {
 		logger:                    slog.New(slog.DiscardHandler),
 		contentConfigWithCache:    &genai.GenerateContentConfig{},
 		contentConfigWithoutCache: &genai.GenerateContentConfig{},
-		stopRefresh:               make(chan struct{}),
 	}
 
 	// Close the agent
@@ -317,7 +316,6 @@ func TestGeminiAgent_Close_Idempotent(t *testing.T) {
 		logger:                    slog.New(slog.DiscardHandler),
 		contentConfigWithCache:    &genai.GenerateContentConfig{},
 		contentConfigWithoutCache: &genai.GenerateContentConfig{},
-		stopRefresh:               make(chan struct{}),
 	}
 
 	// Close multiple times should not error
