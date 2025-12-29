@@ -14,14 +14,20 @@ const httpPreconditionFailed = 412
 
 // GCSStorage implements Storage interface using Google Cloud Storage.
 type GCSStorage struct {
+	client *storage.Client
 	bucket *storage.BucketHandle
 }
 
 // NewGCSStorage creates a new GCS storage backend.
-func NewGCSStorage(client *storage.Client, bucketName string) *GCSStorage {
-	return &GCSStorage{
-		bucket: client.Bucket(bucketName),
+func NewGCSStorage(ctx context.Context, bucketName string) (*GCSStorage, error) {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
 	}
+	return &GCSStorage{
+		client: client,
+		bucket: client.Bucket(bucketName),
+	}, nil
 }
 
 // Read retrieves data for a key. Returns nil, 0 if key doesn't exist.
@@ -91,7 +97,6 @@ func isPreconditionFailed(err error) bool {
 }
 
 // Close releases storage resources.
-// Since the GCS client is managed externally, this is a no-op.
-func (s *GCSStorage) Close(ctx context.Context) error {
-	return nil
+func (s *GCSStorage) Close(_ context.Context) error {
+	return s.client.Close()
 }

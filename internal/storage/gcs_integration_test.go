@@ -29,11 +29,10 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	client, err := storage.NewClient(ctx)
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
 	require.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = s.Close(ctx) }()
 
-	s := yuruppu_storage.NewGCSStorage(client, bucket)
 	key := "test-integration-" + time.Now().Format("20060102-150405") + ".txt"
 
 	// Read non-existent key returns nil
@@ -63,7 +62,10 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, newContent, data)
 
-	// Cleanup
+	// Cleanup (use separate client for deletion)
+	client, err := storage.NewClient(ctx)
+	require.NoError(t, err)
+	defer client.Close()
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
@@ -72,11 +74,10 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	client, err := storage.NewClient(ctx)
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
 	require.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = s.Close(ctx) }()
 
-	s := yuruppu_storage.NewGCSStorage(client, bucket)
 	key := "test-precondition-" + time.Now().Format("20060102-150405") + ".txt"
 
 	// Create object
@@ -88,7 +89,10 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, yuruppu_storage.ErrPreconditionFailed)
 
-	// Cleanup
+	// Cleanup (use separate client for deletion)
+	client, err := storage.NewClient(ctx)
+	require.NoError(t, err)
+	defer client.Close()
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
