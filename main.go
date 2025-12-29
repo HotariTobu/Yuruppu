@@ -19,8 +19,6 @@ import (
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/yuruppu"
-
-	gcsstorage "cloud.google.com/go/storage"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -34,7 +32,7 @@ type Config struct {
 	LLMModel                  string // Required: LLM model name
 	LLMCacheTTLMinutes        int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds         int    // LLM API timeout in seconds (default: 30)
-	HistoryBucket             string // GCS bucket for chat history (optional)
+	HistoryBucket             string // GCS bucket for chat history
 }
 
 const (
@@ -53,8 +51,8 @@ const (
 
 // loadConfig loads configuration from environment variables.
 // It reads PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_METADATA_TIMEOUT_SECONDS, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
-// Returns error if required environment variables (LINE credentials, LLM_MODEL) are missing or empty after trimming whitespace.
-// GCP_PROJECT_ID, GCP_REGION, and HISTORY_BUCKET are optional (auto-detected on Cloud Run, history disabled if not set).
+// Returns error if required environment variables (LINE credentials, LLM_MODEL, HISTORY_BUCKET) are missing or empty after trimming whitespace.
+// GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables (order matches Config struct)
@@ -115,8 +113,11 @@ func loadConfig() (*Config, error) {
 		llmTimeoutSeconds = parsed
 	}
 
-	// Load optional history bucket
+	// Load and validate HISTORY_BUCKET (required)
 	historyBucket := strings.TrimSpace(os.Getenv("HISTORY_BUCKET"))
+	if historyBucket == "" {
+		return nil, errors.New("HISTORY_BUCKET is required")
+	}
 
 	return &Config{
 		Port:                      port,
@@ -172,26 +173,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create history repository if bucket is configured
-	var historyRepo *history.Repository
-	var gcsClient *gcsstorage.Client
-	if config.HistoryBucket != "" {
-		var err error
-		gcsClient, err = gcsstorage.NewClient(context.Background())
-		if err != nil {
-			logger.Error("failed to create GCS client", slog.Any("error", err))
-			os.Exit(1)
-		}
-		gcsStorage := storage.NewGCSStorage(gcsClient, config.HistoryBucket)
-		historyRepo, err = history.NewRepository(gcsStorage)
-		if err != nil {
-			logger.Error("failed to create history repository", slog.Any("error", err))
-			os.Exit(1)
-		}
-		logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
-	} else {
-		logger.Info("chat history disabled (HISTORY_BUCKET not set)")
+	// Create history repository
+	gcsStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
+	if err != nil {
+		logger.Error("failed to create GCS storage", slog.Any("error", err))
+		os.Exit(1)
 	}
+	historyRepo, err := history.NewRepository(gcsStorage)
+	if err != nil {
+		logger.Error("failed to create history repository", slog.Any("error", err))
+		os.Exit(1)
+	}
+	logger.Info("chat history enabled", slog.String("bucket", config.HistoryBucket))
 
 	// Register message handler
 	srv.RegisterHandler(bot.NewHandler(historyRepo, geminiAgent, lineClient, logger))
@@ -236,11 +229,9 @@ func main() {
 		logger.Error("failed to close Gemini agent", slog.Any("error", err))
 	}
 
-	// Close GCS client if it was created
-	if gcsClient != nil {
-		if err := gcsClient.Close(); err != nil {
-			logger.Error("failed to close GCS client", slog.Any("error", err))
-		}
+	// Close GCS storage
+	if err := gcsStorage.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close GCS storage", slog.Any("error", err))
 	}
 
 	logger.Info("graceful shutdown completed")

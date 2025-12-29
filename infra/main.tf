@@ -37,6 +37,26 @@ resource "google_project_service" "apis" {
   disable_on_destroy = false
 }
 
+# GCS bucket for chat history storage
+resource "google_storage_bucket" "history" {
+  name                        = "${var.project_id}-yuruppu-history"
+  location                    = var.region
+  uniform_bucket_level_access = true
+
+  autoclass {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 180
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
 # Artifact Registry for container images
 resource "google_artifact_registry_repository" "yuruppu" {
   location      = var.region
@@ -104,6 +124,12 @@ resource "google_project_iam_member" "cloudrun_vertex_ai" {
   member  = "serviceAccount:${google_service_account.cloudrun.email}"
 }
 
+resource "google_storage_bucket_iam_member" "cloudrun_history" {
+  bucket = google_storage_bucket.history.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.cloudrun.email}"
+}
+
 # Cloud Build 2nd gen connection and repository are created via gcloud
 # See docs/deployment.md for setup instructions
 locals {
@@ -164,6 +190,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       env {
         name  = "LLM_MODEL"
         value = var.llm_model
+      }
+
+      env {
+        name  = "HISTORY_BUCKET"
+        value = google_storage_bucket.history.name
       }
 
       resources {

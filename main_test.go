@@ -50,6 +50,7 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -113,6 +114,8 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			if tt.channelAccessToken != "" {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			}
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -174,6 +177,8 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			if tt.channelAccessToken != "" && tt.name != "unset channel access token returns error" {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			}
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -209,6 +214,8 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 			// Given: Unset all environment variables
 			os.Unsetenv("LINE_CHANNEL_SECRET")
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -274,6 +281,7 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -304,6 +312,8 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 			name: "missing secret error mentions LINE_CHANNEL_SECRET",
 			setupEnv: func(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
+				t.Setenv("LLM_MODEL", "test-model")
+				t.Setenv("HISTORY_BUCKET", "test-bucket")
 				// LINE_CHANNEL_SECRET is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_SECRET", "required"},
@@ -312,6 +322,8 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 			name: "missing token error mentions LINE_CHANNEL_ACCESS_TOKEN",
 			setupEnv: func(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_SECRET", "secret")
+				t.Setenv("LLM_MODEL", "test-model")
+				t.Setenv("HISTORY_BUCKET", "test-bucket")
 				// LINE_CHANNEL_ACCESS_TOKEN is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_ACCESS_TOKEN", "required"},
@@ -349,6 +361,7 @@ func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	t.Setenv("LINE_CHANNEL_SECRET", "test-valid-secret")
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
 	t.Setenv("LLM_MODEL", "test-model")
+	t.Setenv("HISTORY_BUCKET", "test-bucket")
 	os.Unsetenv("GCP_PROJECT_ID")
 	os.Unsetenv("GCP_REGION")
 
@@ -399,6 +412,7 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			if tt.gcpRegionEnv != "" {
 				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
@@ -455,6 +469,7 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 
 			// When: Load configuration
@@ -511,6 +526,7 @@ func TestLoadConfig_Port(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			if tt.portEnv != "" {
 				t.Setenv("PORT", tt.portEnv)
@@ -568,6 +584,7 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("PORT", tt.portEnv)
 
 			// When: Load configuration
@@ -619,6 +636,7 @@ func TestLoadConfig_LLMModel_Valid(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -658,9 +676,10 @@ func TestLoadConfig_LLMModel_Missing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials
+			// Given: Set LINE credentials and HISTORY_BUCKET
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// Given: Handle LLM_MODEL based on test case
 			os.Unsetenv("LLM_MODEL")
@@ -711,9 +730,10 @@ func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials
+			// Given: Set LINE credentials and HISTORY_BUCKET
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("LLM_MODEL", tt.llmModel)
 
 			// When: Load configuration
@@ -762,6 +782,7 @@ func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -817,6 +838,7 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			if tt.llmTimeoutEnv != "" {
 				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
@@ -874,6 +896,7 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
 
 			// When: Load configuration
@@ -914,6 +937,7 @@ func TestLoadConfig_GCPMetadataTimeout(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			if tt.timeoutEnv != "" {
 				t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
@@ -965,6 +989,7 @@ func TestLoadConfig_GCPMetadataTimeout_InvalidValue(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("GCP_METADATA_TIMEOUT_SECONDS", tt.timeoutEnv)
 
 			// When: Load configuration
@@ -1019,6 +1044,7 @@ func TestLoadConfig_LLMCacheTTL(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 
 			if tt.llmCacheTTLEnv != "" {
 				t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
@@ -1075,6 +1101,7 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
 
 			// When: Load configuration
@@ -1085,6 +1112,154 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 			assert.Nil(t, config, "config should be nil on error")
 			assert.Contains(t, err.Error(), tt.wantErrMsg,
 				"error message should indicate invalid TTL value")
+		})
+	}
+}
+
+// =============================================================================
+// HISTORY_BUCKET Configuration Tests
+// =============================================================================
+
+// TestLoadConfig_HistoryBucket_Missing tests error when HISTORY_BUCKET is missing.
+func TestLoadConfig_HistoryBucket_Missing(t *testing.T) {
+	tests := []struct {
+		name          string
+		historyBucket string
+		setEnv        bool
+		wantErrMsg    string
+	}{
+		{
+			name:          "unset HISTORY_BUCKET returns error",
+			historyBucket: "",
+			setEnv:        false,
+			wantErrMsg:    "HISTORY_BUCKET is required",
+		},
+		{
+			name:          "empty HISTORY_BUCKET returns error",
+			historyBucket: "",
+			setEnv:        true,
+			wantErrMsg:    "HISTORY_BUCKET is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set LINE credentials and LLM_MODEL
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", "test-model")
+
+			// Given: Handle HISTORY_BUCKET based on test case
+			os.Unsetenv("HISTORY_BUCKET")
+			if tt.setEnv {
+				t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error
+			require.Error(t, err, "loadConfig should return error when HISTORY_BUCKET is missing")
+
+			// Then: Config should be nil
+			assert.Nil(t, config, "config should be nil on error")
+
+			// Then: Error message should indicate HISTORY_BUCKET is required
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate HISTORY_BUCKET is required")
+		})
+	}
+}
+
+// TestLoadConfig_HistoryBucket_WhitespaceOnly tests error when HISTORY_BUCKET is whitespace-only.
+func TestLoadConfig_HistoryBucket_WhitespaceOnly(t *testing.T) {
+	tests := []struct {
+		name          string
+		historyBucket string
+		wantErrMsg    string
+	}{
+		{
+			name:          "whitespace-only HISTORY_BUCKET returns error",
+			historyBucket: "   ",
+			wantErrMsg:    "HISTORY_BUCKET is required",
+		},
+		{
+			name:          "tabs-only HISTORY_BUCKET returns error",
+			historyBucket: "\t\t",
+			wantErrMsg:    "HISTORY_BUCKET is required",
+		},
+		{
+			name:          "mixed whitespace HISTORY_BUCKET returns error",
+			historyBucket: " \t \n ",
+			wantErrMsg:    "HISTORY_BUCKET is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set LINE credentials and LLM_MODEL
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should return error
+			require.Error(t, err, "loadConfig should return error when HISTORY_BUCKET is whitespace-only")
+
+			// Then: Config should be nil
+			assert.Nil(t, config, "config should be nil on error")
+
+			// Then: Error message should indicate HISTORY_BUCKET is required
+			assert.Contains(t, err.Error(), tt.wantErrMsg,
+				"error message should indicate HISTORY_BUCKET is required")
+		})
+	}
+}
+
+// TestLoadConfig_HistoryBucket_TrimsWhitespace tests that HISTORY_BUCKET value is trimmed.
+func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name           string
+		historyBucket  string
+		expectedBucket string
+	}{
+		{
+			name:           "leading whitespace is trimmed",
+			historyBucket:  "  test-bucket",
+			expectedBucket: "test-bucket",
+		},
+		{
+			name:           "trailing whitespace is trimmed",
+			historyBucket:  "test-bucket  ",
+			expectedBucket: "test-bucket",
+		},
+		{
+			name:           "leading and trailing whitespace is trimmed",
+			historyBucket:  "  test-bucket  ",
+			expectedBucket: "test-bucket",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: HistoryBucket should have whitespace trimmed
+			assert.Equal(t, tt.expectedBucket, config.HistoryBucket,
+				"HistoryBucket should have whitespace trimmed")
 		})
 	}
 }
