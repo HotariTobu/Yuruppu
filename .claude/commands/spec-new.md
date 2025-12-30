@@ -1,10 +1,13 @@
 ---
 description: Create a new specification with progress.json
 argument-hint: <name>
+sets-phase: spec
 allowed-tools: Bash(git *), Read, Write, Glob, TodoWrite, AskUserQuestion, WebSearch, Task
 ---
 
 # Create a New Specification
+
+**Workflow**: **`/spec-new`** → /tech-research → /prototype → /design → /session-start
 
 Feature name: $ARGUMENTS
 

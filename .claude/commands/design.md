@@ -1,10 +1,14 @@
 ---
 description: Create detailed design collaboratively with user
 argument-hint: <spec-name>
+requires-phase: prototyped
+sets-phase: designed
 allowed-tools: Bash(git *), Read, Write, Edit, Glob, Grep, TodoWrite, AskUserQuestion
 ---
 
 # Design Phase
+
+**Workflow**: /spec-new → /tech-research → /prototype → **`/design`** → /session-start
 
 Spec name: $ARGUMENTS
 
@@ -20,11 +24,14 @@ Create detailed design through collaboration with user. This ensures implementat
 
 ## Task
 
+0. **Identify target spec**
+   - If argument provided: Find `docs/specs/*<spec-name>*/`
+   - If no argument: Infer from branch name (e.g., `feature/chat-history` → `*chat-history*`)
+   - If not found: Stop and show error with available specs
+
 1. **Load context**:
-   - Read `docs/specs/<spec-name>/spec.md`
-   - Read `docs/specs/<spec-name>/progress.json`
+   - Read `spec.md` and `progress.json`
    - Read prototype commits and any prototype code
-   - Verify phase is `"prototyped"`
 
 2. **Review prototype learnings**:
    - What worked in the prototype?

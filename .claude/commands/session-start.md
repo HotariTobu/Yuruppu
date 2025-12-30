@@ -1,10 +1,14 @@
 ---
 description: Start a coding session with progress review and planning
 argument-hint: [spec-name]
+requires-phase: designed, in-progress
+sets-phase: in-progress
 allowed-tools: Bash(git *), Bash(make preflight), Read, Glob, TodoWrite, Task
 ---
 
 # Start Session
+
+**Workflow**: /spec-new → /tech-research → /prototype → /design → [ **`/session-start`** → /session-end ]*
 
 Spec name (optional): $ARGUMENTS
 
@@ -14,55 +18,43 @@ Start a coding session with progress review and planning.
 
 ### Steps
 
-1. **Get current branch name**
-   ```bash
-   git branch --show-current
-   ```
+0. **Identify target spec**
+   - If argument provided: Find `docs/specs/*<spec-name>*/`
+   - If no argument: Infer from branch name (e.g., `feature/chat-history` → `*chat-history*`)
+   - If not found: Stop and show error with available specs
 
-2. **Identify target spec**
-   - If spec-name argument is provided: Use `docs/specs/<spec-name>/`
-   - Else: Infer from branch name (e.g., `feature/spotify-adapter` -> search for `*spotify*`)
-   - If not found: Ask user which spec to work on
+1. **Load the specification**
+   - Read `spec.md` and `progress.json`
 
-3. **Load spec context**
-   - Read `docs/specs/<spec-name>/spec.md`
-   - Read `docs/specs/<spec-name>/progress.json`
-   - If `progress.json` doesn't exist, stop and ask user to run `/spec-new` first
-
-4. **Check phase**
+2. **Handle blocked phase** (if applicable)
    - If `phase` is `"blocked"`: Display blockers and ask user how to proceed
-   - If `phase` is `"designed"` or `"in-progress"`: Continue to next step
-   - Otherwise: Stop and prompt user to run `/design <spec-name>` first
 
-5. **Run preflight check**
+3. **Run preflight check**
    ```bash
    make preflight
    ```
    - If preflight fails, prioritize fixing issues before new work
    - Document any environment issues as blockers
 
-6. **Review recent history**
+4. **Review recent history**
    ```bash
    git log -1
    ```
    - Read the full commit message, especially the "Next" section
 
-7. **Analyze progress**
+5. **Analyze progress**
    - Identify incomplete requirements (where `passes: false`)
    - Read notes from previous session
-   - **Check for blockers**: If blockers exist, display them and ask user:
-     - "Resolve blockers first?" → Help resolve, then continue
-     - "Proceed anyway?" → Document decision in notes
 
-8. **Create session plan**
+6. **Create session plan**
    - Recommend next task based on incomplete requirements
    - Provide focused plan for this session
    - Keep scope to ONE requirement (split if too large)
 
-9. **Update phase to in-progress** (after user approval):
+7. **Update phase to in-progress**:
    - If phase is `"designed"`, update progress.json to `"in-progress"`
 
-10. **TDD Implementation**
+8. **TDD Implementation**
    - Use `go-test-generator` agent to generate tests and verify red phase
    - Use `go-implementer` agent to implement code and verify green phase
 
@@ -96,7 +88,6 @@ Start a coding session with progress review and planning.
 - Focus on ONE requirement per session (not "when possible" - always)
 - If a requirement is too large, split into sub-tasks before starting
 - If no progress.json exists, stop and prompt user to run `/spec-new` first
-- If design phase not complete, stop and prompt user to run `/design` first
 - If all requirements pass, suggest running final verification
 - If preflight check fails, fix before starting new work
 

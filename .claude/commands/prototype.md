@@ -1,10 +1,14 @@
 ---
 description: Create a prototype to validate technical decisions
 argument-hint: <spec-name>
+requires-phase: tech-researched
+sets-phase: prototyped
 allowed-tools: Bash(git *), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # Prototype Phase
+
+**Workflow**: /spec-new → /tech-research → **`/prototype`** → /design → /session-start
 
 Spec name: $ARGUMENTS
 
@@ -24,10 +28,13 @@ Validate technical decisions through rapid prototyping:
 
 ## Task
 
+0. **Identify target spec**
+   - If argument provided: Find `docs/specs/*<spec-name>*/`
+   - If no argument: Infer from branch name (e.g., `feature/chat-history` → `*chat-history*`)
+   - If not found: Stop and show error with available specs
+
 1. **Load the specification**:
-   - Find spec directory matching the argument (e.g., `docs/specs/*<spec-name>*/`)
    - Read `spec.md` and `progress.json`
-   - Verify phase is `"tech-researched"`
 
 2. **Review ADRs**:
    - Read all ADRs created in tech-research phase

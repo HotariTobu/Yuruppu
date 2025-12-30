@@ -1,9 +1,14 @@
 ---
 description: End session with progress update and structured commit
+argument-hint: <spec-name>
+requires-phase: in-progress
+sets-phase: completed
 allowed-tools: Bash(git *), Bash(make preflight), Read, Edit, Write, Glob, TodoWrite, Task
 ---
 
 # End Session
+
+**Workflow**: /spec-new → /tech-research → /prototype → /design → [ /session-start → **`/session-end`** ]*
 
 ## MANDATORY - DO NOT SKIP
 
@@ -20,10 +25,13 @@ End the current coding session with progress update and structured commit.
 
 ### Steps
 
-1. **Identify worked spec**
-   - Infer from current branch name
-   - Or ask user if unclear
-   - Verify phase is `"in-progress"`. If not, warn user to run `/session-start` first
+0. **Identify target spec**
+   - If argument provided: Find `docs/specs/*<spec-name>*/`
+   - If no argument: Infer from branch name (e.g., `feature/chat-history` → `*chat-history*`)
+   - If not found: Stop and show error with available specs
+
+1. **Load the specification**
+   - Read `spec.md` and `progress.json`
 
 2. **Review changes**
    ```bash

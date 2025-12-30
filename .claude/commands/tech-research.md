@@ -1,20 +1,26 @@
 ---
 description: Analyze codebase and create ADRs for a specification
 argument-hint: <spec-name>
+requires-phase: spec
+sets-phase: tech-researched
 allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill, AskUserQuestion
 ---
 
 # Tech Research Phase
 
+**Workflow**: /spec-new → **`/tech-research`** → /prototype → /design → /session-start
+
 Spec name: $ARGUMENTS
 
 ## Task
 
+0. **Identify target spec**
+   - If argument provided: Find `docs/specs/*<spec-name>*/`
+   - If no argument: Infer from branch name (e.g., `feature/chat-history` → `*chat-history*`)
+   - If not found: Stop and show error with available specs
+
 1. **Load the specification**:
-   - Find spec directory matching the argument (e.g., `docs/specs/*<spec-name>*/`)
    - Read `spec.md` and `progress.json`
-   - If spec not found, ask user for correct name
-   - Verify phase is `"spec"`. If not, warn user about unexpected phase
 
 2. **Enumerate design considerations** (use tech-researcher agent):
    - Pass only the spec path to the agent
