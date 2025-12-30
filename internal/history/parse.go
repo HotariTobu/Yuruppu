@@ -25,13 +25,13 @@ func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 
 		switch m.Role {
 		case "user":
-			messages = append(messages, UserMessage{
+			messages = append(messages, &UserMessage{
 				UserID:    m.UserID,
 				Parts:     convertJSONToUserParts(m.Parts),
 				Timestamp: m.Timestamp,
 			})
 		case "assistant":
-			messages = append(messages, AssistantMessage{
+			messages = append(messages, &AssistantMessage{
 				ModelName: m.ModelName,
 				Parts:     convertJSONToAssistantParts(m.Parts),
 				Timestamp: m.Timestamp,
@@ -53,11 +53,11 @@ func convertJSONToUserParts(parts []part) []UserPart {
 	for _, p := range parts {
 		switch p.Type {
 		case "text":
-			result = append(result, UserTextPart{
+			result = append(result, &UserTextPart{
 				Text: p.Text,
 			})
 		case "file_data":
-			result = append(result, UserFileDataPart{
+			result = append(result, &UserFileDataPart{
 				StorageKey:    p.StorageKey,
 				MIMEType:      p.MIMEType,
 				DisplayName:   p.DisplayName,
@@ -73,13 +73,13 @@ func convertJSONToAssistantParts(parts []part) []AssistantPart {
 	for _, p := range parts {
 		switch p.Type {
 		case "text":
-			result = append(result, AssistantTextPart{
+			result = append(result, &AssistantTextPart{
 				Text:             p.Text,
 				Thought:          p.Thought,
 				ThoughtSignature: p.ThoughtSignature,
 			})
 		case "file_data":
-			result = append(result, AssistantFileDataPart{
+			result = append(result, &AssistantFileDataPart{
 				StorageKey:  p.StorageKey,
 				MIMEType:    p.MIMEType,
 				DisplayName: p.DisplayName,

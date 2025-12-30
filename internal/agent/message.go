@@ -73,7 +73,7 @@ type Message interface {
 
 // UserMessage represents a message from a user.
 type UserMessage struct {
-	UserName    string
+	UserName  string
 	Parts     []UserPart
 	LocalTime string
 }
@@ -99,7 +99,7 @@ type FileDataPart interface {
 }
 
 // SetFileURI sets the FileURI for UserFileDataPart.
-func (*p *UserFileDataPart) SetFileURI(uri string) { p.FileURI = uri }
+func (p *UserFileDataPart) SetFileURI(uri string) { p.FileURI = uri }
 
 // SetFileURI sets the FileURI for AssistantFileDataPart.
-func (*p *AssistantFileDataPart) SetFileURI(uri string) { p.FileURI = uri }
+func (p *AssistantFileDataPart) SetFileURI(uri string) { p.FileURI = uri }
