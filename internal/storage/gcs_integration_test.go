@@ -43,7 +43,7 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 
 	// Write new object
 	content := []byte("hello world")
-	err = s.Write(ctx, key, "text/plain", content, 0)
+	_, err = s.Write(ctx, key, "text/plain", content, 0)
 	require.NoError(t, err)
 
 	// Read returns written data
@@ -54,7 +54,7 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 
 	// Write with correct generation succeeds
 	newContent := []byte("updated content")
-	err = s.Write(ctx, key, "text/plain", newContent, gen)
+	_, err = s.Write(ctx, key, "text/plain", newContent, gen)
 	require.NoError(t, err)
 
 	// Verify update
@@ -81,11 +81,11 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	key := "test-precondition-" + time.Now().Format("20060102-150405") + ".txt"
 
 	// Create object
-	err = s.Write(ctx, key, "text/plain", []byte("initial"), 0)
+	_, err = s.Write(ctx, key, "text/plain", []byte("initial"), 0)
 	require.NoError(t, err)
 
 	// Write with wrong generation fails
-	err = s.Write(ctx, key, "text/plain", []byte("should fail"), 99999)
+	_, err = s.Write(ctx, key, "text/plain", []byte("should fail"), 99999)
 	require.Error(t, err)
 
 	// Cleanup (use separate client for deletion)
@@ -97,6 +97,11 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 }
 
 func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
+	// Signed URLs require service_account, external_account, or impersonated_service_account credentials
+	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" && os.Getenv("CI") == "" {
+		t.Skip("Skipping: requires service account credentials (set GOOGLE_APPLICATION_CREDENTIALS or run in CI)")
+	}
+
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
@@ -108,7 +113,7 @@ func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
 
 	// Create test object
 	content := []byte("signed url test content")
-	err = s.Write(ctx, key, "text/plain", content, 0)
+	_, err = s.Write(ctx, key, "text/plain", content, 0)
 	require.NoError(t, err)
 
 	// Generate signed URL for GET
@@ -124,4 +129,66 @@ func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
 	defer client.Close()
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
+}
+
+func TestGCSStorage_Integration_NegativeGeneration(t *testing.T) {
+	bucket := requireGCSCredentials(t)
+	ctx := context.Background()
+
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	require.NoError(t, err)
+	defer func() { _ = s.Close(ctx) }()
+
+	// Write with negative generation should fail
+	_, err = s.Write(ctx, "test-key", "text/plain", []byte("data"), -1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid expectedGeneration")
+}
+
+func TestGCSStorage_Integration_ConcurrentWrites(t *testing.T) {
+	bucket := requireGCSCredentials(t)
+	ctx := context.Background()
+
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	require.NoError(t, err)
+	defer func() { _ = s.Close(ctx) }()
+
+	key := "test-concurrent-" + time.Now().Format("20060102-150405") + ".txt"
+
+	// Create initial object
+	gen, err := s.Write(ctx, key, "text/plain", []byte("initial"), 0)
+	require.NoError(t, err)
+
+	// Simulate concurrent writes with same expected generation
+	// First write succeeds
+	_, err1 := s.Write(ctx, key, "text/plain", []byte("update1"), gen)
+	// Second write with same (now stale) generation fails
+	_, err2 := s.Write(ctx, key, "text/plain", []byte("update2"), gen)
+
+	require.NoError(t, err1)
+	require.Error(t, err2) // Precondition failed
+
+	// Cleanup
+	client, err := storage.NewClient(ctx)
+	require.NoError(t, err)
+	defer client.Close()
+	err = client.Bucket(bucket).Object(key).Delete(ctx)
+	require.NoError(t, err)
+}
+
+func TestGCSStorage_Integration_EmptyKey(t *testing.T) {
+	bucket := requireGCSCredentials(t)
+	ctx := context.Background()
+
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	require.NoError(t, err)
+	defer func() { _ = s.Close(ctx) }()
+
+	// Write with empty key should fail (GCS rejects it)
+	_, err = s.Write(ctx, "", "text/plain", []byte("data"), 0)
+	require.Error(t, err)
+
+	// Read with empty key should fail
+	_, _, err = s.Read(ctx, "")
+	require.Error(t, err)
 }

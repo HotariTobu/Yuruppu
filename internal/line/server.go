@@ -17,6 +17,15 @@ type MessageContext struct {
 	UserID     string
 }
 
+// LogValue implements slog.LogValuer to control which fields are logged.
+// ReplyToken is excluded for security reasons.
+func (m MessageContext) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("sourceID", m.SourceID),
+		slog.String("userID", m.UserID),
+	)
+}
+
 // Handler handles incoming LINE messages by type.
 // Each method receives a context with timeout and message-specific parameters.
 // The error return is used for logging purposes only - the HTTP response

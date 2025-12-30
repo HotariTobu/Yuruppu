@@ -2,12 +2,20 @@ package history_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 	"yuruppu/internal/history"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+// Fixed timestamps for deterministic tests
+var (
+	testTime1 = time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
+	testTime2 = time.Date(2025, 1, 1, 10, 1, 0, 0, time.UTC)
+	testTime3 = time.Date(2025, 1, 1, 10, 2, 0, 0, time.UTC)
 )
 
 // =============================================================================
@@ -25,37 +33,41 @@ func TestNewRepository_NilStorage(t *testing.T) {
 	})
 }
 
-// TestRepository_EmptySourceID tests that empty sourceID returns an error.
-func TestRepository_EmptySourceID(t *testing.T) {
-	t.Run("GetHistory with empty sourceID returns error", func(t *testing.T) {
-		repo, err := history.NewRepository(newMockStorage())
-		require.NoError(t, err)
+// TestRepository_SourceIDValidation tests sourceID validation for both Get and Put operations.
+func TestRepository_SourceIDValidation(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceID   string
+		wantErrMsg string
+	}{
+		{"empty", "", "sourceID cannot be empty"},
+		{"whitespace only", "   ", "sourceID cannot be empty"},
+		{"contains slash", "path/to/file", "invalid characters"},
+		{"contains double dots", "parent..child", "invalid characters"},
+		{"starts with double dots", "..escape", "invalid characters"},
+	}
 
-		_, _, err = repo.GetHistory(t.Context(), "")
+	for _, tt := range tests {
+		t.Run("GetHistory_"+tt.name, func(t *testing.T) {
+			repo, err := history.NewRepository(newMockStorage())
+			require.NoError(t, err)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sourceID cannot be empty")
-	})
+			_, _, err = repo.GetHistory(t.Context(), tt.sourceID)
 
-	t.Run("GetHistory with whitespace-only sourceID returns error", func(t *testing.T) {
-		repo, err := history.NewRepository(newMockStorage())
-		require.NoError(t, err)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErrMsg)
+		})
 
-		_, _, err = repo.GetHistory(t.Context(), "   ")
+		t.Run("PutHistory_"+tt.name, func(t *testing.T) {
+			repo, err := history.NewRepository(newMockStorage())
+			require.NoError(t, err)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sourceID cannot be empty")
-	})
+			_, err = repo.PutHistory(t.Context(), tt.sourceID, []history.Message{}, 0)
 
-	t.Run("PutHistory with empty sourceID returns error", func(t *testing.T) {
-		repo, err := history.NewRepository(newMockStorage())
-		require.NoError(t, err)
-
-		err = repo.PutHistory(t.Context(), "", []history.Message{}, 0)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sourceID cannot be empty")
-	})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErrMsg)
+		})
+	}
 }
 
 // TestRepository_RoundTrip tests PutHistory and GetHistory round-trip.
@@ -66,17 +78,16 @@ func TestRepository_RoundTrip(t *testing.T) {
 		require.NoError(t, err)
 
 		// Given: A user message with text
-		timestamp := time.Date(2025, 12, 28, 12, 0, 0, 0, time.UTC)
 		messages := []history.Message{
 			&history.UserMessage{
 				UserID:    "U123",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "Hello"}},
-				Timestamp: timestamp,
+				Timestamp: testTime1,
 			},
 		}
 
 		// When: Put and Get
-		err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
 		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
@@ -109,12 +120,12 @@ func TestRepository_RoundTrip(t *testing.T) {
 						DisplayName: "photo.png",
 					},
 				},
-				Timestamp: time.Now(),
+				Timestamp: testTime1,
 			},
 		}
 
 		// When: Put and Get
-		err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
 		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
@@ -142,22 +153,22 @@ func TestRepository_RoundTrip(t *testing.T) {
 			&history.UserMessage{
 				UserID:    "U123",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "Hello"}},
-				Timestamp: time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC),
+				Timestamp: testTime1,
 			},
 			&history.AssistantMessage{
 				ModelName: "gemini-2.0",
 				Parts:     []history.AssistantPart{&history.AssistantTextPart{Text: "Hi there!"}},
-				Timestamp: time.Date(2025, 12, 28, 10, 1, 0, 0, time.UTC),
+				Timestamp: testTime2,
 			},
 			&history.UserMessage{
 				UserID:    "U123",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "How are you?"}},
-				Timestamp: time.Date(2025, 12, 28, 10, 2, 0, 0, time.UTC),
+				Timestamp: testTime3,
 			},
 		}
 
 		// When: Put and Get
-		err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
 		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
@@ -202,12 +213,12 @@ func TestRepository_RoundTrip(t *testing.T) {
 						Text: "Here's my answer",
 					},
 				},
-				Timestamp: time.Now(),
+				Timestamp: testTime1,
 			},
 		}
 
 		// When: Put and Get
-		err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
 		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
@@ -243,21 +254,21 @@ func TestRepository_KeyIsolation(t *testing.T) {
 			&history.UserMessage{
 				UserID:    "U111",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "Message for source1"}},
-				Timestamp: time.Now(),
+				Timestamp: testTime1,
 			},
 		}
 		messages2 := []history.Message{
 			&history.UserMessage{
 				UserID:    "U222",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "Message for source2"}},
-				Timestamp: time.Now(),
+				Timestamp: testTime1,
 			},
 		}
 
 		// When: Put to different keys
-		err = repo.PutHistory(t.Context(), "source1", messages1, 0)
+		_, err = repo.PutHistory(t.Context(), "source1", messages1, 0)
 		require.NoError(t, err)
-		err = repo.PutHistory(t.Context(), "source2", messages2, 0)
+		_, err = repo.PutHistory(t.Context(), "source2", messages2, 0)
 		require.NoError(t, err)
 
 		// Then: Each key returns its own data
@@ -298,6 +309,213 @@ func TestRepository_KeyIsolation(t *testing.T) {
 }
 
 // =============================================================================
+// Optimistic Locking Tests
+// =============================================================================
+
+// TestRepository_OptimisticLocking tests generation-based concurrent modification detection.
+func TestRepository_OptimisticLocking(t *testing.T) {
+	t.Run("write with stale generation fails", func(t *testing.T) {
+		storage := newMockStorage()
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		messages := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "Hello"}},
+				Timestamp: testTime1,
+			},
+		}
+
+		// First write succeeds (generation 0 -> 1)
+		gen1, err := repo.PutHistory(t.Context(), "source1", messages, 0)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), gen1)
+
+		// Second write with stale generation (0) fails
+		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "generation mismatch")
+	})
+
+	t.Run("write with correct generation succeeds", func(t *testing.T) {
+		storage := newMockStorage()
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		messages1 := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "First"}},
+				Timestamp: testTime1,
+			},
+		}
+		messages2 := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "Second"}},
+				Timestamp: testTime1,
+			},
+		}
+
+		// First write (generation 0 -> 1)
+		gen1, err := repo.PutHistory(t.Context(), "source1", messages1, 0)
+		require.NoError(t, err)
+
+		// Second write with correct generation succeeds (generation 1 -> 2)
+		gen2, err := repo.PutHistory(t.Context(), "source1", messages2, gen1)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), gen2)
+
+		// Verify the latest data
+		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		require.NoError(t, err)
+		require.Len(t, retrieved, 1)
+		userMsg := retrieved[0].(*history.UserMessage)
+		textPart := userMsg.Parts[0].(*history.UserTextPart)
+		assert.Equal(t, "Second", textPart.Text)
+	})
+
+	t.Run("concurrent modification detected", func(t *testing.T) {
+		storage := newMockStorage()
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		// Initial state
+		initialMessages := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "Initial"}},
+				Timestamp: testTime1,
+			},
+		}
+		gen, err := repo.PutHistory(t.Context(), "source1", initialMessages, 0)
+		require.NoError(t, err)
+
+		// Simulate two concurrent reads (both get same generation)
+		_, genA, err := repo.GetHistory(t.Context(), "source1")
+		require.NoError(t, err)
+		_, genB, err := repo.GetHistory(t.Context(), "source1")
+		require.NoError(t, err)
+		assert.Equal(t, gen, genA)
+		assert.Equal(t, gen, genB)
+
+		// First concurrent write succeeds
+		messagesA := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "Writer A"}},
+				Timestamp: testTime1,
+			},
+		}
+		_, err = repo.PutHistory(t.Context(), "source1", messagesA, genA)
+		require.NoError(t, err)
+
+		// Second concurrent write fails (stale generation)
+		messagesB := []history.Message{
+			&history.UserMessage{
+				UserID:    "U123",
+				Parts:     []history.UserPart{&history.UserTextPart{Text: "Writer B"}},
+				Timestamp: testTime1,
+			},
+		}
+		_, err = repo.PutHistory(t.Context(), "source1", messagesB, genB)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "generation mismatch")
+	})
+}
+
+// =============================================================================
+// JSONL Parsing Error Tests
+// =============================================================================
+
+// TestRepository_ParseErrors tests error handling for malformed JSONL data.
+func TestRepository_ParseErrors(t *testing.T) {
+	t.Run("invalid JSON returns error", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte(`{invalid json}`)
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		_, _, err = repo.GetHistory(t.Context(), "source1")
+
+		require.Error(t, err)
+	})
+
+	t.Run("unknown role returns error", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte(`{"role":"unknown","parts":[],"timestamp":"2025-01-01T00:00:00Z"}`)
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		_, _, err = repo.GetHistory(t.Context(), "source1")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown role")
+	})
+
+	t.Run("unknown user part type returns error", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte(`{"role":"user","userId":"U123","parts":[{"type":"unknown"}],"timestamp":"2025-01-01T00:00:00Z"}`)
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		_, _, err = repo.GetHistory(t.Context(), "source1")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown user part type")
+	})
+
+	t.Run("unknown assistant part type returns error", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte(`{"role":"assistant","modelName":"test","parts":[{"type":"unknown"}],"timestamp":"2025-01-01T00:00:00Z"}`)
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		_, _, err = repo.GetHistory(t.Context(), "source1")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown assistant part type")
+	})
+
+	t.Run("empty lines are skipped", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte("\n\n\n")
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		messages, _, err := repo.GetHistory(t.Context(), "source1")
+
+		require.NoError(t, err)
+		assert.Empty(t, messages)
+	})
+
+	t.Run("whitespace-only lines are skipped", func(t *testing.T) {
+		storage := newMockStorage()
+		storage.data["source1"] = []byte("   \n\t\n  \t  \n")
+		storage.generation["source1"] = 1
+
+		repo, err := history.NewRepository(storage)
+		require.NoError(t, err)
+
+		messages, _, err := repo.GetHistory(t.Context(), "source1")
+
+		require.NoError(t, err)
+		assert.Empty(t, messages)
+	})
+}
+
+// =============================================================================
 // Mock Storage
 // =============================================================================
 
@@ -321,10 +539,15 @@ func (m *mockStorage) Read(ctx context.Context, key string) ([]byte, int64, erro
 	return data, m.generation[key], nil
 }
 
-func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
+func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (int64, error) {
+	currentGen := m.generation[key]
+	if currentGen != expectedGeneration {
+		return 0, fmt.Errorf("generation mismatch: expected %d, got %d", expectedGeneration, currentGen)
+	}
 	m.data[key] = data
-	m.generation[key] = expectedGeneration + 1
-	return nil
+	newGen := expectedGeneration + 1
+	m.generation[key] = newGen
+	return newGen, nil
 }
 
 func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error) {

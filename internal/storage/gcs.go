@@ -53,7 +53,8 @@ func (s *GCSStorage) Read(ctx context.Context, key string) ([]byte, int64, error
 
 // Write stores data for a key with generation precondition.
 // Returns ErrPreconditionFailed if generation doesn't match (412).
-func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
+// Returns the new generation number of the written object.
+func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (int64, error) {
 	obj := s.bucket.Object(key)
 
 	var writer *storage.Writer
@@ -65,11 +66,11 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 		// Update only if generation matches
 		writer = obj.If(storage.Conditions{GenerationMatch: expectedGeneration}).NewWriter(ctx)
 	default:
-		return fmt.Errorf("invalid expectedGeneration: %d (must be >= 0)", expectedGeneration)
+		return 0, fmt.Errorf("invalid expectedGeneration: %d (must be >= 0)", expectedGeneration)
 	}
 
 	if writer == nil {
-		return fmt.Errorf("failed to create writer for %s", key)
+		return 0, fmt.Errorf("failed to create writer for %s", key)
 	}
 
 	writer.ContentType = mimetype
@@ -78,10 +79,10 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 	closeErr := writer.Close()
 
 	if err := errors.Join(writeErr, closeErr); err != nil {
-		return fmt.Errorf("failed to write %s: %w", key, err)
+		return 0, fmt.Errorf("failed to write %s: %w", key, err)
 	}
 
-	return nil
+	return writer.Attrs().Generation, nil
 }
 
 // GetSignedURL generates a signed URL for accessing the object.
