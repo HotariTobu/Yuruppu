@@ -1,7 +1,7 @@
 ---
 description: Start a coding session with progress review and planning
 argument-hint: [spec-name]
-allowed-tools: Bash(git *), Bash(make preflight), Read, Glob, TodoWrite
+allowed-tools: Bash(git *), Bash(make preflight), Read, Glob, TodoWrite, Task
 ---
 
 # Start Session

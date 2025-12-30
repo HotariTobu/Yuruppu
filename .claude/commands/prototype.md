@@ -50,15 +50,15 @@ Validate technical decisions through rapid prototyping:
 5. **Commit prototype** (IMPORTANT: for revert capability):
    ```bash
    git add -A
-   git commit -m "prototype(<spec-name>): validate <what was validated>"
+   git commit -m "prototype(<spec-name>): validate <what was validated>
+
+   ## Findings
+   - <what worked>
+   - <what needs adjustment>
+   - <blockers if any>"
    ```
 
-6. **Document findings**:
-   - What worked as expected?
-   - What needs adjustment?
-   - Any blockers discovered?
-
-7. **Update progress.json**:
+6. **Update progress.json**:
    ```json
    {
      "phase": "prototyped",
@@ -66,7 +66,7 @@ Validate technical decisions through rapid prototyping:
    }
    ```
 
-8. **Commit progress update**:
+7. **Commit progress update**:
    ```bash
    git add docs/specs/<spec-name>/progress.json
    git commit -m "docs(<spec-name>): complete prototype phase"

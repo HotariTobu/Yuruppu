@@ -1,7 +1,7 @@
 ---
 description: Analyze codebase and create ADRs for a specification
 argument-hint: <spec-name>
-allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill
+allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill, AskUserQuestion
 ---
 
 # Dependency Research Phase
