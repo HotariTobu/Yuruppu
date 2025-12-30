@@ -96,8 +96,8 @@ Validate technical decisions through rapid prototyping:
 ### Prototype Commits
 - <commit hash>: <description>
 
-### Ready for Implementation
-Run `/session-start <spec-name>` to begin TDD implementation.
+### Ready for Design
+Run `/design <spec-name>` to create detailed design.
 
 To revert prototype if not adopted:
 git revert <prototype-commit-hash>

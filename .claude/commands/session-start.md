@@ -64,9 +64,8 @@ Start a coding session with progress review and planning.
 ## Session Start: <spec-name>
 
 ### Current Status
-- Phase: <designed|in-progress|completed>
+- Phase: <phase>
 - Progress: <X/Y requirements passed>
-- Last updated: <date>
 
 ### Previous Notes
 <notes from progress.json>

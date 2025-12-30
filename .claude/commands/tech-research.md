@@ -31,7 +31,9 @@ Spec name: $ARGUMENTS
 3. **Create ADRs** (for each ADR candidate from step 2):
    - tech-researcher marks items as "requires ADR"
    - For each ADR candidate, run `/tech-stack-adr` skill
-   - If no ADR candidates, skip to step 5.
+   - **CRITICAL**: You MUST NOT skip ADR creation without explicit user approval
+   - If you believe no ADRs are needed, use AskUserQuestion to confirm with the user
+   - Present the list of considerations and ask: "Should I create ADRs for any of these?"
 
 4. **Generate llms.txt** (use llms-generator agent):
    - For each adopted technology with official documentation, generate llms.txt

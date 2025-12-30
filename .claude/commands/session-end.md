@@ -97,8 +97,8 @@ End the current coding session with progress update and structured commit.
 - <summary of changes>
 
 ### Progress Updated
+- Phase: <phase>
 - Requirements passed: <X/Y>
-- Status: <status>
 
 ### Commit Created
 <commit hash and message>
