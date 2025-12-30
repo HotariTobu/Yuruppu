@@ -19,7 +19,7 @@ const signedURLTTL = 60 * time.Second
 // HistoryRepository provides access to conversation history.
 type HistoryRepository interface {
 	GetHistory(ctx context.Context, sourceID string) ([]history.Message, int64, error)
-	PutHistory(ctx context.Context, sourceID string, messages []history.Message, expectedGeneration int64) error
+	PutHistory(ctx context.Context, sourceID string, messages []history.Message, expectedGeneration int64) (int64, error)
 }
 
 // Sender sends a reply message.
@@ -139,7 +139,8 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 
 	// Step 2: Save user message to history
 	hist = append(hist, userMsg)
-	if err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
+	gen, err = h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen)
+	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to save user message to history",
 			slog.Any("msgCtx", msgCtx),
 			slog.Any("error", err),
@@ -177,6 +178,12 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 
 	// Step 4: Extract text from response and send reply
 	responseText := extractTextFromAssistantMessage(assistantMsg)
+	if responseText == "" {
+		h.logger.WarnContext(ctx, "assistant message has no visible text content",
+			slog.Any("msgCtx", msgCtx),
+		)
+		return nil
+	}
 	if err := h.sender.SendReply(msgCtx.ReplyToken, responseText); err != nil {
 		h.logger.ErrorContext(ctx, "failed to send reply",
 			slog.Any("msgCtx", msgCtx),
@@ -186,19 +193,10 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 	}
 
 	// Step 5: Save assistant message to history
-	// Re-read to get current generation after first write
-	hist, gen, err = h.history.GetHistory(ctx, msgCtx.SourceID)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to read history for assistant message",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
-	}
-
 	historyAssistantMessage := convertToHistoryAssistantMessage(assistantMsg)
+	historyAssistantMessage.Timestamp = time.Now()
 	hist = append(hist, historyAssistantMessage)
-	if err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
+	if _, err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
 			slog.Any("msgCtx", msgCtx),
 			slog.Any("error", err),
@@ -342,13 +340,14 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 	g, ctx := errgroup.WithContext(ctx)
 
 	for key := range pending {
+		k := key
 		g.Go(func() error {
-			url, err := h.mediaStorage.GetSignedURL(ctx, key, "GET", signedURLTTL)
+			url, err := h.mediaStorage.GetSignedURL(ctx, k, "GET", signedURLTTL)
 			if err != nil {
-				return fmt.Errorf("failed to get signed URL for %s: %w", key, err)
+				return fmt.Errorf("failed to get signed URL for %s: %w", k, err)
 			}
 			mu.Lock()
-			urls[key] = url
+			urls[k] = url
 			mu.Unlock()
 			return nil
 		})
@@ -359,6 +358,19 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 	}
 
 	return urls, nil
+}
+
+// extractTextFromAssistantMessage extracts all text content from an AssistantMessage.
+func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
+	var text string
+	for _, p := range m.Parts {
+		if textPart, ok := p.(*agent.AssistantTextPart); ok {
+			if !textPart.Thought {
+				text += textPart.Text
+			}
+		}
+	}
+	return text
 }
 
 // convertToHistoryAssistantMessage converts agent.AssistantMessage to history.AssistantMessage.
@@ -374,7 +386,7 @@ func convertToHistoryAssistantMessage(m *agent.AssistantMessage) *history.Assist
 			})
 		case *agent.AssistantFileDataPart:
 			parts = append(parts, &history.AssistantFileDataPart{
-				StorageKey:  v.FileURI, // Store FileURI as StorageKey for now
+				StorageKey:  "TODO:handle-model-output",
 				MIMEType:    v.MIMEType,
 				DisplayName: v.DisplayName,
 			})
@@ -384,17 +396,4 @@ func convertToHistoryAssistantMessage(m *agent.AssistantMessage) *history.Assist
 		ModelName: m.ModelName,
 		Parts:     parts,
 	}
-}
-
-// extractTextFromAssistantMessage extracts all text content from an AssistantMessage.
-func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
-	var text string
-	for _, p := range m.Parts {
-		if textPart, ok := p.(*agent.AssistantTextPart); ok {
-			if !textPart.Thought {
-				text += textPart.Text
-			}
-		}
-	}
-	return text
 }

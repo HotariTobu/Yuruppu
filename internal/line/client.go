@@ -42,7 +42,6 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 // Returns any error encountered during the API call.
 func (c *Client) SendReply(replyToken string, text string) error {
 	c.logger.Debug("sending reply",
-		slog.String("replyToken", replyToken),
 		slog.Int("textLength", len(text)),
 	)
 
@@ -59,18 +58,28 @@ func (c *Client) SendReply(replyToken string, text string) error {
 		},
 	}
 
-	// Call LINE ReplyMessage API
-	_, err := c.api.ReplyMessage(request)
+	// Call LINE ReplyMessage API with HTTP info for x-line-request-id
+	httpResp, _, err := c.api.ReplyMessageWithHttpInfo(request)
+	if httpResp != nil && httpResp.Body != nil {
+		defer httpResp.Body.Close()
+	}
+
+	// Extract x-line-request-id for debugging (available even on error)
+	var requestID string
+	if httpResp != nil {
+		requestID = httpResp.Header.Get("X-Line-Request-Id")
+	}
+
 	if err != nil {
 		c.logger.Error("reply failed",
-			slog.String("replyToken", replyToken),
+			slog.String("x-line-request-id", requestID),
 			slog.Any("error", err),
 		)
 		return err
 	}
 
 	c.logger.Debug("reply sent successfully",
-		slog.String("replyToken", replyToken),
+		slog.String("x-line-request-id", requestID),
 	)
 	return nil
 }

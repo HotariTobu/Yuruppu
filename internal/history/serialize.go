@@ -3,27 +3,38 @@ package history
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
-func (r *Repository) serializeJSONL(messages []Message) ([]byte, error) {
+func serializeJSONL(messages []Message) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, msg := range messages {
 		var m message
 		switch v := msg.(type) {
 		case *UserMessage:
+			parts, err := convertUserPartsToJSON(v.Parts)
+			if err != nil {
+				return nil, err
+			}
 			m = message{
 				Role:      "user",
 				UserID:    v.UserID,
-				Parts:     convertUserPartsToJSON(v.Parts),
+				Parts:     parts,
 				Timestamp: v.Timestamp,
 			}
 		case *AssistantMessage:
+			parts, err := convertAssistantPartsToJSON(v.Parts)
+			if err != nil {
+				return nil, err
+			}
 			m = message{
 				Role:      "assistant",
 				ModelName: v.ModelName,
-				Parts:     convertAssistantPartsToJSON(v.Parts),
+				Parts:     parts,
 				Timestamp: v.Timestamp,
 			}
+		default:
+			return nil, fmt.Errorf("unknown message type: %T", msg)
 		}
 		data, err := json.Marshal(m)
 		if err != nil {
@@ -35,7 +46,7 @@ func (r *Repository) serializeJSONL(messages []Message) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func convertUserPartsToJSON(parts []UserPart) []part {
+func convertUserPartsToJSON(parts []UserPart) ([]part, error) {
 	result := make([]part, 0, len(parts))
 	for _, p := range parts {
 		switch v := p.(type) {
@@ -59,12 +70,14 @@ func convertUserPartsToJSON(parts []UserPart) []part {
 				}
 			}
 			result = append(result, p)
+		default:
+			return nil, fmt.Errorf("unknown user part type: %T", p)
 		}
 	}
-	return result
+	return result, nil
 }
 
-func convertAssistantPartsToJSON(parts []AssistantPart) []part {
+func convertAssistantPartsToJSON(parts []AssistantPart) ([]part, error) {
 	result := make([]part, 0, len(parts))
 	for _, p := range parts {
 		switch v := p.(type) {
@@ -82,7 +95,9 @@ func convertAssistantPartsToJSON(parts []AssistantPart) []part {
 				MIMEType:    v.MIMEType,
 				DisplayName: v.DisplayName,
 			})
+		default:
+			return nil, fmt.Errorf("unknown assistant part type: %T", p)
 		}
 	}
-	return result
+	return result, nil
 }

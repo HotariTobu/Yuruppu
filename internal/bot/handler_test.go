@@ -181,7 +181,7 @@ func TestHandler_HandleImage(t *testing.T) {
 		err = h.HandleImage(t.Context(), msgCtx, "msg-456")
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent an image]")
+		assert.Equal(t, "[User sent an image]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -204,7 +204,7 @@ func TestHandler_HandleSticker(t *testing.T) {
 		err = h.HandleSticker(t.Context(), msgCtx, "pkg-1", "stk-2")
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a sticker]")
+		assert.Equal(t, "[User sent a sticker]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -227,7 +227,7 @@ func TestHandler_HandleVideo(t *testing.T) {
 		err = h.HandleVideo(t.Context(), msgCtx, "msg-789")
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a video]")
+		assert.Equal(t, "[User sent a video]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -250,7 +250,7 @@ func TestHandler_HandleAudio(t *testing.T) {
 		err = h.HandleAudio(t.Context(), msgCtx, "msg-101")
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent an audio]")
+		assert.Equal(t, "[User sent an audio]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -273,7 +273,7 @@ func TestHandler_HandleLocation(t *testing.T) {
 		err = h.HandleLocation(t.Context(), msgCtx, 35.6762, 139.6503)
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a location]")
+		assert.Equal(t, "[User sent a location]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -296,7 +296,7 @@ func TestHandler_HandleUnknown(t *testing.T) {
 		err = h.HandleUnknown(t.Context(), msgCtx)
 
 		require.NoError(t, err)
-		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a message]")
+		assert.Equal(t, "[User sent a message]", mockAg.lastUserMessageText)
 	})
 }
 
@@ -352,7 +352,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 
 	t.Run("does not respond when user message storage fails", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockStore.writeErr = errors.New("GCS failed")
+		mockStore.writeResults = []writeResult{{gen: 0, err: errors.New("GCS failed")}}
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
@@ -393,6 +393,39 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		require.Error(t, err)
 		// User message is saved before agent is called
 		assert.Equal(t, 1, mockStore.writeCallCount)
+	})
+
+	t.Run("returns error when assistant message save fails after reply sent", func(t *testing.T) {
+		mockStore := newMockStorage()
+		mockStore.writeResults = []writeResult{
+			{gen: 1, err: nil},                      // user message save succeeds
+			{gen: 0, err: errors.New("GCS failed")}, // assistant message save fails
+		}
+		mockAg := &mockAgent{response: "Hello!"}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to write history")
+		// Reply was already sent before assistant message save
+		assert.Equal(t, 1, sender.callCount)
+		assert.Equal(t, "Hello!", sender.lastText)
+		// Both writes were attempted
+		assert.Equal(t, 2, mockStore.writeCallCount)
+		// History only contains user message (assistant not saved)
+		hist, _, _ := historyRepo.GetHistory(t.Context(), "user-123")
+		assert.Len(t, hist, 1)
 	})
 }
 
@@ -441,6 +474,12 @@ func (m *mockSender) SendReply(replyToken string, text string) error {
 	return m.err
 }
 
+// writeResult represents a single Write call result
+type writeResult struct {
+	gen int64
+	err error
+}
+
 // mockStorage implements storage.Storage interface
 type mockStorage struct {
 	// Read behavior
@@ -450,7 +489,7 @@ type mockStorage struct {
 	readCallCount int
 
 	// Write behavior
-	writeErr       error
+	writeResults   []writeResult
 	writeCallCount int
 }
 
@@ -473,14 +512,22 @@ func (m *mockStorage) Read(ctx context.Context, key string) ([]byte, int64, erro
 	return data, m.generation[key], nil
 }
 
-func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
+func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (int64, error) {
 	m.writeCallCount++
-	if m.writeErr != nil {
-		return m.writeErr
+	if len(m.writeResults) > 0 {
+		r := m.writeResults[0]
+		m.writeResults = m.writeResults[1:]
+		if r.err != nil {
+			return 0, r.err
+		}
+		m.data[key] = data
+		m.generation[key] = r.gen
+		return r.gen, nil
 	}
 	m.data[key] = data
-	m.generation[key] = expectedGeneration + 1
-	return nil
+	newGen := expectedGeneration + 1
+	m.generation[key] = newGen
+	return newGen, nil
 }
 
 func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error) {

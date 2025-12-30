@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
+func parseJSONL(data []byte) ([]Message, error) {
 	var messages []Message
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
@@ -25,15 +25,23 @@ func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 
 		switch m.Role {
 		case "user":
+			parts, err := convertJSONToUserParts(m.Parts)
+			if err != nil {
+				return nil, err
+			}
 			messages = append(messages, &UserMessage{
 				UserID:    m.UserID,
-				Parts:     convertJSONToUserParts(m.Parts),
+				Parts:     parts,
 				Timestamp: m.Timestamp,
 			})
 		case "assistant":
+			parts, err := convertJSONToAssistantParts(m.Parts)
+			if err != nil {
+				return nil, err
+			}
 			messages = append(messages, &AssistantMessage{
 				ModelName: m.ModelName,
-				Parts:     convertJSONToAssistantParts(m.Parts),
+				Parts:     parts,
 				Timestamp: m.Timestamp,
 			})
 		default:
@@ -48,7 +56,7 @@ func (r *Repository) parseJSONL(data []byte) ([]Message, error) {
 	return messages, nil
 }
 
-func convertJSONToUserParts(parts []part) []UserPart {
+func convertJSONToUserParts(parts []part) ([]UserPart, error) {
 	result := make([]UserPart, 0, len(parts))
 	for _, p := range parts {
 		switch p.Type {
@@ -70,12 +78,14 @@ func convertJSONToUserParts(parts []part) []UserPart {
 				}
 			}
 			result = append(result, filePart)
+		default:
+			return nil, fmt.Errorf("unknown user part type: %s", p.Type)
 		}
 	}
-	return result
+	return result, nil
 }
 
-func convertJSONToAssistantParts(parts []part) []AssistantPart {
+func convertJSONToAssistantParts(parts []part) ([]AssistantPart, error) {
 	result := make([]AssistantPart, 0, len(parts))
 	for _, p := range parts {
 		switch p.Type {
@@ -91,7 +101,9 @@ func convertJSONToAssistantParts(parts []part) []AssistantPart {
 				MIMEType:    p.MIMEType,
 				DisplayName: p.DisplayName,
 			})
+		default:
+			return nil, fmt.Errorf("unknown assistant part type: %s", p.Type)
 		}
 	}
-	return result
+	return result, nil
 }

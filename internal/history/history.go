@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"yuruppu/internal/storage"
 )
+
+var invalidSourceIDPattern = regexp.MustCompile(`/|\.\.`)
 
 // Repository provides access to conversation history storage.
 type Repository struct {
@@ -25,10 +28,10 @@ func NewRepository(s storage.Storage) (*Repository, error) {
 // GetHistory retrieves conversation history for a source.
 // Returns messages and generation for optimistic locking.
 // Returns empty slice and generation 0 if no history exists.
-// Returns error if sourceID is empty.
+// Returns error if sourceID is empty or contains invalid characters.
 func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message, int64, error) {
-	if strings.TrimSpace(sourceID) == "" {
-		return nil, 0, errors.New("sourceID cannot be empty")
+	if err := validateSourceID(sourceID); err != nil {
+		return nil, 0, err
 	}
 
 	data, generation, err := r.storage.Read(ctx, sourceID)
@@ -40,7 +43,7 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 		return []Message{}, generation, nil
 	}
 
-	messages, err := r.parseJSONL(data)
+	messages, err := parseJSONL(data)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to parse history for %s: %w", sourceID, err)
 	}
@@ -50,27 +53,41 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 
 // PutHistory saves the given messages as the complete history for a source.
 // Uses expectedGeneration for optimistic locking (from GetHistory).
-// Returns error if sourceID is empty or if generation doesn't match (concurrent modification).
-func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []Message, expectedGeneration int64) error {
-	if strings.TrimSpace(sourceID) == "" {
-		return errors.New("sourceID cannot be empty")
+// Returns the new generation number of the saved history.
+// Returns error if sourceID is empty/invalid or if generation doesn't match (concurrent modification).
+func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []Message, expectedGeneration int64) (int64, error) {
+	if err := validateSourceID(sourceID); err != nil {
+		return 0, err
 	}
 
 	// Serialize to JSONL
-	data, err := r.serializeJSONL(messages)
+	data, err := serializeJSONL(messages)
 	if err != nil {
-		return fmt.Errorf("failed to serialize history for %s: %w", sourceID, err)
+		return 0, fmt.Errorf("failed to serialize history for %s: %w", sourceID, err)
 	}
 
 	// Write with generation precondition
-	if err := r.storage.Write(ctx, sourceID, "application/jsonl", data, expectedGeneration); err != nil {
-		return fmt.Errorf("failed to write history for %s: %w", sourceID, err)
+	newGen, err := r.storage.Write(ctx, sourceID, "application/jsonl", data, expectedGeneration)
+	if err != nil {
+		return 0, fmt.Errorf("failed to write history for %s: %w", sourceID, err)
 	}
 
-	return nil
+	return newGen, nil
 }
 
 // Close releases repository resources.
 func (r *Repository) Close(ctx context.Context) error {
 	return r.storage.Close(ctx)
+}
+
+// validateSourceID checks if sourceID is valid.
+// Rejects empty strings and path traversal attempts.
+func validateSourceID(sourceID string) error {
+	if strings.TrimSpace(sourceID) == "" {
+		return errors.New("sourceID cannot be empty")
+	}
+	if invalidSourceIDPattern.MatchString(sourceID) {
+		return errors.New("sourceID contains invalid characters")
+	}
+	return nil
 }
