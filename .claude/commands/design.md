@@ -122,3 +122,8 @@ Run `/session-start <spec-name>` to begin TDD implementation.
 - Keep design focused on what's needed for implementation
 - Reference ADRs and prototype learnings
 - If user disagrees, revise and confirm again
+
+## Error Recovery
+
+- **Design reveals spec issues**: Update spec.md, re-run spec-reviewer
+- **User and Claude disagree**: Document both options, let user decide

@@ -27,10 +27,10 @@ Validate technical decisions through rapid prototyping:
 1. **Load the specification**:
    - Find spec directory matching the argument (e.g., `docs/specs/*<spec-name>*/`)
    - Read `spec.md` and `progress.json`
-   - Verify phase is `"dependency-researched"`
+   - Verify phase is `"tech-researched"`
 
 2. **Review ADRs**:
-   - Read all ADRs created in dependency-research phase
+   - Read all ADRs created in tech-research phase
    - Identify technologies/approaches to validate
 
 3. **Design with multiple agents** (scale based on complexity):
@@ -101,3 +101,7 @@ git revert <prototype-commit-hash>
 - Keep prototype scope minimal - validate only what's uncertain
 - If prototype reveals issues, update ADRs before proceeding
 - Prototype code may be kept or discarded in implementation phase
+
+## Error Recovery
+
+- **Prototype proves approach infeasible**: Revert commits, update ADRs, re-run `/tech-research`

@@ -23,6 +23,7 @@ End the current coding session with progress update and structured commit.
 1. **Identify worked spec**
    - Infer from current branch name
    - Or ask user if unclear
+   - Verify phase is `"in-progress"`. If not, warn user to run `/session-start` first
 
 2. **Review changes**
    ```bash
@@ -44,9 +45,11 @@ End the current coding session with progress update and structured commit.
    - Update `passes` for completed requirements
    - Update `lastUpdated` to today's date
    - Update `notes` with context for next session
-   - Update `status` if all requirements pass
-   - **If all requirements pass, set `phase` to `"completed"`**
    - Add any new `blockers` discovered
+   - **Update phase**:
+     - If blockers exist → set `phase` to `"blocked"`
+     - If all requirements pass → set `phase` to `"completed"`
+     - Otherwise → keep `phase` as `"in-progress"`
 
 5. **Create structured commit**
    - Stage all relevant changes
@@ -114,3 +117,9 @@ A requirement can only be marked as `passes: true` when:
 3. You have actually verified the behavior, not assumed it works
 
 **"Probably works" = `passes: false`**
+
+## Error Recovery
+
+- **Preflight fails**: Fix issues before committing, do not skip
+- **Reviewer finds critical issues**: Fix before proceeding, add to blockers if unresolvable
+- **Partial progress**: Commit what works, update notes for next session

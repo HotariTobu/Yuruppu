@@ -29,13 +29,10 @@ Start a coding session with progress review and planning.
    - Read `docs/specs/<spec-name>/progress.json`
    - If `progress.json` doesn't exist, stop and ask user to run `/spec-new` first
 
-4. **Check design phase**
-   - If `phase` is not `"designed"`:
-     ```
-     Design phase not complete.
-     Run `/design <spec-name>` first to create detailed design with user.
-     ```
-   - Stop and wait for user to complete design phase
+4. **Check phase**
+   - If `phase` is `"blocked"`: Display blockers and ask user how to proceed
+   - If `phase` is `"designed"` or `"in-progress"`: Continue to next step
+   - Otherwise: Stop and prompt user to run `/design <spec-name>` first
 
 5. **Run preflight check**
    ```bash
@@ -52,15 +49,20 @@ Start a coding session with progress review and planning.
 
 7. **Analyze progress**
    - Identify incomplete requirements (where `passes: false`)
-   - Check for blockers
    - Read notes from previous session
+   - **Check for blockers**: If blockers exist, display them and ask user:
+     - "Resolve blockers first?" → Help resolve, then continue
+     - "Proceed anyway?" → Document decision in notes
 
 8. **Create session plan**
    - Recommend next task based on incomplete requirements
    - Provide focused plan for this session
    - Keep scope to ONE requirement (split if too large)
 
-9. **TDD Implementation (after user approval)**
+9. **Update phase to in-progress** (after user approval):
+   - If phase is `"designed"`, update progress.json to `"in-progress"`
+
+10. **TDD Implementation**
    - Use `go-test-generator` agent to generate tests and verify red phase
    - Use `go-implementer` agent to implement code and verify green phase
 
@@ -70,7 +72,7 @@ Start a coding session with progress review and planning.
 ## Session Start: <spec-name>
 
 ### Current Status
-- Phase: <designed|in_progress|completed>
+- Phase: <designed|in-progress|completed>
 - Progress: <X/Y requirements passed>
 - Last updated: <date>
 
@@ -111,9 +113,8 @@ A requirement is **TOO LARGE** if:
 3. Complete each in separate session
 4. Mark parent requirement as passed only when all sub-tasks complete
 
-## Recovery from Failed Sessions
+## Error Recovery
 
-1. `git stash` or `git reset --soft HEAD~1` to preserve work
-2. Run `/session-start` to re-orient
-3. Document what went wrong in blockers
-4. Split the failed requirement into smaller pieces
+- **Session interrupted**: `git stash` to preserve work, run `/session-start` to re-orient
+- **Requirement too large**: Split into sub-requirements (FR-001a, FR-001b)
+- **Unexpected failure**: Document in blockers, update notes for next session

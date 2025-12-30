@@ -4,7 +4,7 @@ argument-hint: <spec-name>
 allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill, AskUserQuestion
 ---
 
-# Dependency Research Phase
+# Tech Research Phase
 
 Spec name: $ARGUMENTS
 
@@ -14,15 +14,16 @@ Spec name: $ARGUMENTS
    - Find spec directory matching the argument (e.g., `docs/specs/*<spec-name>*/`)
    - Read `spec.md` and `progress.json`
    - If spec not found, ask user for correct name
+   - Verify phase is `"spec"`. If not, warn user about unexpected phase
 
-2. **Enumerate design considerations** (use dependency-researcher agent):
+2. **Enumerate design considerations** (use tech-researcher agent):
    - Pass only the spec path to the agent
    - The agent analyzes the codebase itself (no summaries)
    - The agent systematically checks EVERY requirement
    - This step MUST NOT be skipped or done manually
 
 3. **Create ADRs** (for each ADR candidate from step 2):
-   - dependency-researcher marks items as "requires ADR"
+   - tech-researcher marks items as "requires ADR"
    - For each ADR candidate, run `/tech-stack-adr` skill
    - If no ADR candidates, skip to step 5.
 
@@ -34,7 +35,7 @@ Spec name: $ARGUMENTS
 5. **Update progress.json**:
    ```json
    {
-     "phase": "dependency-researched",
+     "phase": "tech-researched",
      ...
    }
    ```
@@ -42,16 +43,16 @@ Spec name: $ARGUMENTS
 6. **Commit changes**:
    ```bash
    git add docs/adr/ docs/llms-txt/ docs/specs/<spec-name>/progress.json
-   git commit -m "docs(<spec-name>): complete dependency research phase"
+   git commit -m "docs(<spec-name>): complete tech-research phase"
    ```
 
 ## Output
 
 ```
-## Dependency Research Complete: <spec-name>
+## Tech Research Complete: <spec-name>
 
 ### Design Considerations
-(Paste output from dependency-researcher agent)
+(Paste output from tech-researcher agent)
 
 ### ADRs Created
 - ADR-XXX: [Title] → [Decision]
@@ -61,8 +62,8 @@ Spec name: $ARGUMENTS
 - docs/llms-txt/<technology>/
 - (or "None required")
 
-### Ready for Implementation
-Run `/session-start <spec-name>` to begin.
+### Next Step
+Run `/prototype <spec-name>` to validate technical decisions.
 ```
 
 ## Guidelines
@@ -71,3 +72,8 @@ Run `/session-start <spec-name>` to begin.
 - Do not create ADRs for trivial choices
 - Reference existing patterns in the codebase when possible
 - If the only option is obvious (e.g., official SDK), still document it briefly in ADR
+
+## Error Recovery
+
+- **ADR creation fails**: Create ADR manually or skip if not critical
+- **llms.txt generation fails**: Skip and note in progress.json
