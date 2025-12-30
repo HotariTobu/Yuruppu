@@ -40,13 +40,13 @@ type mockHandler struct {
 	audioMessages   []audioMessage
 	locationMsgs    []locationMessage
 	unknownMessages []unknownMessage
-	onText          func(ctx context.Context, replyToken, sourceID, text string) error
-	onImage         func(ctx context.Context, replyToken, sourceID, messageID string) error
-	onSticker       func(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error
-	onVideo         func(ctx context.Context, replyToken, sourceID, messageID string) error
-	onAudio         func(ctx context.Context, replyToken, sourceID, messageID string) error
-	onLocation      func(ctx context.Context, replyToken, sourceID string, lat, lng float64) error
-	onUnknown       func(ctx context.Context, replyToken, sourceID string) error
+	onText          func(ctx context.Context, msgCtx line.MessageContext, text string) error
+	onImage         func(ctx context.Context, msgCtx line.MessageContext, messageID string) error
+	onSticker       func(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error
+	onVideo         func(ctx context.Context, msgCtx line.MessageContext, messageID string) error
+	onAudio         func(ctx context.Context, msgCtx line.MessageContext, messageID string) error
+	onLocation      func(ctx context.Context, msgCtx line.MessageContext, lat, lng float64) error
+	onUnknown       func(ctx context.Context, msgCtx line.MessageContext) error
 }
 
 type textMessage struct {
@@ -78,72 +78,72 @@ type unknownMessage struct {
 	replyToken, sourceID string
 }
 
-func (m *mockHandler) HandleText(ctx context.Context, replyToken, sourceID, text string) error {
+func (m *mockHandler) HandleText(ctx context.Context, msgCtx line.MessageContext, text string) error {
 	m.mu.Lock()
-	m.textMessages = append(m.textMessages, textMessage{replyToken, sourceID, text})
+	m.textMessages = append(m.textMessages, textMessage{msgCtx.ReplyToken, msgCtx.SourceID, text})
 	m.mu.Unlock()
 	if m.onText != nil {
-		return m.onText(ctx, replyToken, sourceID, text)
+		return m.onText(ctx, msgCtx, text)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleImage(ctx context.Context, replyToken, sourceID, messageID string) error {
+func (m *mockHandler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
 	m.mu.Lock()
-	m.imageMessages = append(m.imageMessages, imageMessage{replyToken, sourceID, messageID})
+	m.imageMessages = append(m.imageMessages, imageMessage{msgCtx.ReplyToken, msgCtx.SourceID, messageID})
 	m.mu.Unlock()
 	if m.onImage != nil {
-		return m.onImage(ctx, replyToken, sourceID, messageID)
+		return m.onImage(ctx, msgCtx, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleSticker(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error {
+func (m *mockHandler) HandleSticker(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
 	m.mu.Lock()
-	m.stickerMessages = append(m.stickerMessages, stickerMessage{replyToken, sourceID, packageID, stickerID})
+	m.stickerMessages = append(m.stickerMessages, stickerMessage{msgCtx.ReplyToken, msgCtx.SourceID, packageID, stickerID})
 	m.mu.Unlock()
 	if m.onSticker != nil {
-		return m.onSticker(ctx, replyToken, sourceID, packageID, stickerID)
+		return m.onSticker(ctx, msgCtx, packageID, stickerID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleVideo(ctx context.Context, replyToken, sourceID, messageID string) error {
+func (m *mockHandler) HandleVideo(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
 	m.mu.Lock()
-	m.videoMessages = append(m.videoMessages, videoMessage{replyToken, sourceID, messageID})
+	m.videoMessages = append(m.videoMessages, videoMessage{msgCtx.ReplyToken, msgCtx.SourceID, messageID})
 	m.mu.Unlock()
 	if m.onVideo != nil {
-		return m.onVideo(ctx, replyToken, sourceID, messageID)
+		return m.onVideo(ctx, msgCtx, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleAudio(ctx context.Context, replyToken, sourceID, messageID string) error {
+func (m *mockHandler) HandleAudio(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
 	m.mu.Lock()
-	m.audioMessages = append(m.audioMessages, audioMessage{replyToken, sourceID, messageID})
+	m.audioMessages = append(m.audioMessages, audioMessage{msgCtx.ReplyToken, msgCtx.SourceID, messageID})
 	m.mu.Unlock()
 	if m.onAudio != nil {
-		return m.onAudio(ctx, replyToken, sourceID, messageID)
+		return m.onAudio(ctx, msgCtx, messageID)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleLocation(ctx context.Context, replyToken, sourceID string, latitude, longitude float64) error {
+func (m *mockHandler) HandleLocation(ctx context.Context, msgCtx line.MessageContext, latitude, longitude float64) error {
 	m.mu.Lock()
-	m.locationMsgs = append(m.locationMsgs, locationMessage{replyToken, sourceID, latitude, longitude})
+	m.locationMsgs = append(m.locationMsgs, locationMessage{msgCtx.ReplyToken, msgCtx.SourceID, latitude, longitude})
 	m.mu.Unlock()
 	if m.onLocation != nil {
-		return m.onLocation(ctx, replyToken, sourceID, latitude, longitude)
+		return m.onLocation(ctx, msgCtx, latitude, longitude)
 	}
 	return nil
 }
 
-func (m *mockHandler) HandleUnknown(ctx context.Context, replyToken, sourceID string) error {
+func (m *mockHandler) HandleUnknown(ctx context.Context, msgCtx line.MessageContext) error {
 	m.mu.Lock()
-	m.unknownMessages = append(m.unknownMessages, unknownMessage{replyToken, sourceID})
+	m.unknownMessages = append(m.unknownMessages, unknownMessage{msgCtx.ReplyToken, msgCtx.SourceID})
 	m.mu.Unlock()
 	if m.onUnknown != nil {
-		return m.onUnknown(ctx, replyToken, sourceID)
+		return m.onUnknown(ctx, msgCtx)
 	}
 	return nil
 }
@@ -201,10 +201,7 @@ func TestNewServer_ZeroTimeout(t *testing.T) {
 
 	require.Error(t, err, "zero timeout should be rejected")
 	assert.Nil(t, s)
-
-	var configErr *line.ConfigError
-	require.ErrorAs(t, err, &configErr)
-	assert.Equal(t, "timeout", configErr.Variable)
+	assert.Contains(t, err.Error(), "timeout")
 }
 
 func TestNewServer_NegativeTimeout(t *testing.T) {
@@ -214,10 +211,7 @@ func TestNewServer_NegativeTimeout(t *testing.T) {
 
 	require.Error(t, err, "negative timeout should be rejected")
 	assert.Nil(t, s)
-
-	var configErr *line.ConfigError
-	require.ErrorAs(t, err, &configErr)
-	assert.Equal(t, "timeout", configErr.Variable)
+	assert.Contains(t, err.Error(), "timeout")
 }
 
 // =============================================================================
@@ -306,7 +300,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(done)
 		return nil
 	}
@@ -358,7 +352,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	handler := &mockHandler{}
 	var wg sync.WaitGroup
 	wg.Add(2)
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		wg.Done()
 		return nil
 	}
@@ -422,7 +416,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 
 	handler := &mockHandler{}
 	handlerCalled := false
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		handlerCalled = true
 		return nil
 	}
@@ -462,7 +456,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onImage = func(ctx context.Context, replyToken, userID, messageID string) error {
+	handler.onImage = func(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
 		close(done)
 		return nil
 	}
@@ -511,7 +505,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onSticker = func(ctx context.Context, replyToken, userID, packageID, stickerID string) error {
+	handler.onSticker = func(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
 		close(done)
 		return nil
 	}
@@ -561,7 +555,7 @@ func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onLocation = func(ctx context.Context, replyToken, userID string, lat, lng float64) error {
+	handler.onLocation = func(ctx context.Context, msgCtx line.MessageContext, lat, lng float64) error {
 		close(done)
 		return nil
 	}
@@ -645,11 +639,11 @@ func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
 	handler2 := &mockHandler{}
 	var wg sync.WaitGroup
 	wg.Add(2)
-	handler1.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler1.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		wg.Done()
 		return nil
 	}
-	handler2.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler2.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		wg.Done()
 		return nil
 	}
@@ -711,7 +705,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 
 	handler := &mockHandler{}
 	handlerDone := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		time.Sleep(500 * time.Millisecond)
 		close(handlerDone)
 		return nil
@@ -760,7 +754,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	handler := &mockHandler{}
 	var receivedCtx context.Context
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		receivedCtx = ctx
 		close(done)
 		return nil
@@ -807,7 +801,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 	handler := &mockHandler{}
 	handlerStarted := make(chan struct{})
 	contextCancelled := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(handlerStarted)
 		select {
 		case <-ctx.Done():
@@ -861,7 +855,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 
 	handler := &mockHandler{}
 	panicTriggered := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, userID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(panicTriggered)
 		panic("test panic")
 	}
@@ -911,7 +905,7 @@ func TestServer_HandleWebhook_GroupSource(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(done)
 		return nil
 	}
@@ -963,7 +957,7 @@ func TestServer_HandleWebhook_RoomSource(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(done)
 		return nil
 	}
@@ -1015,7 +1009,7 @@ func TestServer_HandleWebhook_UserSource(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(done)
 		return nil
 	}
@@ -1067,7 +1061,7 @@ func TestServer_HandleWebhook_MissingSource(t *testing.T) {
 
 	handler := &mockHandler{}
 	done := make(chan struct{})
-	handler.onText = func(ctx context.Context, replyToken, sourceID, text string) error {
+	handler.onText = func(ctx context.Context, msgCtx line.MessageContext, text string) error {
 		close(done)
 		return nil
 	}

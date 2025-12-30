@@ -148,9 +148,9 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 }
 
 // Generate generates a response for the conversation history and user message.
-func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessage UserMessage) (AssistantMessage, error) {
+func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessage *UserMessage) (*AssistantMessage, error) {
 	if g.closed.Load() {
-		return AssistantMessage{}, &ClosedError{Message: "agent is closed"}
+		return nil, errors.New("agent is closed")
 	}
 
 	g.logger.Debug("generating text",
@@ -172,7 +172,7 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessa
 
 	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
-		return AssistantMessage{}, mapAPIError(err)
+		return nil, err
 	}
 
 	return g.extractResponseToAssistantMessage(resp)
@@ -235,7 +235,7 @@ func (g *GeminiAgent) refreshCache(ctx context.Context, cfg *genai.CreateCachedC
 }
 
 // buildContents builds the conversation contents from history and user message.
-func (g *GeminiAgent) buildContents(history []Message, userMessage UserMessage) []*genai.Content {
+func (g *GeminiAgent) buildContents(history []Message, userMessage *UserMessage) []*genai.Content {
 	contents := make([]*genai.Content, 0, len(history)+1)
 
 	for _, msg := range history {
@@ -310,12 +310,12 @@ func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
 }
 
 // extractResponseToAssistantMessage converts LLM response to AssistantMessage.
-func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateContentResponse) (AssistantMessage, error) {
-	if resp == nil || len(resp.Candidates) == 0 {
+func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateContentResponse) (*AssistantMessage, error) {
+	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0] == nil {
 		g.logger.Error("LLM response error",
 			slog.String("reason", "no candidates in response"),
 		)
-		return AssistantMessage{}, &ResponseError{Message: "no candidates in response"}
+		return nil, errors.New("no candidates in response")
 	}
 
 	content := resp.Candidates[0].Content
@@ -324,7 +324,7 @@ func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateCont
 		g.logger.Error("LLM response error",
 			slog.String("reason", "no content parts in response"),
 		)
-		return AssistantMessage{}, &ResponseError{Message: "no content parts in response"}
+		return nil, errors.New("no content parts in response")
 	}
 
 	// Convert genai.Part to AssistantPart
@@ -352,7 +352,7 @@ func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateCont
 		g.logger.Error("LLM response error",
 			slog.String("reason", "response has no valid parts"),
 		)
-		return AssistantMessage{}, &ResponseError{Message: "response has no valid parts"}
+		return nil, errors.New("response has no valid parts")
 	}
 
 	g.logger.Info("response generated successfully",
@@ -361,7 +361,7 @@ func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateCont
 		slog.Int("partsCount", len(parts)),
 	)
 
-	return AssistantMessage{
+	return &AssistantMessage{
 		ModelName: resp.ModelVersion,
 		Parts:     parts,
 		LocalTime: time.Now().Format(time.RFC3339),

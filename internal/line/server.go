@@ -2,6 +2,7 @@ package line
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -46,11 +47,11 @@ type Server struct {
 func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger) (*Server, error) {
 	channelSecret = strings.TrimSpace(channelSecret)
 	if channelSecret == "" {
-		return nil, &ConfigError{Variable: "channelSecret"}
+		return nil, errors.New("missing required configuration: channelSecret")
 	}
 
 	if timeout <= 0 {
-		return nil, &ConfigError{Variable: "timeout"}
+		return nil, errors.New("missing required configuration: timeout")
 	}
 
 	return &Server{
@@ -114,9 +115,10 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 }
 
 // extractSourceIDs extracts source ID and user ID from a webhook source.
-// sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms.
-// userID: the user ID for all source types.
-func extractSourceIDs(source webhook.SourceInterface) (sourceID, userID string) {
+// Returns (sourceID, userID) where:
+//   - sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms
+//   - userID: the user ID for all source types
+func extractSourceIDs(source webhook.SourceInterface) (string, string) {
 	if source == nil {
 		return "", ""
 	}

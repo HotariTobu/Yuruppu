@@ -61,7 +61,6 @@ Trade-off accepted: Objects are immutable, requiring read-modify-write pattern f
 **Negative:**
 - Read-modify-write pattern adds complexity vs native append
 - Higher latency than in-memory solutions (acceptable trade-off)
-- Must handle 412 Precondition Failed for concurrent writes
 
 **Risks:**
 - If message volume grows significantly, may need to revisit (migrate to Redis)

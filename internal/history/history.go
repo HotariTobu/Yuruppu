@@ -2,6 +2,7 @@ package history
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"yuruppu/internal/storage"
@@ -16,7 +17,7 @@ type Repository struct {
 // Returns error if storage is nil.
 func NewRepository(s storage.Storage) (*Repository, error) {
 	if s == nil {
-		return nil, ErrNilStorage
+		return nil, errors.New("storage cannot be nil")
 	}
 	return &Repository{storage: s}, nil
 }
@@ -27,12 +28,12 @@ func NewRepository(s storage.Storage) (*Repository, error) {
 // Returns error if sourceID is empty.
 func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message, int64, error) {
 	if strings.TrimSpace(sourceID) == "" {
-		return nil, 0, &ValidationError{Message: "sourceID cannot be empty"}
+		return nil, 0, errors.New("sourceID cannot be empty")
 	}
 
 	data, generation, err := r.storage.Read(ctx, sourceID)
 	if err != nil {
-		return nil, 0, &ReadError{Message: fmt.Sprintf("failed to read history for %s: %v", sourceID, err)}
+		return nil, 0, fmt.Errorf("failed to read history for %s: %w", sourceID, err)
 	}
 
 	if data == nil {
@@ -41,7 +42,7 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 
 	messages, err := r.parseJSONL(data)
 	if err != nil {
-		return nil, 0, &ReadError{Message: fmt.Sprintf("failed to parse history for %s: %v", sourceID, err)}
+		return nil, 0, fmt.Errorf("failed to parse history for %s: %w", sourceID, err)
 	}
 
 	return messages, generation, nil
@@ -52,18 +53,18 @@ func (r *Repository) GetHistory(ctx context.Context, sourceID string) ([]Message
 // Returns error if sourceID is empty or if generation doesn't match (concurrent modification).
 func (r *Repository) PutHistory(ctx context.Context, sourceID string, messages []Message, expectedGeneration int64) error {
 	if strings.TrimSpace(sourceID) == "" {
-		return &ValidationError{Message: "sourceID cannot be empty"}
+		return errors.New("sourceID cannot be empty")
 	}
 
 	// Serialize to JSONL
 	data, err := r.serializeJSONL(messages)
 	if err != nil {
-		return &WriteError{Message: fmt.Sprintf("failed to serialize history for %s: %v", sourceID, err)}
+		return fmt.Errorf("failed to serialize history for %s: %w", sourceID, err)
 	}
 
 	// Write with generation precondition
 	if err := r.storage.Write(ctx, sourceID, "application/jsonl", data, expectedGeneration); err != nil {
-		return &WriteError{Message: fmt.Sprintf("failed to write history for %s: %v", sourceID, err)}
+		return fmt.Errorf("failed to write history for %s: %w", sourceID, err)
 	}
 
 	return nil

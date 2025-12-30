@@ -95,3 +95,33 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
+
+func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
+	bucket := requireGCSCredentials(t)
+	ctx := context.Background()
+
+	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	require.NoError(t, err)
+	defer func() { _ = s.Close(ctx) }()
+
+	key := "test-signedurl-" + time.Now().Format("20060102-150405") + ".txt"
+
+	// Create test object
+	content := []byte("signed url test content")
+	err = s.Write(ctx, key, "text/plain", content, 0)
+	require.NoError(t, err)
+
+	// Generate signed URL for GET
+	url, err := s.GetSignedURL(ctx, key, "GET", 15*time.Minute)
+	require.NoError(t, err)
+	assert.NotEmpty(t, url)
+	assert.Contains(t, url, bucket)
+	assert.Contains(t, url, key)
+
+	// Cleanup
+	client, err := storage.NewClient(ctx)
+	require.NoError(t, err)
+	defer client.Close()
+	err = client.Bucket(bucket).Object(key).Delete(ctx)
+	require.NoError(t, err)
+}

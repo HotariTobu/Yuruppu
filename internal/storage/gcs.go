@@ -65,8 +65,7 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 		// Update only if generation matches
 		writer = obj.If(storage.Conditions{GenerationMatch: expectedGeneration}).NewWriter(ctx)
 	default:
-		// expectedGeneration < 0: overwrite unconditionally
-		writer = obj.NewWriter(ctx)
+		return fmt.Errorf("invalid expectedGeneration: %d (must be >= 0)", expectedGeneration)
 	}
 
 	if writer == nil {

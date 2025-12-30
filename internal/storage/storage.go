@@ -13,9 +13,7 @@ type Storage interface {
 	// Write stores data for a key with optional generation precondition.
 	// If expectedGeneration is 0, creates new object (fails if exists).
 	// If expectedGeneration > 0, updates only if generation matches (fails if mismatch).
-	// If expectedGeneration < 0, overwrites unconditionally.
 	Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error
-
 
 	// GetSignedURL generates a signed URL for accessing the object.
 	// method is the HTTP method (GET, PUT, etc.).

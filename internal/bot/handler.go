@@ -29,11 +29,11 @@ type Sender interface {
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
-	history HistoryRepository
+	history      HistoryRepository
 	mediaStorage storage.Storage
-	agent   agent.Agent
-	sender  Sender
-	logger  *slog.Logger
+	agent        agent.Agent
+	sender       Sender
+	logger       *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
@@ -64,69 +64,69 @@ func NewHandler(historyRepo HistoryRepository, mediaStor storage.Storage, agent 
 }
 
 func (h *Handler) HandleText(ctx context.Context, msgCtx line.MessageContext, text string) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: text}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: text}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent an image]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an image]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleSticker(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a sticker]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a sticker]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleVideo(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a video]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a video]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleAudio(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent an audio]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an audio]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleLocation(ctx context.Context, msgCtx line.MessageContext, latitude, longitude float64) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a location]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a location]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
 func (h *Handler) HandleUnknown(ctx context.Context, msgCtx line.MessageContext) error {
-	userMsg := history.UserMessage{
+	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a message]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a message]"}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
 }
 
-func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext, userMsg history.UserMessage) error {
+func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext, userMsg *history.UserMessage) error {
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, msgCtx.SourceID)
 	if err != nil {
@@ -217,13 +217,13 @@ func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Mess
 
 	for _, msg := range hist {
 		switch m := msg.(type) {
-		case history.UserMessage:
+		case *history.UserMessage:
 			agentMsg, p := convertUserMessage(m)
 			for k, v := range p {
 				pending[k] = v
 			}
 			result = append(result, agentMsg)
-		case history.AssistantMessage:
+		case *history.AssistantMessage:
 			agentMsg, p := convertAssistantMessage(m)
 			for k, v := range p {
 				pending[k] = v
@@ -247,12 +247,12 @@ func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Mess
 
 // convertToAgentUserMessage converts history.UserMessage to agent.UserMessage.
 // Used by handleMessage for the current user message.
-func (h *Handler) convertToAgentUserMessage(ctx context.Context, m history.UserMessage) (agent.UserMessage, error) {
+func (h *Handler) convertToAgentUserMessage(ctx context.Context, m *history.UserMessage) (*agent.UserMessage, error) {
 	agentMsg, pending := convertUserMessage(m)
 	if len(pending) > 0 {
 		urls, err := h.batchGetSignedURLs(ctx, pending)
 		if err != nil {
-			return agent.UserMessage{}, err
+			return nil, err
 		}
 		for k, part := range pending {
 			part.SetFileURI(urls[k])
@@ -263,15 +263,15 @@ func (h *Handler) convertToAgentUserMessage(ctx context.Context, m history.UserM
 
 // convertUserMessage converts history.UserMessage to agent.UserMessage.
 // Returns pending file parts that need FileURI to be filled.
-func convertUserMessage(m history.UserMessage) (agent.UserMessage, map[string]agent.FileDataPart) {
+func convertUserMessage(m *history.UserMessage) (*agent.UserMessage, map[string]agent.FileDataPart) {
 	parts := make([]agent.UserPart, 0, len(m.Parts))
 	pending := make(map[string]agent.FileDataPart)
 
 	for _, p := range m.Parts {
 		switch v := p.(type) {
-		case history.UserTextPart:
+		case *history.UserTextPart:
 			parts = append(parts, &agent.UserTextPart{Text: v.Text})
-		case history.UserFileDataPart:
+		case *history.UserFileDataPart:
 			var videoMeta *agent.VideoMetadata
 			if v.VideoMetadata != nil {
 				videoMeta = &agent.VideoMetadata{
@@ -290,7 +290,7 @@ func convertUserMessage(m history.UserMessage) (agent.UserMessage, map[string]ag
 		}
 	}
 
-	return agent.UserMessage{
+	return &agent.UserMessage{
 		UserName:  m.UserID,
 		Parts:     parts,
 		LocalTime: m.Timestamp.Format(time.RFC3339),
@@ -299,19 +299,19 @@ func convertUserMessage(m history.UserMessage) (agent.UserMessage, map[string]ag
 
 // convertAssistantMessage converts history.AssistantMessage to agent.AssistantMessage.
 // Returns pending file parts that need FileURI to be filled.
-func convertAssistantMessage(m history.AssistantMessage) (agent.AssistantMessage, map[string]agent.FileDataPart) {
+func convertAssistantMessage(m *history.AssistantMessage) (*agent.AssistantMessage, map[string]agent.FileDataPart) {
 	parts := make([]agent.AssistantPart, 0, len(m.Parts))
 	pending := make(map[string]agent.FileDataPart)
 
 	for _, p := range m.Parts {
 		switch v := p.(type) {
-		case history.AssistantTextPart:
+		case *history.AssistantTextPart:
 			parts = append(parts, &agent.AssistantTextPart{
 				Text:             v.Text,
 				Thought:          v.Thought,
 				ThoughtSignature: v.ThoughtSignature,
 			})
-		case history.AssistantFileDataPart:
+		case *history.AssistantFileDataPart:
 			filePart := &agent.AssistantFileDataPart{
 				MIMEType:    v.MIMEType,
 				DisplayName: v.DisplayName,
@@ -321,7 +321,7 @@ func convertAssistantMessage(m history.AssistantMessage) (agent.AssistantMessage
 		}
 	}
 
-	return agent.AssistantMessage{
+	return &agent.AssistantMessage{
 		ModelName: m.ModelName,
 		Parts:     parts,
 		LocalTime: m.Timestamp.Format(time.RFC3339),
@@ -362,32 +362,32 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 }
 
 // convertToHistoryAssistantMessage converts agent.AssistantMessage to history.AssistantMessage.
-func convertToHistoryAssistantMessage(m agent.AssistantMessage) history.AssistantMessage {
+func convertToHistoryAssistantMessage(m *agent.AssistantMessage) *history.AssistantMessage {
 	parts := make([]history.AssistantPart, 0, len(m.Parts))
 	for _, p := range m.Parts {
 		switch v := p.(type) {
 		case *agent.AssistantTextPart:
-			parts = append(parts, history.AssistantTextPart{
+			parts = append(parts, &history.AssistantTextPart{
 				Text:             v.Text,
 				Thought:          v.Thought,
 				ThoughtSignature: v.ThoughtSignature,
 			})
 		case *agent.AssistantFileDataPart:
-			parts = append(parts, history.AssistantFileDataPart{
+			parts = append(parts, &history.AssistantFileDataPart{
 				StorageKey:  v.FileURI, // Store FileURI as StorageKey for now
 				MIMEType:    v.MIMEType,
 				DisplayName: v.DisplayName,
 			})
 		}
 	}
-	return history.AssistantMessage{
+	return &history.AssistantMessage{
 		ModelName: m.ModelName,
 		Parts:     parts,
 	}
 }
 
 // extractTextFromAssistantMessage extracts all text content from an AssistantMessage.
-func extractTextFromAssistantMessage(m agent.AssistantMessage) string {
+func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
 	var text string
 	for _, p := range m.Parts {
 		if textPart, ok := p.(*agent.AssistantTextPart); ok {

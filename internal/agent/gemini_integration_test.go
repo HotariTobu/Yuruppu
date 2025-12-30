@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"yuruppu/internal/agent"
-	"yuruppu/internal/message"
 )
 
 func requireGCPCredentials(t *testing.T) (projectID, region, model string) {
@@ -35,7 +34,7 @@ func requireGCPCredentials(t *testing.T) (projectID, region, model string) {
 	return projectID, region, model
 }
 
-func TestGeminiAgent_Integration_GenerateText(t *testing.T) {
+func TestGeminiAgent_Integration_Generate(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
@@ -52,12 +51,13 @@ func TestGeminiAgent_Integration_GenerateText(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
-	response, err := a.GenerateText(ctx, []message.Message{{Role: "user", Content: "Say hello"}})
+	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}}
+	response, err := a.Generate(ctx, nil, userMessage)
 	require.NoError(t, err)
-	assert.NotEmpty(t, response)
+	assert.NotEmpty(t, response.Parts)
 }
 
-func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
+func TestGeminiAgent_Integration_GenerateWithHistory(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
@@ -74,19 +74,27 @@ func TestGeminiAgent_Integration_GenerateTextWithHistory(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
-	history := []message.Message{
-		{Role: "user", Content: "My name is Taro"},
-		{Role: "assistant", Content: "Nice to meet you, Taro!"},
-		{Role: "user", Content: "What is my name?"},
+	history := []agent.Message{
+		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "My name is Taro"}}},
+		&agent.AssistantMessage{Parts: []agent.AssistantPart{&agent.AssistantTextPart{Text: "Nice to meet you, Taro!"}}},
 	}
+	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "What is my name?"}}}
 
-	response, err := a.GenerateText(ctx, history)
+	response, err := a.Generate(ctx, history, userMessage)
 	require.NoError(t, err)
-	assert.NotEmpty(t, response)
-	assert.Contains(t, response, "Taro")
+	assert.NotEmpty(t, response.Parts)
+
+	// Check response contains "Taro"
+	var responseText string
+	for _, part := range response.Parts {
+		if textPart, ok := part.(*agent.AssistantTextPart); ok {
+			responseText += textPart.Text
+		}
+	}
+	assert.Contains(t, responseText, "Taro")
 }
 
-func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
+func TestGeminiAgent_Integration_GenerateWithCache(t *testing.T) {
 	projectID, region, model := requireGCPCredentials(t)
 	ctx := context.Background()
 
@@ -117,7 +125,8 @@ func TestGeminiAgent_Integration_GenerateTextWithCache(t *testing.T) {
 	logOutput := logBuf.String()
 	assert.Contains(t, logOutput, "cache created")
 
-	response, err := a.GenerateText(ctx, []message.Message{{Role: "user", Content: "Say hello"}})
+	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}}
+	response, err := a.Generate(ctx, nil, userMessage)
 	require.NoError(t, err)
-	assert.NotEmpty(t, response)
+	assert.NotEmpty(t, response.Parts)
 }

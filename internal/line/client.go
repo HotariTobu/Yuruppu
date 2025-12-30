@@ -1,6 +1,7 @@
 package line
 
 import (
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -20,7 +21,7 @@ type Client struct {
 func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 	channelToken = strings.TrimSpace(channelToken)
 	if channelToken == "" {
-		return nil, &ConfigError{Variable: "channelToken"}
+		return nil, errors.New("missing required configuration: channelToken")
 	}
 
 	// Create messaging API client using LINE SDK
