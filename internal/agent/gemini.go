@@ -312,19 +312,13 @@ func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
 // extractResponseToAssistantMessage converts LLM response to AssistantMessage.
 func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateContentResponse) (*AssistantMessage, error) {
 	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0] == nil {
-		g.logger.Error("LLM response error",
-			slog.String("reason", "no candidates in response"),
-		)
-		return nil, errors.New("no candidates in response")
+		return nil, errors.New("LLM response has no candidates")
 	}
 
 	content := resp.Candidates[0].Content
 
 	if content == nil || len(content.Parts) == 0 {
-		g.logger.Error("LLM response error",
-			slog.String("reason", "no content parts in response"),
-		)
-		return nil, errors.New("no content parts in response")
+		return nil, errors.New("LLM response has no content parts")
 	}
 
 	// Convert genai.Part to AssistantPart
@@ -349,10 +343,7 @@ func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateCont
 	}
 
 	if len(parts) == 0 {
-		g.logger.Error("LLM response error",
-			slog.String("reason", "response has no valid parts"),
-		)
-		return nil, errors.New("response has no valid parts")
+		return nil, errors.New("LLM response has no valid parts")
 	}
 
 	g.logger.Info("response generated successfully",

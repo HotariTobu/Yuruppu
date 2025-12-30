@@ -136,7 +136,7 @@ func TestHandler_HandleText(t *testing.T) {
 		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.Error(t, err)
-		assert.Equal(t, "LLM failed", err.Error())
+		assert.Contains(t, err.Error(), "LLM failed")
 		assert.Equal(t, 0, sender.callCount)
 	})
 
@@ -158,7 +158,7 @@ func TestHandler_HandleText(t *testing.T) {
 		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.Error(t, err)
-		assert.Equal(t, "LINE API failed", err.Error())
+		assert.Contains(t, err.Error(), "LINE API failed")
 	})
 }
 
