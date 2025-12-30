@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"yuruppu/internal/message"
 
 	"google.golang.org/genai"
 )
@@ -148,20 +147,10 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 	return agent, nil
 }
 
-// GenerateText generates a text response for the conversation history.
-// The last message in history must be the user message to respond to.
-func (g *GeminiAgent) GenerateText(ctx context.Context, history []message.Message) (string, error) {
-	if err := g.checkClosed(); err != nil {
-		return "", err
-	}
-
-	// Validate input
-	if len(history) == 0 {
-		return "", errors.New("history is required")
-	}
-	lastMsg := history[len(history)-1]
-	if lastMsg.Role != "user" {
-		return "", errors.New("last message in history must be from user")
+// Generate generates a response for the conversation history and user message.
+func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessage UserMessage) (AssistantMessage, error) {
+	if g.closed.Load() {
+		return AssistantMessage{}, &ClosedError{Message: "agent is closed"}
 	}
 
 	g.logger.Debug("generating text",
@@ -169,7 +158,7 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []message.Messag
 		slog.Int("historyLength", len(history)),
 	)
 
-	contents := g.buildContentsFromHistory(history)
+	contents := g.buildContents(history, userMessage)
 
 	var config *genai.GenerateContentConfig
 	cacheName, _ := g.cacheName.Load().(string)
@@ -183,10 +172,10 @@ func (g *GeminiAgent) GenerateText(ctx context.Context, history []message.Messag
 
 	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
-		return "", mapAPIError(err)
+		return AssistantMessage{}, mapAPIError(err)
 	}
 
-	return g.extractTextFromResponse(resp)
+	return g.extractResponseToAssistantMessage(resp)
 }
 
 // Close releases any resources held by the agent.
@@ -245,40 +234,88 @@ func (g *GeminiAgent) refreshCache(ctx context.Context, cfg *genai.CreateCachedC
 	}
 }
 
-// checkClosed checks if the agent is closed and returns an error if so.
-func (g *GeminiAgent) checkClosed() error {
-	if g.closed.Load() {
-		return &ClosedError{Message: "agent is closed"}
-	}
-	return nil
-}
-
-// buildContentsFromHistory builds the conversation contents from history.
-func (g *GeminiAgent) buildContentsFromHistory(history []message.Message) []*genai.Content {
-	contents := make([]*genai.Content, 0, len(history))
+// buildContents builds the conversation contents from history and user message.
+func (g *GeminiAgent) buildContents(history []Message, userMessage UserMessage) []*genai.Content {
+	contents := make([]*genai.Content, 0, len(history)+1)
 
 	for _, msg := range history {
-		role := msg.Role
-		// Gemini uses "model" for assistant role
-		if role == "assistant" {
-			role = "model"
+		switch m := msg.(type) {
+		case UserMessage:
+			parts := g.buildUserParts(m.Parts)
+			contents = append(contents, &genai.Content{
+				Role:  "user",
+				Parts: parts,
+			})
+		case AssistantMessage:
+			parts := g.buildAssistantParts(m.Parts)
+			contents = append(contents, &genai.Content{
+				Role:  "model",
+				Parts: parts,
+			})
 		}
-		contents = append(contents, &genai.Content{
-			Role:  role,
-			Parts: []*genai.Part{{Text: msg.Content}},
-		})
 	}
+
+	// Append current user message
+	userParts := g.buildUserParts(userMessage.Parts)
+	contents = append(contents, &genai.Content{
+		Role:  "user",
+		Parts: userParts,
+	})
 
 	return contents
 }
 
-// extractTextFromResponse extracts text from LLM response.
-func (g *GeminiAgent) extractTextFromResponse(resp *genai.GenerateContentResponse) (string, error) {
+// buildUserParts converts UserParts to Gemini Parts.
+func (g *GeminiAgent) buildUserParts(parts []UserPart) []*genai.Part {
+	result := make([]*genai.Part, 0, len(parts))
+	for _, p := range parts {
+		switch v := p.(type) {
+		case UserTextPart:
+			result = append(result, genai.NewPartFromText(v.Text))
+		case UserFileDataPart:
+			part := genai.NewPartFromURI(v.FileURI, v.MIMEType)
+			part.FileData.DisplayName = v.DisplayName
+			if v.VideoMetadata != nil {
+				part.VideoMetadata = &genai.VideoMetadata{
+					StartOffset: v.VideoMetadata.StartOffset,
+					EndOffset:   v.VideoMetadata.EndOffset,
+					FPS:         v.VideoMetadata.FPS,
+				}
+			}
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+// buildAssistantParts converts AssistantParts to Gemini Parts.
+func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
+	result := make([]*genai.Part, 0, len(parts))
+	for _, p := range parts {
+		switch v := p.(type) {
+		case AssistantTextPart:
+			part := genai.NewPartFromText(v.Text)
+			part.Thought = v.Thought
+			if v.ThoughtSignature != "" {
+				part.ThoughtSignature = []byte(v.ThoughtSignature)
+			}
+			result = append(result, part)
+		case AssistantFileDataPart:
+			part := genai.NewPartFromURI(v.FileURI, v.MIMEType)
+			part.FileData.DisplayName = v.DisplayName
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+// extractResponseToAssistantMessage converts LLM response to AssistantMessage.
+func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateContentResponse) (AssistantMessage, error) {
 	if resp == nil || len(resp.Candidates) == 0 {
 		g.logger.Error("LLM response error",
 			slog.String("reason", "no candidates in response"),
 		)
-		return "", &ResponseError{Message: "no candidates in response"}
+		return AssistantMessage{}, &ResponseError{Message: "no candidates in response"}
 	}
 
 	content := resp.Candidates[0].Content
@@ -287,31 +324,46 @@ func (g *GeminiAgent) extractTextFromResponse(resp *genai.GenerateContentRespons
 		g.logger.Error("LLM response error",
 			slog.String("reason", "no content parts in response"),
 		)
-		return "", &ResponseError{Message: "no content parts in response"}
+		return AssistantMessage{}, &ResponseError{Message: "no content parts in response"}
 	}
 
-	// Concatenate all parts
-	var textBuilder strings.Builder
+	// Convert genai.Part to AssistantPart
+	parts := make([]AssistantPart, 0, len(content.Parts))
 	for _, part := range content.Parts {
 		if part == nil {
 			continue
 		}
-		textBuilder.WriteString(part.Text)
+		if part.Text != "" {
+			parts = append(parts, AssistantTextPart{
+				Text:             part.Text,
+				Thought:          part.Thought,
+				ThoughtSignature: string(part.ThoughtSignature),
+			})
+		} else if part.FileData != nil {
+			parts = append(parts, AssistantFileDataPart{
+				FileURI:     part.FileData.FileURI,
+				MIMEType:    part.FileData.MIMEType,
+				DisplayName: part.FileData.DisplayName,
+			})
+		}
 	}
 
-	text := textBuilder.String()
-	if text == "" {
+	if len(parts) == 0 {
 		g.logger.Error("LLM response error",
-			slog.String("reason", "response has no text"),
+			slog.String("reason", "response has no valid parts"),
 		)
-		return "", &ResponseError{Message: "response has no text"}
+		return AssistantMessage{}, &ResponseError{Message: "response has no valid parts"}
 	}
 
-	g.logger.Info("text generated successfully",
+	g.logger.Info("response generated successfully",
 		slog.String("model", g.model),
 		slog.String("modelVersion", resp.ModelVersion),
-		slog.Int("responseLength", len(text)),
+		slog.Int("partsCount", len(parts)),
 	)
 
-	return text, nil
+	return AssistantMessage{
+		ModelName: resp.ModelVersion,
+		Parts:     parts,
+		LocalTime: time.Now().Format(time.RFC3339),
+	}, nil
 }

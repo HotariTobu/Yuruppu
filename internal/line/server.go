@@ -10,18 +10,24 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
+type MessageContext struct {
+	ReplyToken string
+	SourceID   string
+	UserID     string
+}
+
 // Handler handles incoming LINE messages by type.
 // Each method receives a context with timeout and message-specific parameters.
 // The error return is used for logging purposes only - the HTTP response
 // is already sent before handler execution.
 type Handler interface {
-	HandleText(ctx context.Context, replyToken, sourceID, text string) error
-	HandleImage(ctx context.Context, replyToken, sourceID, messageID string) error
-	HandleSticker(ctx context.Context, replyToken, sourceID, packageID, stickerID string) error
-	HandleVideo(ctx context.Context, replyToken, sourceID, messageID string) error
-	HandleAudio(ctx context.Context, replyToken, sourceID, messageID string) error
-	HandleLocation(ctx context.Context, replyToken, sourceID string, latitude, longitude float64) error
-	HandleUnknown(ctx context.Context, replyToken, sourceID string) error
+	HandleText(ctx context.Context, msgCtx MessageContext, text string) error
+	HandleImage(ctx context.Context, msgCtx MessageContext, messageID string) error
+	HandleSticker(ctx context.Context, msgCtx MessageContext, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, msgCtx MessageContext, messageID string) error
+	HandleAudio(ctx context.Context, msgCtx MessageContext, messageID string) error
+	HandleLocation(ctx context.Context, msgCtx MessageContext, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context, msgCtx MessageContext) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -88,25 +94,6 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// extractSourceID extracts the source ID from a webhook source.
-// For 1:1 chats (UserSource), it returns the user ID.
-// For group chats (GroupSource), it returns the group ID.
-// For room chats (RoomSource), it returns the room ID.
-func extractSourceID(source webhook.SourceInterface) string {
-	if source == nil {
-		return ""
-	}
-	switch s := source.(type) {
-	case webhook.UserSource:
-		return s.UserId
-	case webhook.GroupSource:
-		return s.GroupId
-	case webhook.RoomSource:
-		return s.RoomId
-	}
-	return ""
-}
-
 // dispatchMessage dispatches the message event to all registered handlers.
 // Each handler runs asynchronously in its own goroutine with panic recovery.
 func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
@@ -114,22 +101,42 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 		return
 	}
 
-	replyToken := msgEvent.ReplyToken
-	sourceID := extractSourceID(msgEvent.Source)
+	sourceID, userID := extractSourceIDs(msgEvent.Source)
+	msgCtx := MessageContext{
+		ReplyToken: msgEvent.ReplyToken,
+		SourceID:   sourceID,
+		UserID:     userID,
+	}
 
 	for _, handler := range s.handlers {
-		go s.invokeHandler(handler, replyToken, sourceID, msgEvent)
+		go s.invokeHandler(handler, msgCtx, msgEvent)
 	}
 }
 
+// extractSourceIDs extracts source ID and user ID from a webhook source.
+// sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms.
+// userID: the user ID for all source types.
+func extractSourceIDs(source webhook.SourceInterface) (sourceID, userID string) {
+	if source == nil {
+		return "", ""
+	}
+	switch s := source.(type) {
+	case webhook.UserSource:
+		return s.UserId, s.UserId
+	case webhook.GroupSource:
+		return s.GroupId, s.UserId
+	case webhook.RoomSource:
+		return s.RoomId, s.UserId
+	}
+	return "", ""
+}
+
 // invokeHandler invokes a single handler with panic recovery.
-// sourceID identifies the conversation source (user ID for 1:1, group ID for groups, room ID for rooms).
-func (s *Server) invokeHandler(handler Handler, replyToken, sourceID string, msgEvent webhook.MessageEvent) {
+func (s *Server) invokeHandler(handler Handler, msgCtx MessageContext, msgEvent webhook.MessageEvent) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("handler panicked",
-				slog.String("replyToken", replyToken),
-				slog.String("sourceID", sourceID),
+				slog.Any("msgCtx", msgCtx),
 				slog.Any("panic", r),
 			)
 		}
@@ -141,25 +148,24 @@ func (s *Server) invokeHandler(handler Handler, replyToken, sourceID string, msg
 	var err error
 	switch msg := msgEvent.Message.(type) {
 	case webhook.TextMessageContent:
-		err = handler.HandleText(ctx, replyToken, sourceID, msg.Text)
+		err = handler.HandleText(ctx, msgCtx, msg.Text)
 	case webhook.ImageMessageContent:
-		err = handler.HandleImage(ctx, replyToken, sourceID, msg.Id)
+		err = handler.HandleImage(ctx, msgCtx, msg.Id)
 	case webhook.StickerMessageContent:
-		err = handler.HandleSticker(ctx, replyToken, sourceID, msg.PackageId, msg.StickerId)
+		err = handler.HandleSticker(ctx, msgCtx, msg.PackageId, msg.StickerId)
 	case webhook.VideoMessageContent:
-		err = handler.HandleVideo(ctx, replyToken, sourceID, msg.Id)
+		err = handler.HandleVideo(ctx, msgCtx, msg.Id)
 	case webhook.AudioMessageContent:
-		err = handler.HandleAudio(ctx, replyToken, sourceID, msg.Id)
+		err = handler.HandleAudio(ctx, msgCtx, msg.Id)
 	case webhook.LocationMessageContent:
-		err = handler.HandleLocation(ctx, replyToken, sourceID, msg.Latitude, msg.Longitude)
+		err = handler.HandleLocation(ctx, msgCtx, msg.Latitude, msg.Longitude)
 	default:
-		err = handler.HandleUnknown(ctx, replyToken, sourceID)
+		err = handler.HandleUnknown(ctx, msgCtx)
 	}
 
 	if err != nil {
 		s.logger.Error("handler failed",
-			slog.String("replyToken", replyToken),
-			slog.String("sourceID", sourceID),
+			slog.Any("msgCtx", msgCtx),
 			slog.Any("error", err),
 		)
 	}

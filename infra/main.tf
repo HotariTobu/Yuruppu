@@ -57,6 +57,26 @@ resource "google_storage_bucket" "history" {
   }
 }
 
+# GCS bucket for media files (images, videos, etc.)
+resource "google_storage_bucket" "media" {
+  name                        = "yuruppu-media"
+  location                    = var.region
+  uniform_bucket_level_access = true
+
+  autoclass {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
 # Artifact Registry for container images
 resource "google_artifact_registry_repository" "yuruppu" {
   location      = var.region
@@ -126,6 +146,12 @@ resource "google_project_iam_member" "cloudrun_vertex_ai" {
 
 resource "google_storage_bucket_iam_member" "cloudrun_history" {
   bucket = google_storage_bucket.history.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.cloudrun.email}"
+}
+
+resource "google_storage_bucket_iam_member" "cloudrun_media" {
+  bucket = google_storage_bucket.media.name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.cloudrun.email}"
 }
@@ -200,6 +226,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       env {
         name  = "HISTORY_BUCKET"
         value = google_storage_bucket.history.name
+      }
+
+      env {
+        name  = "MEDIA_BUCKET"
+        value = google_storage_bucket.media.name
       }
 
       resources {
