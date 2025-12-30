@@ -205,7 +205,7 @@ func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Mess
 	if len(pending) > 0 {
 		urls, err := h.batchGetSignedURLs(ctx, pending)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get signed URLs for history: %w", err)
 		}
 		for k, part := range pending {
 			part.SetFileURI(urls[k])
@@ -222,7 +222,7 @@ func (h *Handler) convertToAgentUserMessage(ctx context.Context, m *history.User
 	if len(pending) > 0 {
 		urls, err := h.batchGetSignedURLs(ctx, pending)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get signed URLs for user message: %w", err)
 		}
 		for k, part := range pending {
 			part.SetFileURI(urls[k])
