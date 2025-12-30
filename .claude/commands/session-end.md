@@ -9,7 +9,7 @@ allowed-tools: Bash(git *), Bash(make preflight), Read, Edit, Write, Glob, TodoW
 
 **Step 2 (Review changes) is MANDATORY.**
 
-- You MUST run reviewer-* agents before proceeding to Step 3
+- You should run ALL reviewer-* agents before proceeding
 - Skipping reviews to "save time" is PROHIBITED
 - If you skip reviews, you are violating user instructions
 - Short session-end times indicate you skipped reviews - this is unacceptable
@@ -29,25 +29,24 @@ End the current coding session with progress update and structured commit.
    git status
    git diff --staged
    ```
-   Select relevant `reviewer-*` agents based on their descriptions.
-   **Declare which agents will be used before launching them.**
-   Run selected agents in parallel.
+   Run all `reviewer-*` agents in parallel by default.
    Fix critical issues before proceeding.
 
-3. **Update progress.json**
-   - If `progress.json` doesn't exist, stop and prompt user to run `/spec-new` first
-   - Update `passes` for completed requirements
-   - Update `lastUpdated` to today's date
-   - Update `notes` with context for next session
-   - Update `status` if all requirements pass
-   - Add any new `blockers` discovered
-
-4. **Run preflight check (quality gate)**
+3. **Run preflight check (quality gate)**
    ```bash
    make preflight
    ```
    - If preflight fails, fix issues before proceeding
    - Do NOT skip this step - broken commits waste future sessions
+
+4. **Update progress.json**
+   - If `progress.json` doesn't exist, stop and prompt user to run `/spec-new` first
+   - Update `passes` for completed requirements
+   - Update `lastUpdated` to today's date
+   - Update `notes` with context for next session
+   - Update `status` if all requirements pass
+   - **If all requirements pass, set `phase` to `"completed"`**
+   - Add any new `blockers` discovered
 
 5. **Create structured commit**
    - Stage all relevant changes
