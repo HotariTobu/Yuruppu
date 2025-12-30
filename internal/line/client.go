@@ -2,6 +2,7 @@ package line
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -71,11 +72,7 @@ func (c *Client) SendReply(replyToken string, text string) error {
 	}
 
 	if err != nil {
-		c.logger.Error("reply failed",
-			slog.String("x-line-request-id", requestID),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("LINE API reply failed (x-line-request-id=%s): %w", requestID, err)
 	}
 
 	c.logger.Debug("reply sent successfully",

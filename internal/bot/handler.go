@@ -130,50 +130,30 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, msgCtx.SourceID)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to load history",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to load history: %w", err)
 	}
 
 	// Step 2: Save user message to history
 	hist = append(hist, userMsg)
 	gen, err = h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to save user message to history",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to save user message to history: %w", err)
 	}
 
 	// Step 3: Convert history to agent format and generate response
 	agentHistory, err := h.convertToAgentHistory(ctx, hist)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to convert history",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to convert history: %w", err)
 	}
 
 	agentUserMessage, err := h.convertToAgentUserMessage(ctx, userMsg)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to convert user message",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to convert user message: %w", err)
 	}
 
 	assistantMsg, err := h.agent.Generate(ctx, agentHistory, agentUserMessage)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to generate response",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to generate response: %w", err)
 	}
 
 	// Step 4: Extract text from response and send reply
@@ -185,11 +165,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return nil
 	}
 	if err := h.sender.SendReply(msgCtx.ReplyToken, responseText); err != nil {
-		h.logger.ErrorContext(ctx, "failed to send reply",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to send reply: %w", err)
 	}
 
 	// Step 5: Save assistant message to history
@@ -197,11 +173,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 	historyAssistantMessage.Timestamp = time.Now()
 	hist = append(hist, historyAssistantMessage)
 	if _, err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
-		h.logger.ErrorContext(ctx, "failed to save assistant message to history",
-			slog.Any("msgCtx", msgCtx),
-			slog.Any("error", err),
-		)
-		return err
+		return fmt.Errorf("failed to save assistant message to history: %w", err)
 	}
 
 	return nil
