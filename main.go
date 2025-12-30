@@ -33,7 +33,8 @@ type Config struct {
 	LLMModel           string // Required: LLM model name
 	LLMCacheTTLMinutes int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
-	HistoryBucket      string // GCS bucket for chat history
+	HistoryBucket string // GCS bucket for chat history
+	MediaBucket   string // GCS bucket for media files
 }
 
 const (
@@ -112,6 +113,12 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("HISTORY_BUCKET is required")
 	}
 
+	// Load and validate MEDIA_BUCKET (required)
+	mediaBucket := strings.TrimSpace(os.Getenv("MEDIA_BUCKET"))
+	if mediaBucket == "" {
+		return nil, errors.New("MEDIA_BUCKET is required")
+	}
+
 	return &Config{
 		Endpoint:           endpoint,
 		Port:               port,
@@ -123,6 +130,7 @@ func loadConfig() (*Config, error) {
 		LLMCacheTTLMinutes: llmCacheTTLMinutes,
 		LLMTimeoutSeconds:  llmTimeoutSeconds,
 		HistoryBucket:      historyBucket,
+		MediaBucket:        mediaBucket,
 	}, nil
 }
 
@@ -187,19 +195,24 @@ func main() {
 	}
 
 	// Create history repository
-	gcsStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
+	historyStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
 	if err != nil {
-		logger.Error("failed to create GCS storage", slog.Any("error", err))
+		logger.Error("failed to create history storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	historyRepo, err := history.NewRepository(gcsStorage)
+	historyRepo, err := history.NewRepository(historyStorage)
 	if err != nil {
 		logger.Error("failed to create history repository", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// Create message handler
-	messageHandler, err := bot.NewHandler(historyRepo, geminiAgent, lineClient, logger)
+	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
+	if err != nil {
+		logger.Error("failed to create media storage", slog.Any("error", err))
+		os.Exit(1)
+	}
+	messageHandler, err := bot.NewHandler(historyRepo, mediaStorage, geminiAgent, lineClient, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)
@@ -252,8 +265,11 @@ func main() {
 	}
 
 	// Close GCS storage
-	if err := gcsStorage.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close GCS storage", slog.Any("error", err))
+	if err := historyStorage.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close history storage", slog.Any("error", err))
+	}
+	if err := mediaStorage.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close media storage", slog.Any("error", err))
 	}
 
 	logger.Info("graceful shutdown completed")

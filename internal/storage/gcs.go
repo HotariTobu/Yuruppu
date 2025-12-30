@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"cloud.google.com/go/storage"
 )
@@ -82,6 +83,18 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 	}
 
 	return nil
+}
+
+// GetSignedURL generates a signed URL for accessing the object.
+func (s *GCSStorage) GetSignedURL(_ context.Context, key, method string, ttl time.Duration) (string, error) {
+	url, err := s.bucket.SignedURL(key, &storage.SignedURLOptions{
+		Method:  method,
+		Expires: time.Now().Add(ttl),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to generate signed URL for %s: %w", key, err)
+	}
+	return url, nil
 }
 
 // Close releases storage resources.

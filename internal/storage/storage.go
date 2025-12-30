@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"time"
 )
 
 // Storage defines the interface for generic byte-level storage with atomic operations.
@@ -14,6 +15,12 @@ type Storage interface {
 	// If expectedGeneration > 0, updates only if generation matches (fails if mismatch).
 	// If expectedGeneration < 0, overwrites unconditionally.
 	Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error
+
+
+	// GetSignedURL generates a signed URL for accessing the object.
+	// method is the HTTP method (GET, PUT, etc.).
+	// ttl is how long the URL should be valid.
+	GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error)
 
 	// Close releases storage resources.
 	Close(ctx context.Context) error
