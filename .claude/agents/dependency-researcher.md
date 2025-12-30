@@ -1,5 +1,5 @@
 ---
-name: design-enumerator
+name: dependency-researcher
 description: Enumerate design considerations from a specification. Systematically analyzes each requirement to identify all technical decisions needed before implementation.
 tools: Read, Glob, Grep
 model: sonnet

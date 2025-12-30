@@ -34,7 +34,7 @@ This repository follows **Spec-Driven Development**.
 ## Development Workflow
 
 ```
-/spec-new → /design → [ /session-start → /session-end ]* → PR
+/spec-new → /dependency-research → [ /session-start → /session-end ]* → PR
 ```
 
 `*` = Repeat until all requirements pass. Each session focuses on **one requirement**.

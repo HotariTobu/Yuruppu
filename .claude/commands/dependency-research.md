@@ -4,7 +4,7 @@ argument-hint: <spec-name>
 allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill
 ---
 
-# Design Phase
+# Dependency Research Phase
 
 Spec name: $ARGUMENTS
 
@@ -15,14 +15,14 @@ Spec name: $ARGUMENTS
    - Read `spec.md` and `progress.json`
    - If spec not found, ask user for correct name
 
-2. **Enumerate design considerations** (use design-enumerator agent):
+2. **Enumerate design considerations** (use dependency-researcher agent):
    - Pass only the spec path to the agent
    - The agent analyzes the codebase itself (no summaries)
    - The agent systematically checks EVERY requirement
    - This step MUST NOT be skipped or done manually
 
 3. **Create ADRs** (for each ADR candidate from step 2):
-   - design-enumerator marks items as "requires ADR"
+   - dependency-researcher marks items as "requires ADR"
    - For each ADR candidate, run `/tech-stack-adr` skill
    - If no ADR candidates, skip to step 5.
 
@@ -34,7 +34,7 @@ Spec name: $ARGUMENTS
 5. **Update progress.json**:
    ```json
    {
-     "phase": "designed",
+     "phase": "dependency-researched",
      ...
    }
    ```
@@ -42,16 +42,16 @@ Spec name: $ARGUMENTS
 6. **Commit changes**:
    ```bash
    git add docs/adr/ docs/llms-txt/ docs/specs/<spec-name>/progress.json
-   git commit -m "docs(<spec-name>): complete design phase"
+   git commit -m "docs(<spec-name>): complete dependency research phase"
    ```
 
 ## Output
 
 ```
-## Design Complete: <spec-name>
+## Dependency Research Complete: <spec-name>
 
 ### Design Considerations
-(Paste output from design-enumerator agent)
+(Paste output from dependency-researcher agent)
 
 ### ADRs Created
 - ADR-XXX: [Title] → [Decision]
