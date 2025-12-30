@@ -15,35 +15,6 @@ This refactoring establishes a clear pattern:
 - **Called functions**: Wrap errors with context and return them (no ERROR logging)
 - **Non-error logs**: Continue logging normally (Debug, Info, Warn)
 
-## Current Structure
-
-The codebase has 5 files that use logger:
-
-- `main.go`: Entry point that initializes logger and logs startup errors. This is correct.
-- `internal/line/server.go`: Webhook handler that dispatches to handlers. Logs handler errors. This is correct as a top-level caller.
-- `internal/bot/handler.go`: Message handler that logs errors with `ErrorContext` and also returns them. Currently logs at multiple points within a single request flow.
-- `internal/line/client.go`: LINE API client that logs errors and returns them.
-- `internal/agent/gemini.go`: LLM agent that logs errors and returns them, including validation errors in `extractResponseToAssistantMessage`.
-
-The problem is that `handler.go`, `client.go`, and `gemini.go` log errors AND return them, causing duplicate logging when the caller also logs.
-
-## Proposed Structure
-
-After refactoring:
-
-- `main.go`: No change. Logs startup errors at ERROR level. These are initialization errors before request processing begins that cause process termination.
-- `internal/line/server.go`: No change. Logs handler errors at ERROR level as the top-level caller for request handling.
-- `internal/bot/handler.go`: Remove all `ErrorContext` calls. Wrap errors with context and return to server layer. Keep Debug/Info/Warn logs.
-- `internal/line/client.go`: Remove ERROR logging. Wrap errors with context and return. Keep Debug logs.
-- `internal/agent/gemini.go`: Remove ERROR logging (including in `extractResponseToAssistantMessage`). Wrap errors with context and return. Keep Debug/Info/Warn logs.
-
-Error wrapping pattern: To be decided in tech-research phase.
-
-## Files Excluded from Scope
-
-- `main.go`: Initialization errors before the HTTP server starts are logged at ERROR level and cause process termination via `os.Exit(1)`. These are not request processing errors and should remain as-is.
-- `internal/line/server.go`: This is the top-level caller for request processing. Error logging here should remain as-is.
-
 ## Scope
 
 - [ ] SC-001: `internal/bot/handler.go` - Remove ERROR logging, add error wrapping
@@ -104,13 +75,6 @@ None. External behavior is unchanged; only internal logging patterns change.
   - No compilation errors
 - **Verification**: Run `go test ./...` and confirm exit code 0
 
-## Implementation Notes
-
-- Do NOT create custom error types
-- Error wrapping method: To be decided in tech-research phase
-- Keep the logger field in structs for non-error logging (Debug, Info, Warn)
-- Include x-line-request-id in LINE API error messages for debugging
-
 ## Change History
 
 | Date | Version | Changes | Author |
@@ -119,3 +83,4 @@ None. External behavior is unchanged; only internal logging patterns change.
 | 2025-12-31 | 1.1 | Added verification methods, excluded files section | - |
 | 2025-12-31 | 1.2 | Defer error wrapping method decision to tech-research phase | - |
 | 2025-12-31 | 1.3 | Remove implementation order from notes | - |
+| 2025-12-31 | 1.4 | Move design sections to design.md | - |
