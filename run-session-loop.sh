@@ -33,8 +33,13 @@ for ((i=1; i<=MAX_LOOPS; i++)); do
         exit 0
     fi
 
+    if grep -q '"phase": "blocked"' "$PROGRESS_FILE"; then
+        echo "Phase blocked! Check blockers in $PROGRESS_FILE"
+        exit 1
+    fi
+
     claude --print -p "/session-start $SPEC_NAME" --append-system-prompt "$SYSTEM_PROMPT"
-    claude --print -p "/session-end" --append-system-prompt "$SYSTEM_PROMPT"
+    claude --print -p "/session-end" $SPEC_NAME" --append-system-prompt "$SYSTEM_PROMPT"
 done
 
 echo "Max loops reached"
