@@ -240,13 +240,13 @@ func (g *GeminiAgent) buildContents(history []Message, userMessage UserMessage) 
 
 	for _, msg := range history {
 		switch m := msg.(type) {
-		case UserMessage:
+		case *UserMessage:
 			parts := g.buildUserParts(m.Parts)
 			contents = append(contents, &genai.Content{
 				Role:  "user",
 				Parts: parts,
 			})
-		case AssistantMessage:
+		case *AssistantMessage:
 			parts := g.buildAssistantParts(m.Parts)
 			contents = append(contents, &genai.Content{
 				Role:  "model",
@@ -270,9 +270,9 @@ func (g *GeminiAgent) buildUserParts(parts []UserPart) []*genai.Part {
 	result := make([]*genai.Part, 0, len(parts))
 	for _, p := range parts {
 		switch v := p.(type) {
-		case UserTextPart:
+		case *UserTextPart:
 			result = append(result, genai.NewPartFromText(v.Text))
-		case UserFileDataPart:
+		case *UserFileDataPart:
 			part := genai.NewPartFromURI(v.FileURI, v.MIMEType)
 			part.FileData.DisplayName = v.DisplayName
 			if v.VideoMetadata != nil {
@@ -293,14 +293,14 @@ func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
 	result := make([]*genai.Part, 0, len(parts))
 	for _, p := range parts {
 		switch v := p.(type) {
-		case AssistantTextPart:
+		case *AssistantTextPart:
 			part := genai.NewPartFromText(v.Text)
 			part.Thought = v.Thought
 			if v.ThoughtSignature != "" {
 				part.ThoughtSignature = []byte(v.ThoughtSignature)
 			}
 			result = append(result, part)
-		case AssistantFileDataPart:
+		case *AssistantFileDataPart:
 			part := genai.NewPartFromURI(v.FileURI, v.MIMEType)
 			part.FileData.DisplayName = v.DisplayName
 			result = append(result, part)
@@ -334,13 +334,13 @@ func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateCont
 			continue
 		}
 		if part.Text != "" {
-			parts = append(parts, AssistantTextPart{
+			parts = append(parts, &AssistantTextPart{
 				Text:             part.Text,
 				Thought:          part.Thought,
 				ThoughtSignature: string(part.ThoughtSignature),
 			})
 		} else if part.FileData != nil {
-			parts = append(parts, AssistantFileDataPart{
+			parts = append(parts, &AssistantFileDataPart{
 				FileURI:     part.FileData.FileURI,
 				MIMEType:    part.FileData.MIMEType,
 				DisplayName: part.FileData.DisplayName,

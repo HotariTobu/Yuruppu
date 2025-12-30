@@ -63,7 +63,70 @@ func NewHandler(historyRepo HistoryRepository, mediaStor storage.Storage, agent 
 	}, nil
 }
 
-func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext, text string) error {
+func (h *Handler) HandleText(ctx context.Context, msgCtx line.MessageContext, text string) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: text}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent an image]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleSticker(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a sticker]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleVideo(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a video]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleAudio(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent an audio]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleLocation(ctx context.Context, msgCtx line.MessageContext, latitude, longitude float64) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a location]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) HandleUnknown(ctx context.Context, msgCtx line.MessageContext) error {
+	userMsg := history.UserMessage{
+		UserID:    msgCtx.UserID,
+		Parts:     []history.UserPart{history.UserTextPart{Text: "[User sent a message]"}},
+		Timestamp: time.Now(),
+	}
+	return h.handleMessage(ctx, msgCtx, userMsg)
+}
+
+func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext, userMsg history.UserMessage) error {
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, msgCtx.SourceID)
 	if err != nil {
@@ -74,15 +137,8 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return err
 	}
 
-	// Step 2: Create user message for history
-	uerMsg := history.UserMessage{
-		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{history.UserTextPart{Text: text}},
-		Timestamp: time.Now(),
-	}
-
-	// Step 3: Save user message to history
-	hist = append(hist, uerMsg)
+	// Step 2: Save user message to history
+	hist = append(hist, userMsg)
 	if err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
 		h.logger.ErrorContext(ctx, "failed to save user message to history",
 			slog.Any("msgCtx", msgCtx),
@@ -91,7 +147,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return err
 	}
 
-	// Step 4: Convert history to agent format and generate response
+	// Step 3: Convert history to agent format and generate response
 	agentHistory, err := h.convertToAgentHistory(ctx, hist)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to convert history",
@@ -101,7 +157,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return err
 	}
 
-	agentUserMessage, err := h.convertToAgentUserMessage(ctx, uerMsg)
+	agentUserMessage, err := h.convertToAgentUserMessage(ctx, userMsg)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to convert user message",
 			slog.Any("msgCtx", msgCtx),
@@ -119,7 +175,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return err
 	}
 
-	// Step 5: Extract text from response and send reply
+	// Step 4: Extract text from response and send reply
 	responseText := extractTextFromAssistantMessage(assistantMsg)
 	if err := h.sender.SendReply(msgCtx.ReplyToken, responseText); err != nil {
 		h.logger.ErrorContext(ctx, "failed to send reply",
@@ -129,7 +185,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return err
 	}
 
-	// Step 6: Save assistant message to history
+	// Step 5: Save assistant message to history
 	// Re-read to get current generation after first write
 	hist, gen, err = h.history.GetHistory(ctx, msgCtx.SourceID)
 	if err != nil {
@@ -151,34 +207,6 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 	}
 
 	return nil
-}
-
-func (h *Handler) HandleText(ctx context.Context, msgCtx line.MessageContext, text string) error {
-	return h.handleMessage(ctx, msgCtx, text)
-}
-
-func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent an image]")
-}
-
-func (h *Handler) HandleSticker(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent a sticker]")
-}
-
-func (h *Handler) HandleVideo(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent a video]")
-}
-
-func (h *Handler) HandleAudio(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent an audio]")
-}
-
-func (h *Handler) HandleLocation(ctx context.Context, msgCtx line.MessageContext, latitude, longitude float64) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent a location]")
-}
-
-func (h *Handler) HandleUnknown(ctx context.Context, msgCtx line.MessageContext) error {
-	return h.handleMessage(ctx, msgCtx, "[User sent a message]")
 }
 
 // convertToAgentHistory converts history.Message slice to agent.Message slice.
@@ -338,13 +366,13 @@ func convertToHistoryAssistantMessage(m agent.AssistantMessage) history.Assistan
 	parts := make([]history.AssistantPart, 0, len(m.Parts))
 	for _, p := range m.Parts {
 		switch v := p.(type) {
-		case agent.AssistantTextPart:
+		case *agent.AssistantTextPart:
 			parts = append(parts, history.AssistantTextPart{
 				Text:             v.Text,
 				Thought:          v.Thought,
 				ThoughtSignature: v.ThoughtSignature,
 			})
-		case agent.AssistantFileDataPart:
+		case *agent.AssistantFileDataPart:
 			parts = append(parts, history.AssistantFileDataPart{
 				StorageKey:  v.FileURI, // Store FileURI as StorageKey for now
 				MIMEType:    v.MIMEType,
@@ -362,7 +390,7 @@ func convertToHistoryAssistantMessage(m agent.AssistantMessage) history.Assistan
 func extractTextFromAssistantMessage(m agent.AssistantMessage) string {
 	var text string
 	for _, p := range m.Parts {
-		if textPart, ok := p.(agent.AssistantTextPart); ok {
+		if textPart, ok := p.(*agent.AssistantTextPart); ok {
 			if !textPart.Thought {
 				text += textPart.Text
 			}
