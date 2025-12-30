@@ -33,8 +33,8 @@ type Config struct {
 	LLMModel           string // Required: LLM model name
 	LLMCacheTTLMinutes int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
-	HistoryBucket string // GCS bucket for chat history
-	MediaBucket   string // GCS bucket for media files
+	HistoryBucket      string // GCS bucket for chat history
+	MediaBucket        string // GCS bucket for media files
 }
 
 const (

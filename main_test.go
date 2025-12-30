@@ -52,6 +52,7 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -118,6 +119,7 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -182,6 +184,7 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -220,6 +223,7 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -287,6 +291,7 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -320,6 +325,7 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
 				t.Setenv("LLM_MODEL", "test-model")
 				t.Setenv("HISTORY_BUCKET", "test-bucket")
+				t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 				// LINE_CHANNEL_SECRET is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_SECRET", "required"},
@@ -331,6 +337,7 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 				t.Setenv("LINE_CHANNEL_SECRET", "secret")
 				t.Setenv("LLM_MODEL", "test-model")
 				t.Setenv("HISTORY_BUCKET", "test-bucket")
+				t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 				// LINE_CHANNEL_ACCESS_TOKEN is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_ACCESS_TOKEN", "required"},
@@ -370,6 +377,7 @@ func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
 	t.Setenv("LLM_MODEL", "test-model")
 	t.Setenv("HISTORY_BUCKET", "test-bucket")
+	t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 	os.Unsetenv("GCP_PROJECT_ID")
 	os.Unsetenv("GCP_REGION")
 
@@ -422,6 +430,7 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.gcpRegionEnv != "" {
 				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
@@ -480,6 +489,7 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 
 			// When: Load configuration
@@ -538,6 +548,7 @@ func TestLoadConfig_Port(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.portEnv != "" {
 				t.Setenv("PORT", tt.portEnv)
@@ -597,6 +608,7 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("PORT", tt.portEnv)
 
 			// When: Load configuration
@@ -650,6 +662,7 @@ func TestLoadConfig_LLMModel_Valid(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -694,6 +707,7 @@ func TestLoadConfig_LLMModel_Missing(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// Given: Handle LLM_MODEL based on test case
 			os.Unsetenv("LLM_MODEL")
@@ -749,6 +763,7 @@ func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_MODEL", tt.llmModel)
 
 			// When: Load configuration
@@ -799,6 +814,7 @@ func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -856,6 +872,7 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.llmTimeoutEnv != "" {
 				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
@@ -915,6 +932,7 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
 
 			// When: Load configuration
@@ -971,6 +989,7 @@ func TestLoadConfig_LLMCacheTTL(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.llmCacheTTLEnv != "" {
 				t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
@@ -1029,6 +1048,7 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
 
 			// When: Load configuration
@@ -1076,6 +1096,7 @@ func TestLoadConfig_HistoryBucket_Missing(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// Given: Handle HISTORY_BUCKET based on test case
 			os.Unsetenv("HISTORY_BUCKET")
@@ -1130,6 +1151,7 @@ func TestLoadConfig_HistoryBucket_WhitespaceOnly(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
 
 			// When: Load configuration
@@ -1180,6 +1202,7 @@ func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
 			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()

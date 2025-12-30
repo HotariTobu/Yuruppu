@@ -57,12 +57,19 @@ func convertJSONToUserParts(parts []part) []UserPart {
 				Text: p.Text,
 			})
 		case "file_data":
-			result = append(result, &UserFileDataPart{
-				StorageKey:    p.StorageKey,
-				MIMEType:      p.MIMEType,
-				DisplayName:   p.DisplayName,
-				VideoMetadata: p.VideoMetadata,
-			})
+			filePart := &UserFileDataPart{
+				StorageKey:  p.StorageKey,
+				MIMEType:    p.MIMEType,
+				DisplayName: p.DisplayName,
+			}
+			if p.VideoMetadata != nil {
+				filePart.VideoMetadata = &VideoMetadata{
+					StartOffset: p.VideoMetadata.StartOffset,
+					EndOffset:   p.VideoMetadata.EndOffset,
+					FPS:         p.VideoMetadata.FPS,
+				}
+			}
+			result = append(result, filePart)
 		}
 	}
 	return result

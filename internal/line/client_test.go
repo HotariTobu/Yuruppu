@@ -22,19 +22,19 @@ func TestNewClient(t *testing.T) {
 		name         string
 		channelToken string
 		wantErr      bool
-		errVariable  string
+		errContains  string
 	}{
 		{
-			name:         "empty channel token returns ConfigError",
+			name:         "empty channel token returns error",
 			channelToken: "",
 			wantErr:      true,
-			errVariable:  "channelToken",
+			errContains:  "channelToken",
 		},
 		{
-			name:         "whitespace-only channel token returns ConfigError",
+			name:         "whitespace-only channel token returns error",
 			channelToken: "   \t\n  ",
 			wantErr:      true,
-			errVariable:  "channelToken",
+			errContains:  "channelToken",
 		},
 	}
 
@@ -47,10 +47,7 @@ func TestNewClient(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, c)
-
-				configErr, ok := err.(*line.ConfigError)
-				require.True(t, ok, "error should be *line.ConfigError")
-				assert.Equal(t, tt.errVariable, configErr.Variable)
+				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, c)

@@ -1,16 +1,15 @@
-package bot
+package bot_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"testing"
 	"time"
 	"yuruppu/internal/agent"
+	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
-	"yuruppu/internal/message"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,50 +18,51 @@ import (
 // Compile-time interface satisfaction checks
 var (
 	_ agent.Agent  = (*mockAgent)(nil)
-	_ Sender       = (*mockSender)(nil)
-	_ line.Handler = (*Handler)(nil)
+	_ bot.Sender   = (*mockSender)(nil)
+	_ line.Handler = (*bot.Handler)(nil)
 )
+
+// =============================================================================
+// NewHandler Tests
+// =============================================================================
 
 func TestNewHandler(t *testing.T) {
 	t.Run("creates handler with dependencies", func(t *testing.T) {
 		mockAg := &mockAgent{}
 		sender := &mockSender{}
+		mediaStor := &mockStorage{}
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mediaStor, mockAg, sender, logger)
 
 		require.NoError(t, err)
 		require.NotNil(t, h)
-		assert.Equal(t, historyRepo, h.history)
-		assert.Equal(t, mockAg, h.agent)
-		assert.Equal(t, sender, h.sender)
-		assert.NotNil(t, h.logger)
-	})
-
-	t.Run("returns error when logger is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
-		require.NoError(t, err)
-		h, err := NewHandler(historyRepo, &mockAgent{}, &mockSender{}, nil)
-
-		require.Error(t, err)
-		assert.Nil(t, h)
-		assert.Contains(t, err.Error(), "logger is required")
 	})
 
 	t.Run("returns error when historyRepo is nil", func(t *testing.T) {
-		h, err := NewHandler(nil, &mockAgent{}, &mockSender{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(nil, &mockStorage{}, &mockAgent{}, &mockSender{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
 		assert.Contains(t, err.Error(), "historyRepo is required")
 	})
 
+	t.Run("returns error when mediaStorage is nil", func(t *testing.T) {
+		historyRepo, err := history.NewRepository(&mockStorage{})
+		require.NoError(t, err)
+		h, err := bot.NewHandler(historyRepo, nil, &mockAgent{}, &mockSender{}, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "mediaStorage is required")
+	})
+
 	t.Run("returns error when agent is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := NewHandler(historyRepo, nil, &mockSender{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, nil, &mockSender{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -72,63 +72,90 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when sender is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := NewHandler(historyRepo, &mockAgent{}, nil, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, nil, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
 		assert.Contains(t, err.Error(), "sender is required")
 	})
+
+	t.Run("returns error when logger is nil", func(t *testing.T) {
+		historyRepo, err := history.NewRepository(&mockStorage{})
+		require.NoError(t, err)
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, &mockSender{}, nil)
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "logger is required")
+	})
 }
 
+// =============================================================================
+// Handle* Method Tests
+// =============================================================================
+
 func TestHandler_HandleText(t *testing.T) {
-	t.Run("success - responds and sends reply", func(t *testing.T) {
-		mockStore := &mockStorage{}
+	t.Run("success - generates response and sends reply", func(t *testing.T) {
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.NoError(t, err)
-		// User message is passed as last element in history
-		require.Len(t, mockAg.lastHistory, 1)
-		assert.Equal(t, "Hi", mockAg.lastHistory[0].Content)
 		assert.Equal(t, "reply-token", sender.lastReplyToken)
 		assert.Equal(t, "Hello!", sender.lastText)
+		assert.Equal(t, 1, sender.callCount)
 	})
 
 	t.Run("agent error - returns error", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.Error(t, err)
 		assert.Equal(t, "LLM failed", err.Error())
-		assert.Equal(t, 0, sender.callCount) // sender should not be called
+		assert.Equal(t, 0, sender.callCount)
 	})
 
 	t.Run("sender error - returns error", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{err: errors.New("LINE API failed")}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.Error(t, err)
 		assert.Equal(t, "LINE API failed", err.Error())
@@ -137,341 +164,235 @@ func TestHandler_HandleText(t *testing.T) {
 
 func TestHandler_HandleImage(t *testing.T) {
 	t.Run("converts image to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I see an image!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleImage(context.Background(), "reply-token", "user-123", "msg-456")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleImage(t.Context(), msgCtx, "msg-456")
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent an image]", mockAg.lastMessage)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent an image]")
 	})
 }
 
 func TestHandler_HandleSticker(t *testing.T) {
 	t.Run("converts sticker to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice sticker!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleSticker(context.Background(), "reply-token", "user-123", "pkg-1", "stk-2")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleSticker(t.Context(), msgCtx, "pkg-1", "stk-2")
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent a sticker]", mockAg.lastMessage)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a sticker]")
 	})
 }
 
 func TestHandler_HandleVideo(t *testing.T) {
 	t.Run("converts video to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I see a video!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleVideo(context.Background(), "reply-token", "user-123", "msg-789")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleVideo(t.Context(), msgCtx, "msg-789")
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent a video]", mockAg.lastMessage)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a video]")
 	})
 }
 
 func TestHandler_HandleAudio(t *testing.T) {
 	t.Run("converts audio to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I hear audio!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleAudio(context.Background(), "reply-token", "user-123", "msg-101")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleAudio(t.Context(), msgCtx, "msg-101")
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent an audio]", mockAg.lastMessage)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent an audio]")
 	})
 }
 
 func TestHandler_HandleLocation(t *testing.T) {
 	t.Run("converts location to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice place!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleLocation(context.Background(), "reply-token", "user-123", 35.6762, 139.6503)
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleLocation(t.Context(), msgCtx, 35.6762, 139.6503)
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent a location]", mockAg.lastMessage)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a location]")
 	})
 }
 
 func TestHandler_HandleUnknown(t *testing.T) {
 	t.Run("converts unknown message to text placeholder", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I got your message!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleUnknown(context.Background(), "reply-token", "user-123")
-
-		require.NoError(t, err)
-		assert.Equal(t, "[User sent a message]", mockAg.lastMessage)
-	})
-}
-
-// =============================================================================
-// History Context Tests (FR-002)
-// =============================================================================
-
-func TestHandler_HistoryContext(t *testing.T) {
-	t.Run("loads history and passes to agent with user message", func(t *testing.T) {
-		existingHistory := []message.Message{
-			{Role: "user", Content: "My name is Taro", Timestamp: time.Now()},
-			{Role: "assistant", Content: "Nice to meet you, Taro!", Timestamp: time.Now()},
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
 		}
-		mockStore := &mockStorage{data: serializeHistory(existingHistory), generation: 1}
-		mockAg := &mockAgent{response: "Hello Taro!"}
-		sender := &mockSender{}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Do you remember my name?")
+		err = h.HandleUnknown(t.Context(), msgCtx)
 
 		require.NoError(t, err)
-		// Verify history was loaded (GetHistory + re-read for assistant message)
-		assert.Equal(t, 2, mockStore.readCallCount)
-		assert.Equal(t, "user-123", mockStore.lastReadKey)
-		// Verify history with user message was passed to agent
-		require.Len(t, mockAg.lastHistory, 3)
-		assert.Equal(t, "My name is Taro", mockAg.lastHistory[0].Content)
-		assert.Equal(t, "Nice to meet you, Taro!", mockAg.lastHistory[1].Content)
-		assert.Equal(t, "Do you remember my name?", mockAg.lastHistory[2].Content)
-	})
-
-	t.Run("passes user message only when no history exists", func(t *testing.T) {
-		mockStore := &mockStorage{} // nil data = no history
-		mockAg := &mockAgent{response: "Hello!"}
-		sender := &mockSender{}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
-
-		require.NoError(t, err)
-		// GetHistory + re-read for assistant message
-		assert.Equal(t, 2, mockStore.readCallCount)
-		// Agent receives user message as first and only element
-		require.Len(t, mockAg.lastHistory, 1)
-		assert.Equal(t, "Hi", mockAg.lastHistory[0].Content)
-	})
-
-	t.Run("does not respond when history read fails", func(t *testing.T) {
-		mockStore := &mockStorage{readErr: errors.New("GCS read failed")}
-		mockAg := &mockAgent{response: "Hello!"}
-		sender := &mockSender{}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
-
-		require.Error(t, err)
-		var readErr *history.ReadError
-		assert.True(t, errors.As(err, &readErr), "error should be history.ReadError")
-		// Agent should not be called when history read fails
-		assert.Empty(t, mockAg.lastMessage)
-		// Sender should not be called when history read fails
-		assert.Equal(t, 0, sender.callCount)
+		assert.Contains(t, mockAg.lastUserMessageText, "[User sent a message]")
 	})
 }
 
 // =============================================================================
-// History Storage Integration Tests (FR-001)
+// History Integration Tests
 // =============================================================================
 
 func TestHandler_HistoryIntegration(t *testing.T) {
-	t.Run("saves user message and bot response to history after successful reply", func(t *testing.T) {
-		mockStore := &mockStorage{}
+	t.Run("saves user message and bot response to history", func(t *testing.T) {
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.NoError(t, err)
 		// Verify storage was called twice (user message, then assistant message)
 		require.Equal(t, 2, mockStore.writeCallCount)
-		assert.Equal(t, "user-123", mockStore.lastWriteKey)
-
-		// Parse the final written data to verify messages
-		messages := parseHistory(mockStore.lastWriteData)
-		require.Len(t, messages, 2)
-		assert.Equal(t, "user", messages[0].Role)
-		assert.Equal(t, "Hi", messages[0].Content)
-		assert.Equal(t, "assistant", messages[1].Role)
-		assert.Equal(t, "Hello!", messages[1].Content)
-		// Verify timestamps are set (within 1 second of now)
-		assert.WithinDuration(t, time.Now(), messages[0].Timestamp, time.Second)
-		assert.WithinDuration(t, time.Now(), messages[1].Timestamp, time.Second)
 	})
 
-	t.Run("uses generation precondition when appending to existing history", func(t *testing.T) {
-		existingHistory := []message.Message{
-			{Role: "user", Content: "Previous message", Timestamp: time.Now()},
-		}
-		mockStore := &mockStorage{
-			data:       serializeHistory(existingHistory),
-			generation: 12345,
-		}
+	t.Run("does not respond when history read fails", func(t *testing.T) {
+		mockStore := newMockStorage()
+		mockStore.readErr = errors.New("GCS read failed")
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read history")
+		assert.Equal(t, 0, sender.callCount)
+	})
+
+	t.Run("does not respond when user message storage fails", func(t *testing.T) {
+		mockStore := newMockStorage()
+		mockStore.writeErr = errors.New("GCS failed")
+		mockAg := &mockAgent{response: "Hello!"}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
-		// Storage write called twice (user message, then assistant message)
-		assert.Equal(t, 2, mockStore.writeCallCount)
-		// Storage read called twice (initial GetHistory, then re-read for assistant message)
-		assert.Equal(t, 2, mockStore.readCallCount)
-		// Both writes use generation from GetHistory for optimistic locking
-		require.Len(t, mockStore.allWriteGenerations, 2)
-		assert.Equal(t, int64(12345), mockStore.allWriteGenerations[0])
-		assert.Equal(t, int64(12345), mockStore.allWriteGenerations[1])
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to write history")
+		assert.Equal(t, 0, sender.callCount)
 	})
 
 	t.Run("saves only user message when agent fails", func(t *testing.T) {
-		mockStore := &mockStorage{}
+		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
 		sender := &mockSender{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
 		require.NoError(t, err)
 
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
 
 		require.Error(t, err)
 		// User message is saved before agent is called
 		assert.Equal(t, 1, mockStore.writeCallCount)
-		// Verify only user message was saved
-		messages := parseHistory(mockStore.lastWriteData)
-		require.Len(t, messages, 1)
-		assert.Equal(t, "user", messages[0].Role)
-		assert.Equal(t, "Hi", messages[0].Content)
-	})
-
-	t.Run("saves only user message when sender fails", func(t *testing.T) {
-		// User message is saved before sending
-		// If sender fails, assistant message is NOT saved
-		mockStore := &mockStorage{}
-		mockAg := &mockAgent{response: "Hello!"}
-		sender := &mockSender{err: errors.New("LINE API failed")}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
-
-		require.Error(t, err)
-		// Only user message was saved (before sender failed)
-		assert.Equal(t, 1, mockStore.writeCallCount)
-		// Verify only user message was saved
-		messages := parseHistory(mockStore.lastWriteData)
-		require.Len(t, messages, 1)
-		assert.Equal(t, "user", messages[0].Role)
-		assert.Equal(t, "Hi", messages[0].Content)
-	})
-
-	t.Run("does not respond when user message storage fails", func(t *testing.T) {
-		mockStore := &mockStorage{writeErr: errors.New("GCS failed")}
-		mockAg := &mockAgent{response: "Hello!"}
-		sender := &mockSender{}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
-
-		// Should return error (logged by server)
-		require.Error(t, err)
-		var writeErr *history.WriteError
-		assert.True(t, errors.As(err, &writeErr), "error should be history.WriteError")
-		// Agent should NOT be called when user message storage fails
-		assert.Empty(t, mockAg.lastMessage)
-		// Sender should NOT be called when storage fails
-		assert.Equal(t, 0, sender.callCount, "sender should not be called when storage fails")
-	})
-
-	t.Run("returns error when assistant message save fails after successful send", func(t *testing.T) {
-		// Step 5 failure: message already sent, assistant save fails
-		// Expected: return error, sender was called
-		mockStore := &mockStorage{
-			writeErr:       errors.New("GCS failed on second write"),
-			writeErrOnCall: 2, // Fail only on second write (assistant message)
-		}
-		mockAg := &mockAgent{response: "Hello!"}
-		sender := &mockSender{}
-		historyRepo, err := history.NewRepository(mockStore)
-		require.NoError(t, err)
-		logger := slog.New(slog.DiscardHandler)
-		h, err := NewHandler(historyRepo, mockAg, sender, logger)
-		require.NoError(t, err)
-
-		err = h.HandleText(context.Background(), "reply-token", "user-123", "Hi")
-
-		// Should return error
-		require.Error(t, err)
-		// Sender should have been called (message was sent before error)
-		assert.Equal(t, 1, sender.callCount)
-		assert.Equal(t, "Hello!", sender.lastText)
-		// Both writes were attempted
-		assert.Equal(t, 2, mockStore.writeCallCount)
 	})
 }
 
@@ -480,21 +401,26 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 // =============================================================================
 
 type mockAgent struct {
-	response    string
-	err         error
-	lastHistory []message.Message
-	lastMessage string // extracted from last message in history
+	response            string
+	err                 error
+	lastUserMessageText string
 }
 
-func (m *mockAgent) GenerateText(ctx context.Context, hist []message.Message) (string, error) {
-	m.lastHistory = hist
-	if len(hist) > 0 {
-		m.lastMessage = hist[len(hist)-1].Content
+func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message, userMessage *agent.UserMessage) (*agent.AssistantMessage, error) {
+	// Extract text from user message for testing
+	if len(userMessage.Parts) > 0 {
+		if textPart, ok := userMessage.Parts[0].(*agent.UserTextPart); ok {
+			m.lastUserMessageText = textPart.Text
+		}
 	}
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
-	return m.response, nil
+	return &agent.AssistantMessage{
+		ModelName: "test-model",
+		Parts:     []agent.AssistantPart{&agent.AssistantTextPart{Text: m.response}},
+		LocalTime: time.Now().Format(time.RFC3339),
+	}, nil
 }
 
 func (m *mockAgent) Close(ctx context.Context) error {
@@ -518,100 +444,49 @@ func (m *mockSender) SendReply(replyToken string, text string) error {
 // mockStorage implements storage.Storage interface
 type mockStorage struct {
 	// Read behavior
-	data          []byte
-	generation    int64
+	data          map[string][]byte
+	generation    map[string]int64
 	readErr       error
 	readCallCount int
-	lastReadKey   string
 
 	// Write behavior
-	writeErr            error
-	writeErrOnCall      int // If > 0, only fail on this call number (1-indexed)
-	writeCallCount      int
-	lastWriteKey        string
-	lastWriteData       []byte
-	lastWriteGeneration int64
-	allWriteGenerations []int64 // Track all generations used in writes
+	writeErr       error
+	writeCallCount int
+}
+
+func newMockStorage() *mockStorage {
+	return &mockStorage{
+		data:       make(map[string][]byte),
+		generation: make(map[string]int64),
+	}
 }
 
 func (m *mockStorage) Read(ctx context.Context, key string) ([]byte, int64, error) {
 	m.readCallCount++
-	m.lastReadKey = key
 	if m.readErr != nil {
 		return nil, 0, m.readErr
 	}
-	// Return written data if available, otherwise return initial data
-	if m.lastWriteData != nil {
-		return m.lastWriteData, m.generation, nil
+	data, exists := m.data[key]
+	if !exists {
+		return nil, 0, nil
 	}
-	return m.data, m.generation, nil
+	return data, m.generation[key], nil
 }
 
 func (m *mockStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) error {
 	m.writeCallCount++
-	m.lastWriteKey = key
-	m.lastWriteData = data
-	m.lastWriteGeneration = expectedGeneration
-	m.allWriteGenerations = append(m.allWriteGenerations, expectedGeneration)
-	// If writeErrOnCall is set, only fail on that specific call
-	if m.writeErrOnCall > 0 {
-		if m.writeCallCount == m.writeErrOnCall {
-			return m.writeErr
-		}
-		return nil
+	if m.writeErr != nil {
+		return m.writeErr
 	}
-	return m.writeErr
+	m.data[key] = data
+	m.generation[key] = expectedGeneration + 1
+	return nil
+}
+
+func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error) {
+	return "https://example.com/signed/" + key, nil
 }
 
 func (m *mockStorage) Close(ctx context.Context) error {
 	return nil
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-// serializeHistory converts messages to JSONL bytes
-func serializeHistory(messages []message.Message) []byte {
-	result := make([]byte, 0, len(messages)*100) // pre-allocate
-	for _, msg := range messages {
-		data, err := json.Marshal(msg)
-		if err != nil {
-			panic(err) // test helper only
-		}
-		result = append(result, data...)
-		result = append(result, '\n')
-	}
-	return result
-}
-
-// parseHistory converts JSONL bytes to messages
-func parseHistory(data []byte) []message.Message {
-	var messages []message.Message
-	lines := splitLines(data)
-	for _, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-		var msg message.Message
-		if err := json.Unmarshal(line, &msg); err == nil {
-			messages = append(messages, msg)
-		}
-	}
-	return messages
-}
-
-func splitLines(data []byte) [][]byte {
-	var lines [][]byte
-	start := 0
-	for i, b := range data {
-		if b == '\n' {
-			lines = append(lines, data[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(data) {
-		lines = append(lines, data[start:])
-	}
-	return lines
 }

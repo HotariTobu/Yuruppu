@@ -20,7 +20,7 @@ func (*UserTextPart) userPart() {}
 
 // UserFileDataPart represents a file data part in a user message.
 type UserFileDataPart struct {
-	StorageKey       string
+	StorageKey    string
 	MIMEType      string
 	DisplayName   string
 	VideoMetadata *VideoMetadata
@@ -89,9 +89,6 @@ type AssistantMessage struct {
 
 func (*AssistantMessage) message() {}
 
-
-
-
 // ============================================================
 // Internal JSON structs
 // ============================================================
@@ -102,9 +99,15 @@ type part struct {
 	StorageKey       string         `json:"storageKey,omitempty"`
 	MIMEType         string         `json:"mimeType,omitempty"`
 	DisplayName      string         `json:"displayName,omitempty"`
-	VideoMetadata    *VideoMetadata `json:"videoMetadata,omitempty"`
+	VideoMetadata    *videoMetadata `json:"videoMetadata,omitempty"`
 	Thought          bool           `json:"thought,omitempty"`
 	ThoughtSignature string         `json:"thoughtSignature,omitempty"`
+}
+
+type videoMetadata struct {
+	StartOffset time.Duration `json:"startOffset,omitempty"`
+	EndOffset   time.Duration `json:"endOffset,omitempty"`
+	FPS         *float64      `json:"fps,omitempty"`
 }
 
 type message struct {
