@@ -29,13 +29,13 @@ Start a coding session with progress review and planning.
    - Read `docs/specs/<spec-name>/progress.json`
    - If `progress.json` doesn't exist, stop and ask user to run `/spec-new` first
 
-4. **Check dependency research phase**
-   - If `phase` is not `"dependency-researched"`:
+4. **Check prototype phase**
+   - If `phase` is not `"prototyped"`:
      ```
-     Dependency research phase not complete.
-     Run `/dependency-research <spec-name>` first to analyze codebase and create ADRs.
+     Prototype phase not complete.
+     Run `/prototype <spec-name>` first to validate technical decisions.
      ```
-   - Stop and wait for user to complete dependency research phase
+   - Stop and wait for user to complete prototype phase
 
 5. **Run preflight check**
    ```bash
@@ -94,7 +94,7 @@ Start a coding session with progress review and planning.
 - Focus on ONE requirement per session (not "when possible" - always)
 - If a requirement is too large, split into sub-tasks before starting
 - If no progress.json exists, stop and prompt user to run `/spec-new` first
-- If dependency research phase not complete, stop and prompt user to run `/dependency-research` first
+- If prototype phase not complete, stop and prompt user to run `/prototype` first
 - If all requirements pass, suggest running final verification
 - If preflight check fails, fix before starting new work
 
