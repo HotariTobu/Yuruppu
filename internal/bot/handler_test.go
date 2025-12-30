@@ -430,6 +430,114 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 }
 
 // =============================================================================
+// Error Chain Tests (errors.Is verification)
+// =============================================================================
+
+func TestHandler_ErrorChain(t *testing.T) {
+	t.Run("agent error is wrapped and preserves original error", func(t *testing.T) {
+		mockStore := newMockStorage()
+		agentErr := errors.New("LLM generation failed")
+		mockAg := &mockAgent{err: agentErr}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		// Verify error chain preserves original error
+		assert.True(t, errors.Is(err, agentErr), "error chain should contain original agent error")
+		// Verify wrapping context is present
+		assert.Contains(t, err.Error(), "failed to generate response")
+	})
+
+	t.Run("sender error is wrapped and preserves original error", func(t *testing.T) {
+		mockStore := newMockStorage()
+		senderErr := errors.New("LINE API connection refused")
+		mockAg := &mockAgent{response: "Hello!"}
+		sender := &mockSender{err: senderErr}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		// Verify error chain preserves original error
+		assert.True(t, errors.Is(err, senderErr), "error chain should contain original sender error")
+		// Verify wrapping context is present
+		assert.Contains(t, err.Error(), "failed to send reply")
+	})
+
+	t.Run("storage read error is wrapped and preserves original error", func(t *testing.T) {
+		mockStore := newMockStorage()
+		storageErr := errors.New("GCS bucket not found")
+		mockStore.readErr = storageErr
+		mockAg := &mockAgent{response: "Hello!"}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		// Verify error chain preserves original error
+		assert.True(t, errors.Is(err, storageErr), "error chain should contain original storage error")
+		// Verify wrapping context is present
+		assert.Contains(t, err.Error(), "failed to load history")
+	})
+
+	t.Run("storage write error is wrapped and preserves original error", func(t *testing.T) {
+		mockStore := newMockStorage()
+		storageErr := errors.New("GCS write quota exceeded")
+		mockStore.writeResults = []writeResult{{gen: 0, err: storageErr}}
+		mockAg := &mockAgent{response: "Hello!"}
+		sender := &mockSender{}
+		historyRepo, err := history.NewRepository(mockStore)
+		require.NoError(t, err)
+		logger := slog.New(slog.DiscardHandler)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		require.NoError(t, err)
+
+		msgCtx := line.MessageContext{
+			ReplyToken: "reply-token",
+			SourceID:   "user-123",
+			UserID:     "user-123",
+		}
+		err = h.HandleText(t.Context(), msgCtx, "Hi")
+
+		require.Error(t, err)
+		// Verify error chain preserves original error
+		assert.True(t, errors.Is(err, storageErr), "error chain should contain original storage error")
+		// Verify wrapping context is present
+		assert.Contains(t, err.Error(), "failed to save user message to history")
+	})
+}
+
+// =============================================================================
 // Mocks
 // =============================================================================
 
