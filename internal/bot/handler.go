@@ -334,6 +334,9 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 
 // extractTextFromAssistantMessage extracts all text content from an AssistantMessage.
 func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
+	if m == nil {
+		return ""
+	}
 	var text string
 	for _, p := range m.Parts {
 		if textPart, ok := p.(*agent.AssistantTextPart); ok {
@@ -347,6 +350,9 @@ func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
 
 // convertToHistoryAssistantMessage converts agent.AssistantMessage to history.AssistantMessage.
 func convertToHistoryAssistantMessage(m *agent.AssistantMessage) *history.AssistantMessage {
+	if m == nil {
+		return nil
+	}
 	parts := make([]history.AssistantPart, 0, len(m.Parts))
 	for _, p := range m.Parts {
 		switch v := p.(type) {
