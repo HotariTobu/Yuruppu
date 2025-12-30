@@ -316,7 +316,7 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 		g.Go(func() error {
 			url, err := h.mediaStorage.GetSignedURL(ctx, k, "GET", signedURLTTL)
 			if err != nil {
-				return fmt.Errorf("failed to get signed URL for %s: %w", k, err)
+				return fmt.Errorf("failed to get signed URL for storage key %s: %w", k, err)
 			}
 			mu.Lock()
 			urls[k] = url
