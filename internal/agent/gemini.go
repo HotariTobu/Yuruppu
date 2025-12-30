@@ -172,7 +172,7 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessa
 
 	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
 	return g.extractResponseToAssistantMessage(resp)

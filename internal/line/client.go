@@ -28,7 +28,7 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 	// Create messaging API client using LINE SDK
 	api, err := messaging_api.NewMessagingApiAPI(channelToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create LINE messaging API client: %w", err)
 	}
 
 	return &Client{
