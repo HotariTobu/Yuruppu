@@ -1,0 +1,10 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2025-12-31",
+  "requirements": [
+    { "id": "FR-001", "passes": false },
+    { "id": "FR-002", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
