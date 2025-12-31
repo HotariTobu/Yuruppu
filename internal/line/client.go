@@ -11,9 +11,8 @@ import (
 
 // Client sends messages via LINE Messaging API.
 type Client struct {
-	api          *messaging_api.MessagingApiAPI
-	channelToken string
-	logger       *slog.Logger
+	api    *messaging_api.MessagingApiAPI
+	logger *slog.Logger
 }
 
 // NewClient creates a new LINE messaging client.
@@ -33,9 +32,8 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 	}
 
 	return &Client{
-		api:          api,
-		channelToken: channelToken,
-		logger:       logger,
+		api:    api,
+		logger: logger,
 	}, nil
 }
 
