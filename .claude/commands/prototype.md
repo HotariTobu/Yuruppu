@@ -22,7 +22,7 @@ Validate technical decisions through rapid prototyping:
 
 ## Rules
 
-- **NO TESTS** - Focus on validation, not quality
+- **NO TESTS** - Do NOT run, write, or modify tests
 - **Commit separately** - All prototype changes must be in isolated commits for easy revert
 - **Speed over perfection** - Prototype code is disposable
 

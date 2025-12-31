@@ -72,6 +72,11 @@ Create detailed design through collaboration with user. This ensures implementat
    git commit -m "docs(<spec-name>): complete design phase"
    ```
 
+9. **Handle prototype code** (confirm with user):
+   - Ask user: "Do you want to revert the prototype code before implementation?"
+     - If yes: Revert prototype commits
+     - If no: Keep as reference
+
 ## design.md Template
 
 ```markdown

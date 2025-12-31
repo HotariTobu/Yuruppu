@@ -11,21 +11,6 @@
 
 <!-- Why is this refactoring needed? -->
 
-## Current Structure
-
-<!-- How is the code currently structured? Describe files and their roles. Do NOT include code blocks. -->
-
-## Proposed Structure
-
-<!-- How will the code be structured after refactoring? Describe changes in prose. Do NOT include code blocks. -->
-
-## Scope
-
-<!-- What files/modules will be affected? Each item must have a unique ID for progress tracking -->
-
-- [ ] SC-001: File/module 1
-- [ ] SC-002: File/module 2
-
 ## Breaking Changes
 
 <!-- Are there any breaking changes? If yes, list them. -->
@@ -36,10 +21,10 @@ None / List breaking changes
 
 <!--
 Define acceptance criteria using Given-When-Then (GWT) format.
-Each criterion must have a unique ID (AC-XXX) linked to a scope item (SC-XXX).
+Each criterion must have a unique ID (AC-XXX).
 -->
 
-### AC-001: [Linked to SC-001, Behavior Unchanged]
+### AC-001: Behavior Unchanged
 
 - **Given**: [Existing usage pattern]
 - **When**: [Action performed using refactored code]
@@ -47,17 +32,13 @@ Each criterion must have a unique ID (AC-XXX) linked to a scope item (SC-XXX).
   - Output is identical to before refactoring
   - All existing tests pass
 
-### AC-002: [Linked to SC-001, Code Quality]
+### AC-002: Code Quality Improved
 
 - **Given**: Refactoring is complete
 - **When**: Code is reviewed
 - **Then**:
   - [Specific improvement 1, e.g., "Cyclomatic complexity reduced"]
   - [Specific improvement 2, e.g., "Code duplication eliminated"]
-
-## Implementation Notes
-
-<!-- Notes for implementation, references, etc. -->
 
 ## Change History
 

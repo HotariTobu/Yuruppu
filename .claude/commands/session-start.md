@@ -24,7 +24,7 @@ Start a coding session with progress review and planning.
    - If not found: Stop and show error with available specs
 
 1. **Load the specification**
-   - Read `spec.md` and `progress.json`
+   - Read `spec.md`, `progress.json`, and `design.md`
 
 2. **Handle blocked phase** (if applicable)
    - If `phase` is `"blocked"`: Display blockers and ask user how to proceed

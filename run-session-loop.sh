@@ -39,7 +39,7 @@ for ((i=1; i<=MAX_LOOPS; i++)); do
     fi
 
     claude --print -p "/session-start $SPEC_NAME" --append-system-prompt "$SYSTEM_PROMPT"
-    claude --print -p "/session-end" $SPEC_NAME" --append-system-prompt "$SYSTEM_PROMPT"
+    claude --print -p "/session-end $SPEC_NAME" --append-system-prompt "$SYSTEM_PROMPT"
 done
 
 echo "Max loops reached"

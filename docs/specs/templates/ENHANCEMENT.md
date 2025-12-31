@@ -45,10 +45,6 @@ Each criterion must have a unique ID (AC-XXX) linked to a change (CH-XXX).
   - Behavior remains unchanged
   - No breaking changes occur
 
-## Implementation Notes
-
-<!-- Notes for implementation, references, etc. -->
-
 ## Change History
 
 | Date | Version | Changes | Author |

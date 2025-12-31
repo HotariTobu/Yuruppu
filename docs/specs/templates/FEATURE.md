@@ -11,6 +11,10 @@
 
 <!-- Why is this feature needed? -->
 
+## Out of Scope
+
+<!-- What is explicitly NOT included in this feature? -->
+
 ## Requirements
 
 <!-- Each requirement must have a unique ID for progress tracking -->
@@ -74,10 +78,6 @@ Example:
   - AuthenticationError is thrown
   - Error message contains "Invalid API key"
 -->
-
-## Implementation Notes
-
-<!-- Notes for implementation, references, etc. -->
 
 ## Change History
 
