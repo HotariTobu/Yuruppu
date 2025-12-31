@@ -156,6 +156,13 @@ resource "google_storage_bucket_iam_member" "cloudrun_media" {
   member = "serviceAccount:${google_service_account.cloudrun.email}"
 }
 
+# Allow Cloud Run to sign URLs for GCS objects
+resource "google_service_account_iam_member" "cloudrun_self_sign" {
+  service_account_id = google_service_account.cloudrun.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.cloudrun.email}"
+}
+
 # Cloud Build 2nd gen connection and repository are created via gcloud
 # See docs/deployment.md for setup instructions
 locals {

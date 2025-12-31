@@ -86,7 +86,6 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 }
 
 // GetSignedURL generates a signed URL for accessing the object.
-// Uses SigningSchemeV4 for Cloud Run compatibility without iam.serviceAccounts.signBlob permission.
 func (s *GCSStorage) GetSignedURL(_ context.Context, key, method string, ttl time.Duration) (string, error) {
 	url, err := s.bucket.SignedURL(key, &storage.SignedURLOptions{
 		Scheme:  storage.SigningSchemeV4,
