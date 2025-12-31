@@ -17,9 +17,10 @@ import (
 
 // Compile-time interface satisfaction checks
 var (
-	_ agent.Agent  = (*mockAgent)(nil)
-	_ bot.Sender   = (*mockSender)(nil)
-	_ line.Handler = (*bot.Handler)(nil)
+	_ agent.Agent         = (*mockAgent)(nil)
+	_ bot.Sender          = (*mockSender)(nil)
+	_ bot.MediaDownloader = (*mockMediaDownloader)(nil)
+	_ line.Handler        = (*bot.Handler)(nil)
 )
 
 // =============================================================================
@@ -31,18 +32,19 @@ func TestNewHandler(t *testing.T) {
 		mockAg := &mockAgent{}
 		sender := &mockSender{}
 		mediaStor := &mockStorage{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(historyRepo, mediaStor, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mediaStor, mockAg, sender, mediaDownloader, logger)
 
 		require.NoError(t, err)
 		require.NotNil(t, h)
 	})
 
 	t.Run("returns error when historyRepo is nil", func(t *testing.T) {
-		h, err := bot.NewHandler(nil, &mockStorage{}, &mockAgent{}, &mockSender{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(nil, &mockStorage{}, &mockAgent{}, &mockSender{}, &mockMediaDownloader{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -52,7 +54,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when mediaStorage is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(historyRepo, nil, &mockAgent{}, &mockSender{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(historyRepo, nil, &mockAgent{}, &mockSender{}, &mockMediaDownloader{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -62,7 +64,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when agent is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(historyRepo, &mockStorage{}, nil, &mockSender{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, nil, &mockSender{}, &mockMediaDownloader{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -72,17 +74,27 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when sender is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, nil, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, nil, &mockMediaDownloader{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
 		assert.Contains(t, err.Error(), "sender is required")
 	})
 
+	t.Run("returns error when mediaDownloader is nil", func(t *testing.T) {
+		historyRepo, err := history.NewRepository(&mockStorage{})
+		require.NoError(t, err)
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, &mockSender{}, nil, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "mediaDownloader is required")
+	})
+
 	t.Run("returns error when logger is nil", func(t *testing.T) {
 		historyRepo, err := history.NewRepository(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, &mockSender{}, nil)
+		h, err := bot.NewHandler(historyRepo, &mockStorage{}, &mockAgent{}, &mockSender{}, &mockMediaDownloader{}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -99,10 +111,11 @@ func TestHandler_HandleText(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -122,10 +135,11 @@ func TestHandler_HandleText(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -144,10 +158,11 @@ func TestHandler_HandleText(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{err: errors.New("LINE API failed")}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -163,14 +178,15 @@ func TestHandler_HandleText(t *testing.T) {
 }
 
 func TestHandler_HandleImage(t *testing.T) {
-	t.Run("converts image to text placeholder", func(t *testing.T) {
+	t.Run("falls back to placeholder when download fails", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I see an image!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{err: errors.New("download failed")}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -190,10 +206,11 @@ func TestHandler_HandleSticker(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice sticker!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -213,10 +230,11 @@ func TestHandler_HandleVideo(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I see a video!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -236,10 +254,11 @@ func TestHandler_HandleAudio(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I hear audio!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -259,10 +278,11 @@ func TestHandler_HandleLocation(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice place!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -282,10 +302,11 @@ func TestHandler_HandleUnknown(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I got your message!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -309,10 +330,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -332,10 +354,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore.readErr = errors.New("GCS read failed")
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -355,10 +378,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore.writeResults = []writeResult{{gen: 0, err: errors.New("GCS failed")}}
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -377,10 +401,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -403,10 +428,11 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		}
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -439,10 +465,11 @@ func TestHandler_ErrorChain(t *testing.T) {
 		agentErr := errors.New("LLM generation failed")
 		mockAg := &mockAgent{err: agentErr}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -464,10 +491,11 @@ func TestHandler_ErrorChain(t *testing.T) {
 		senderErr := errors.New("LINE API connection refused")
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{err: senderErr}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -490,10 +518,11 @@ func TestHandler_ErrorChain(t *testing.T) {
 		mockStore.readErr = storageErr
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -516,10 +545,11 @@ func TestHandler_ErrorChain(t *testing.T) {
 		mockStore.writeResults = []writeResult{{gen: 0, err: storageErr}}
 		mockAg := &mockAgent{response: "Hello!"}
 		sender := &mockSender{}
+		mediaDownloader := &mockMediaDownloader{}
 		historyRepo, err := history.NewRepository(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, logger)
+		h, err := bot.NewHandler(historyRepo, mockStore, mockAg, sender, mediaDownloader, logger)
 		require.NoError(t, err)
 
 		msgCtx := line.MessageContext{
@@ -644,4 +674,16 @@ func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl 
 
 func (m *mockStorage) Close(ctx context.Context) error {
 	return nil
+}
+
+type mockMediaDownloader struct {
+	content *line.MediaContent
+	err     error
+}
+
+func (m *mockMediaDownloader) GetMessageContent(messageID string) (*line.MediaContent, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.content, nil
 }

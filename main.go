@@ -212,7 +212,7 @@ func main() {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	messageHandler, err := bot.NewHandler(historyRepo, mediaStorage, geminiAgent, lineClient, logger)
+	messageHandler, err := bot.NewHandler(historyRepo, mediaStorage, geminiAgent, lineClient, lineClient, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)
