@@ -11,8 +11,9 @@ import (
 
 // Client sends messages via LINE Messaging API.
 type Client struct {
-	api    *messaging_api.MessagingApiAPI
-	logger *slog.Logger
+	api     *messaging_api.MessagingApiAPI
+	blobAPI *messaging_api.MessagingApiBlobAPI
+	logger  *slog.Logger
 }
 
 // NewClient creates a new LINE messaging client.
@@ -31,9 +32,16 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("failed to create LINE messaging API client: %w", err)
 	}
 
+	// Create blob API client for media content retrieval
+	blobAPI, err := messaging_api.NewMessagingApiBlobAPI(channelToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LINE messaging blob API client: %w", err)
+	}
+
 	return &Client{
-		api:    api,
-		logger: logger,
+		api:     api,
+		blobAPI: blobAPI,
+		logger:  logger,
 	}, nil
 }
 
