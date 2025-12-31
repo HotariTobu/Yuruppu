@@ -69,8 +69,8 @@ Feature name: $ARGUMENTS
 ## Guidelines
 
 - Write specifications clearly and specifically
-- Avoid ambiguous expressions; detail to an implementable level
-- Include Go type definitions
+- Write what to achieve, not how to implement
+- Leave implementation details (code, type definitions, storage backends) to /design phase
 - Consider edge cases
 - Ensure all requirements have unique IDs for progress tracking
 
