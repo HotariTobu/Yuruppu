@@ -29,18 +29,22 @@ type Sender interface {
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
-	history      HistoryRepository
-	mediaStorage storage.Storage
-	agent        agent.Agent
-	sender       Sender
-	logger       *slog.Logger
+	history         HistoryRepository
+	mediaDownloader MediaDownloader
+	mediaStorage    storage.Storage
+	agent           agent.Agent
+	sender          Sender
+	logger          *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(historyRepo HistoryRepository, mediaStor storage.Storage, agent agent.Agent, sender Sender, logger *slog.Logger) (*Handler, error) {
+func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, mediaStor storage.Storage, agent agent.Agent, sender Sender, logger *slog.Logger) (*Handler, error) {
 	if historyRepo == nil {
 		return nil, fmt.Errorf("historyRepo is required")
+	}
+	if mediaDownloader == nil {
+		return nil, fmt.Errorf("mediaDownloader is required")
 	}
 	if mediaStor == nil {
 		return nil, fmt.Errorf("mediaStorage is required")
@@ -55,11 +59,12 @@ func NewHandler(historyRepo HistoryRepository, mediaStor storage.Storage, agent 
 		return nil, fmt.Errorf("logger is required")
 	}
 	return &Handler{
-		history:      historyRepo,
-		mediaStorage: mediaStor,
-		agent:        agent,
-		sender:       sender,
-		logger:       logger,
+		history:         historyRepo,
+		mediaDownloader: mediaDownloader,
+		mediaStorage:    mediaStor,
+		agent:           agent,
+		sender:          sender,
+		logger:          logger,
 	}, nil
 }
 
@@ -73,9 +78,22 @@ func (h *Handler) HandleText(ctx context.Context, msgCtx line.MessageContext, te
 }
 
 func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+	var parts []history.UserPart
+
+	storageKey, mimeType, err := h.uploadMedia(ctx, msgCtx.SourceID, messageID)
+	if err != nil {
+		h.logger.WarnContext(ctx, "failed to upload image, using placeholder",
+			slog.String("messageID", messageID),
+			slog.Any("error", err),
+		)
+		parts = []history.UserPart{&history.UserTextPart{Text: "[User sent an image, but an error occurred while loading]"}}
+	} else {
+		parts = []history.UserPart{&history.UserFileDataPart{StorageKey: storageKey, MIMEType: mimeType}}
+	}
+
 	userMsg := &history.UserMessage{
 		UserID:    msgCtx.UserID,
-		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an image]"}},
+		Parts:     parts,
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, msgCtx, userMsg)
