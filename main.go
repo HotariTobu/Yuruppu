@@ -17,6 +17,7 @@ import (
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
+	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
 
 	"cloud.google.com/go/compute/metadata"
@@ -179,6 +180,9 @@ func main() {
 		region = config.GCPRegion
 	}
 
+	// Create weather tool
+	weatherTool := weather.NewTool(&http.Client{Timeout: 30 * time.Second})
+
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
 	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
@@ -188,6 +192,7 @@ func main() {
 		CacheTTL:         llmCacheTTL,
 		CacheDisplayName: "yuruppu-system-prompt",
 		SystemPrompt:     yuruppu.SystemPrompt,
+		Tools:            []agent.Tool{weatherTool},
 	}, logger)
 	if err != nil {
 		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
