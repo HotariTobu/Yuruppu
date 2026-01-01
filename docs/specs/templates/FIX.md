@@ -20,23 +20,26 @@
 <!--
 Define acceptance criteria using Given-When-Then (GWT) format.
 Each criterion must have a unique ID (AC-XXX).
--->
 
-### AC-001: Bug Fixed
+Example:
 
-- **Given**: [Condition that previously caused the bug]
-- **When**: [Action that triggered the bug]
+### AC-001: Bug fixed
+
+- **Given**: User has items in their shopping cart
+- **When**: User clicks "Checkout" button
 - **Then**:
-  - [Expected correct behavior]
+  - Checkout page loads successfully
+  - Cart items are displayed correctly
   - Bug no longer occurs
 
-### AC-002: No Regression
+### AC-002: No regression
 
-- **Given**: [Normal usage condition]
-- **When**: [Related actions are performed]
+- **Given**: User performs normal checkout flow
+- **When**: User completes purchase
 - **Then**:
+  - Order is processed correctly
   - Existing functionality remains intact
-  - No new bugs are introduced
+-->
 
 ## Change History
 

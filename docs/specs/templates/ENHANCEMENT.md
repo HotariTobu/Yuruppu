@@ -17,33 +17,40 @@
 
 ## Proposed Changes
 
-<!-- What changes will be made? Each change must have a unique ID for progress tracking -->
+<!--
+What changes will be made? Each change must have a unique ID for progress tracking.
 
-- [ ] CH-001: Change 1
-- [ ] CH-002: Change 2
+Example:
+
+- [ ] CH-001: Add pagination to search results (10 items per page)
+- [ ] CH-002: Add sorting options (by date, relevance, popularity)
+-->
 
 ## Acceptance Criteria
 
 <!--
 Define acceptance criteria using Given-When-Then (GWT) format.
 Each criterion must have a unique ID (AC-XXX) linked to a change (CH-XXX).
--->
 
-### AC-001: [Linked to CH-001]
+Example:
 
-- **Given**: [Initial context/state]
-- **When**: [Action performed]
+### AC-001: Pagination works correctly [CH-001]
+
+- **Given**: Search returns more than 10 results
+- **When**: User views search results
 - **Then**:
-  - [Expected outcome 1]
-  - [Expected outcome 2]
+  - Only first 10 results are displayed
+  - "Next page" button is visible
+  - Clicking "Next page" shows results 11-20
 
-### AC-002: [Linked to CH-001, Backward Compatibility]
+### AC-002: Backward compatibility [CH-001]
 
-- **Given**: [Existing usage pattern]
-- **When**: [User uses existing API without new parameters]
+- **Given**: Existing API consumers
+- **When**: They use the API without pagination parameters
 - **Then**:
-  - Behavior remains unchanged
+  - Behavior remains unchanged (returns all results)
   - No breaking changes occur
+-->
 
 ## Change History
 

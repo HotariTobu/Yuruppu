@@ -13,32 +13,43 @@
 
 ## Breaking Changes
 
-<!-- Are there any breaking changes? If yes, list them. -->
+<!--
+Are there any breaking changes? If yes, list them.
 
-None / List breaking changes
+Example:
+
+None
+
+or
+
+- `FetchUser()` signature changed: added `context.Context` as first parameter
+- `Config.Timeout` type changed from `int` to `time.Duration`
+-->
 
 ## Acceptance Criteria
 
 <!--
 Define acceptance criteria using Given-When-Then (GWT) format.
 Each criterion must have a unique ID (AC-XXX).
--->
 
-### AC-001: Behavior Unchanged
+Example:
 
-- **Given**: [Existing usage pattern]
-- **When**: [Action performed using refactored code]
+### AC-001: Behavior unchanged
+
+- **Given**: Existing API consumers
+- **When**: They call the refactored functions
 - **Then**:
   - Output is identical to before refactoring
   - All existing tests pass
 
-### AC-002: Code Quality Improved
+### AC-002: Code quality improved
 
 - **Given**: Refactoring is complete
 - **When**: Code is reviewed
 - **Then**:
-  - [Specific improvement 1, e.g., "Cyclomatic complexity reduced"]
-  - [Specific improvement 2, e.g., "Code duplication eliminated"]
+  - Cyclomatic complexity is reduced by 30%
+  - Code duplication is eliminated in auth module
+-->
 
 ## Change History
 

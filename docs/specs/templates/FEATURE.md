@@ -17,48 +17,28 @@
 
 ## Requirements
 
-<!-- Each requirement must have a unique ID for progress tracking -->
+<!--
+Each requirement must have a unique ID for progress tracking.
+
+Example:
 
 ### Functional Requirements
 
-- [ ] FR-001: Requirement 1
-- [ ] FR-002: Requirement 2
-- [ ] FR-003: Requirement 3
+- [ ] FR-001: User can search for songs by title or artist
+- [ ] FR-002: Search results display song title, artist, and album art
+- [ ] FR-003: User can play a 30-second preview of any search result
 
 ### Non-Functional Requirements
 
-- [ ] NFR-001: Requirement 1
-
-## Error Handling
-
-| Error Type | Condition | Message |
-|------------|-----------|---------|
-| TypeError | When invalid argument is passed | "Invalid argument: ..." |
+- [ ] NFR-001: Search results return within 2 seconds
+-->
 
 ## Acceptance Criteria
 
 <!--
 Define acceptance criteria using Given-When-Then (GWT) format.
 Each criterion must have a unique ID (AC-XXX) linked to a requirement (FR-XXX).
--->
 
-### AC-001: [Linked to FR-001]
-
-- **Given**: [Initial context/state]
-- **When**: [Action performed]
-- **Then**:
-  - [Expected outcome 1]
-  - [Expected outcome 2]
-
-### AC-002: [Linked to FR-001, Error Case]
-
-- **Given**: [Initial context/state]
-- **When**: [Action that causes error]
-- **Then**:
-  - [Expected error type] is thrown
-  - Error message contains "[expected message]"
-
-<!--
 Example:
 
 ### AC-001: Search returns results [FR-001]
