@@ -2,10 +2,12 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,6 +26,7 @@ type GeminiConfig struct {
 	Region           string
 	Model            string
 	SystemPrompt     string
+	Tools            []Tool
 	CacheDisplayName string
 	CacheTTL         time.Duration
 }
@@ -34,6 +37,7 @@ type GeminiAgent struct {
 	model                     string
 	contentConfigWithCache    *genai.GenerateContentConfig
 	contentConfigWithoutCache *genai.GenerateContentConfig
+	toolMap                   map[string]tool
 	logger                    *slog.Logger
 
 	closed             atomic.Bool
@@ -117,17 +121,33 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 		ThinkingBudget: &budget,
 	}
 
+	var genaiTools []*genai.Tool
+	var toolMap map[string]tool
+	if len(cfg.Tools) > 0 {
+		genaiTools = toGenaiTools(cfg.Tools)
+		toolMap = make(map[string]tool, len(cfg.Tools))
+		for _, t := range cfg.Tools {
+			wrapped, err := newTool(t)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create tool %s: %w", t.Name(), err)
+			}
+			toolMap[t.Name()] = wrapped
+		}
+	}
+
 	agent := &GeminiAgent{
 		client: client,
 		model:  model,
-		logger: logger,
 		contentConfigWithCache: &genai.GenerateContentConfig{
 			ThinkingConfig: thinkingConfig,
 		},
 		contentConfigWithoutCache: &genai.GenerateContentConfig{
 			SystemInstruction: systemInstruction,
 			ThinkingConfig:    thinkingConfig,
+			Tools:             genaiTools,
 		},
+		toolMap: toolMap,
+		logger:  logger,
 	}
 
 	if tokenCount < minCacheTokens {
@@ -140,6 +160,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 			DisplayName:       cacheDisplayName,
 			TTL:               cfg.CacheTTL,
 			SystemInstruction: systemInstruction,
+			Tools:             genaiTools,
 		}
 		go agent.refreshCache(refreshCtx, cachedContentConfig)
 	}
@@ -170,12 +191,81 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessa
 		config = &configCopy
 	}
 
-	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
+	addedContents, err := g.generateWithToolLoop(ctx, g.model, contents, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
+		return nil, err
 	}
 
-	return g.extractResponseToAssistantMessage(resp)
+	return g.extractContentsToAssistantMessage(g.model, addedContents)
+}
+
+// generateWithToolLoop handles multi-turn conversation with tool calling.
+// Returns all contents added after initialContents.
+func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, initialContents []*genai.Content, config *genai.GenerateContentConfig) ([]*genai.Content, error) {
+	var addedContents []*genai.Content
+
+	for {
+		allContents := append(initialContents, addedContents...)
+		resp, err := g.client.Models.GenerateContent(ctx, model, allContents, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate content: %w", err)
+		}
+
+		// Append model's response
+		if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
+			addedContents = append(addedContents, resp.Candidates[0].Content)
+		}
+
+		// Check for function calls
+		functionCalls := resp.FunctionCalls()
+		if len(functionCalls) == 0 {
+			return addedContents, nil
+		}
+
+		// Execute all function calls in parallel
+		funcResps := make([]*genai.FunctionResponse, len(functionCalls))
+		var wg sync.WaitGroup
+		for i, call := range functionCalls {
+			wg.Add(1)
+			go func(i int, call *genai.FunctionCall) {
+				defer wg.Done()
+				funcResps[i] = g.executeTool(ctx, call)
+			}(i, call)
+		}
+		wg.Wait()
+
+		for _, funcResp := range funcResps {
+			g.logger.Debug("tool executed",
+				slog.String("tool", funcResp.Name),
+				slog.Any("response", funcResp.Response),
+			)
+			content := genai.NewContentFromFunctionResponse(funcResp.Name, funcResp.Response, genai.RoleUser)
+			addedContents = append(addedContents, content)
+		}
+	}
+}
+
+// executeTool executes a tool and returns the function response.
+func (g *GeminiAgent) executeTool(ctx context.Context, call *genai.FunctionCall) *genai.FunctionResponse {
+	resp := &genai.FunctionResponse{
+		Name: call.Name,
+		ID:   call.ID,
+	}
+
+	t, ok := g.toolMap[call.Name]
+	if !ok {
+		resp.Response = map[string]any{"error": fmt.Sprintf("unknown tool: %s", call.Name)}
+		return resp
+	}
+
+	result, err := t.Use(ctx, call.Args)
+	if err != nil {
+		resp.Response = map[string]any{"error": err.Error()}
+		return resp
+	}
+
+	resp.Response = result
+	return resp
 }
 
 // Close releases any resources held by the agent.
@@ -309,52 +399,76 @@ func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
 	return result
 }
 
-// extractResponseToAssistantMessage converts LLM response to AssistantMessage.
-func (g *GeminiAgent) extractResponseToAssistantMessage(resp *genai.GenerateContentResponse) (*AssistantMessage, error) {
-	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0] == nil {
-		return nil, errors.New("LLM response has no candidates")
-	}
+// extractContentsToAssistantMessage extracts all model responses from contents.
+func (g *GeminiAgent) extractContentsToAssistantMessage(model string, contents []*genai.Content) (*AssistantMessage, error) {
+	var parts []AssistantPart
 
-	content := resp.Candidates[0].Content
-
-	if content == nil || len(content.Parts) == 0 {
-		return nil, errors.New("LLM response has no content parts")
-	}
-
-	// Convert genai.Part to AssistantPart
-	parts := make([]AssistantPart, 0, len(content.Parts))
-	for _, part := range content.Parts {
-		if part == nil {
+	for _, content := range contents {
+		if content == nil || content.Role != "model" {
 			continue
 		}
-		if part.Text != "" {
-			parts = append(parts, &AssistantTextPart{
-				Text:             part.Text,
-				Thought:          part.Thought,
-				ThoughtSignature: string(part.ThoughtSignature),
-			})
-		} else if part.FileData != nil {
-			parts = append(parts, &AssistantFileDataPart{
-				FileURI:     part.FileData.FileURI,
-				MIMEType:    part.FileData.MIMEType,
-				DisplayName: part.FileData.DisplayName,
-			})
+		for _, part := range content.Parts {
+			if part == nil {
+				continue
+			}
+			if part.Text != "" {
+				parts = append(parts, &AssistantTextPart{
+					Text:             part.Text,
+					Thought:          part.Thought,
+					ThoughtSignature: string(part.ThoughtSignature),
+				})
+			} else if part.FileData != nil {
+				parts = append(parts, &AssistantFileDataPart{
+					FileURI:     part.FileData.FileURI,
+					MIMEType:    part.FileData.MIMEType,
+					DisplayName: part.FileData.DisplayName,
+				})
+			}
 		}
 	}
 
 	if len(parts) == 0 {
-		return nil, errors.New("LLM response has no valid parts")
+		return nil, errors.New("no valid parts in model responses")
 	}
 
 	g.logger.Info("response generated successfully",
-		slog.String("model", g.model),
-		slog.String("modelVersion", resp.ModelVersion),
+		slog.String("model", model),
 		slog.Int("partsCount", len(parts)),
 	)
 
 	return &AssistantMessage{
-		ModelName: resp.ModelVersion,
+		ModelName: model,
 		Parts:     parts,
 		LocalTime: time.Now().Format(time.RFC3339),
 	}, nil
+}
+
+// toGenaiTools converts Tool[] to []*genai.Tool.
+func toGenaiTools(tools []Tool) []*genai.Tool {
+	genaiTools := make([]*genai.Tool, 0, len(tools))
+
+	for _, t := range tools {
+		var paramsSchema any
+		if err := json.Unmarshal(t.ParametersJsonSchema(), &paramsSchema); err != nil {
+			continue
+		}
+
+		var respSchema any
+		if err := json.Unmarshal(t.ResponseJsonSchema(), &respSchema); err != nil {
+			continue
+		}
+
+		genaiTools = append(genaiTools, &genai.Tool{
+			FunctionDeclarations: []*genai.FunctionDeclaration{
+				{
+					Name:                 t.Name(),
+					Description:          t.Description(),
+					ParametersJsonSchema: paramsSchema,
+					ResponseJsonSchema:   respSchema,
+				},
+			},
+		})
+	}
+
+	return genaiTools
 }
