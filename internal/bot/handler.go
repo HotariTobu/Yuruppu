@@ -164,12 +164,7 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return fmt.Errorf("failed to convert history: %w", err)
 	}
 
-	agentUserMessage, err := h.convertToAgentUserMessage(ctx, userMsg)
-	if err != nil {
-		return fmt.Errorf("failed to convert user message: %w", err)
-	}
-
-	assistantMsg, err := h.agent.Generate(ctx, agentHistory, agentUserMessage)
+	assistantMsg, err := h.agent.Generate(ctx, agentHistory)
 	if err != nil {
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
@@ -231,22 +226,6 @@ func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Mess
 	}
 
 	return result, nil
-}
-
-// convertToAgentUserMessage converts history.UserMessage to agent.UserMessage.
-// Used by handleMessage for the current user message.
-func (h *Handler) convertToAgentUserMessage(ctx context.Context, m *history.UserMessage) (*agent.UserMessage, error) {
-	agentMsg, pending := convertUserMessage(m)
-	if len(pending) > 0 {
-		urls, err := h.batchGetSignedURLs(ctx, pending)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get signed URLs for user message: %w", err)
-		}
-		for k, part := range pending {
-			part.SetFileURI(urls[k])
-		}
-	}
-	return agentMsg, nil
 }
 
 // convertUserMessage converts history.UserMessage to agent.UserMessage.

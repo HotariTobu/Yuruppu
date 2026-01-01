@@ -11,7 +11,7 @@ type Agent interface {
 	// Generate generates a text response for the conversation history.
 	// The last message in history must be the user message to respond to.
 	// Returns an error if the Agent has been closed.
-	Generate(ctx context.Context, history []Message, userMessage *UserMessage) (*AssistantMessage, error)
+	Generate(ctx context.Context, history []Message) (*AssistantMessage, error)
 
 	// Close releases any resources held by the agent.
 	// Close is idempotent (safe to call multiple times).

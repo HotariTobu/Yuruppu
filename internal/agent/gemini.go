@@ -169,8 +169,9 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 	return agent, nil
 }
 
-// Generate generates a response for the conversation history and user message.
-func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessage *UserMessage) (*AssistantMessage, error) {
+// Generate generates a response for the conversation history.
+// The last message in history must be the user message to respond to.
+func (g *GeminiAgent) Generate(ctx context.Context, history []Message) (*AssistantMessage, error) {
 	if g.closed.Load() {
 		return nil, errors.New("agent is closed")
 	}
@@ -180,7 +181,7 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessa
 		slog.Int("historyLength", len(history)),
 	)
 
-	contents := g.buildContents(history, userMessage)
+	contents := g.buildContents(history)
 
 	var config *genai.GenerateContentConfig
 	cacheName, _ := g.cacheName.Load().(string)
@@ -326,9 +327,10 @@ func (g *GeminiAgent) refreshCache(ctx context.Context, cfg *genai.CreateCachedC
 	}
 }
 
-// buildContents builds the conversation contents from history and user message.
-func (g *GeminiAgent) buildContents(history []Message, userMessage *UserMessage) []*genai.Content {
-	contents := make([]*genai.Content, 0, len(history)+1)
+// buildContents builds the conversation contents from history.
+// The last message in history must be the user message to respond to.
+func (g *GeminiAgent) buildContents(history []Message) []*genai.Content {
+	contents := make([]*genai.Content, 0, len(history))
 
 	for _, msg := range history {
 		switch m := msg.(type) {
@@ -346,13 +348,6 @@ func (g *GeminiAgent) buildContents(history []Message, userMessage *UserMessage)
 			})
 		}
 	}
-
-	// Append current user message
-	userParts := g.buildUserParts(userMessage.Parts)
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: userParts,
-	})
 
 	return contents
 }

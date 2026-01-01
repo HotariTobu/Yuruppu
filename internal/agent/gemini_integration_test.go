@@ -51,8 +51,10 @@ func TestGeminiAgent_Integration_Generate(t *testing.T) {
 	require.NoError(t, err)
 	defer a.Close(ctx)
 
-	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}}
-	response, err := a.Generate(ctx, nil, userMessage)
+	history := []agent.Message{
+		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}},
+	}
+	response, err := a.Generate(ctx, history)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response.Parts)
 }
@@ -77,10 +79,10 @@ func TestGeminiAgent_Integration_GenerateWithHistory(t *testing.T) {
 	history := []agent.Message{
 		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "My name is Taro"}}},
 		&agent.AssistantMessage{Parts: []agent.AssistantPart{&agent.AssistantTextPart{Text: "Nice to meet you, Taro!"}}},
+		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "What is my name?"}}},
 	}
-	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "What is my name?"}}}
 
-	response, err := a.Generate(ctx, history, userMessage)
+	response, err := a.Generate(ctx, history)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response.Parts)
 
@@ -125,8 +127,10 @@ func TestGeminiAgent_Integration_GenerateWithCache(t *testing.T) {
 	logOutput := logBuf.String()
 	assert.Contains(t, logOutput, "cache created")
 
-	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}}
-	response, err := a.Generate(ctx, nil, userMessage)
+	history := []agent.Message{
+		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "Say hello"}}},
+	}
+	response, err := a.Generate(ctx, history)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response.Parts)
 }
@@ -152,8 +156,10 @@ func TestGeminiAgent_Integration_GenerateAfterClose(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate should return error after Close
-	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "hello"}}}
-	_, err = a.Generate(ctx, nil, userMessage)
+	history := []agent.Message{
+		&agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "hello"}}},
+	}
+	_, err = a.Generate(ctx, history)
 	assert.Error(t, err)
 }
 

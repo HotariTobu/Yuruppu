@@ -534,11 +534,13 @@ type mockAgent struct {
 	lastUserMessageText string
 }
 
-func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message, userMessage *agent.UserMessage) (*agent.AssistantMessage, error) {
-	// Extract text from user message for testing
-	if len(userMessage.Parts) > 0 {
-		if textPart, ok := userMessage.Parts[0].(*agent.UserTextPart); ok {
-			m.lastUserMessageText = textPart.Text
+func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message) (*agent.AssistantMessage, error) {
+	// Extract text from last user message in history for testing
+	if len(hist) > 0 {
+		if userMsg, ok := hist[len(hist)-1].(*agent.UserMessage); ok && len(userMsg.Parts) > 0 {
+			if textPart, ok := userMsg.Parts[0].(*agent.UserTextPart); ok {
+				m.lastUserMessageText = textPart.Text
+			}
 		}
 	}
 	if m.err != nil {
