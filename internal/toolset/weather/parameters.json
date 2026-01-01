@@ -7,6 +7,29 @@
       "maxLength": 100,
       "pattern": "^[^@:/]+$",
       "description": "City name (e.g., Tokyo, 東京, Osaka)"
+    },
+    "date": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["today", "tomorrow", "day_after_tomorrow"]
+      },
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "default": ["today"],
+      "description": "Target dates for weather forecast. Can specify multiple dates to get forecasts for several days at once."
+    },
+    "detail": {
+      "type": "string",
+      "enum": ["basic", "detailed", "full"],
+      "default": "basic",
+      "description": "Level of detail in response. 'basic': temperature and condition only. 'detailed': adds humidity, wind, rain chance, feels-like temperature. 'full': adds UV index, pressure, visibility, cloud cover, sunrise/sunset."
+    },
+    "hourly": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, includes 3-hourly forecast breakdown (8 data points per day). Each data point contains fields according to the 'detail' level. Useful when user asks about specific times like 'afternoon' or 'evening'."
     }
   },
   "required": ["location"],

@@ -3,11 +3,59 @@
     {
       "type": "object",
       "properties": {
-        "location": {"type": "string"},
-        "current_temp_c": {"type": "string"},
-        "condition": {"type": "string"}
+        "location": {
+          "type": "string",
+          "description": "Requested location name"
+        },
+        "forecasts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {"type": "string", "description": "Date in YYYY-MM-DD format"},
+              "temp_c": {"type": "string", "description": "Current or average temperature in Celsius"},
+              "condition": {"type": "string", "description": "Weather condition (e.g., Sunny, Cloudy, Rain)"},
+              "max_temp_c": {"type": "string", "description": "Maximum temperature in Celsius"},
+              "min_temp_c": {"type": "string", "description": "Minimum temperature in Celsius"},
+              "humidity": {"type": "string", "description": "Humidity percentage (detail: detailed+)"},
+              "wind_speed_kmph": {"type": "string", "description": "Wind speed in km/h (detail: detailed+)"},
+              "wind_direction": {"type": "string", "description": "Wind direction (e.g., N, SW) (detail: detailed+)"},
+              "rain_chance": {"type": "string", "description": "Chance of rain percentage (detail: detailed+)"},
+              "feels_like_c": {"type": "string", "description": "Feels-like temperature in Celsius (detail: detailed+)"},
+              "uv_index": {"type": "string", "description": "UV index (detail: full)"},
+              "pressure": {"type": "string", "description": "Atmospheric pressure in hPa (detail: full)"},
+              "visibility": {"type": "string", "description": "Visibility in km (detail: full)"},
+              "cloud_cover": {"type": "string", "description": "Cloud cover percentage (detail: full)"},
+              "sunrise": {"type": "string", "description": "Sunrise time (detail: full)"},
+              "sunset": {"type": "string", "description": "Sunset time (detail: full)"},
+              "hourly": {
+                "type": "array",
+                "description": "3-hourly forecast breakdown (when hourly: true)",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "time": {"type": "string", "description": "Time in HHMM format (e.g., 0, 300, 600)"},
+                    "temp_c": {"type": "string"},
+                    "condition": {"type": "string"},
+                    "humidity": {"type": "string"},
+                    "wind_speed_kmph": {"type": "string"},
+                    "wind_direction": {"type": "string"},
+                    "rain_chance": {"type": "string"},
+                    "feels_like_c": {"type": "string"},
+                    "uv_index": {"type": "string"},
+                    "pressure": {"type": "string"},
+                    "visibility": {"type": "string"},
+                    "cloud_cover": {"type": "string"}
+                  },
+                  "required": ["time", "temp_c", "condition"]
+                }
+              }
+            },
+            "required": ["date", "temp_c", "condition", "max_temp_c", "min_temp_c"]
+          }
+        }
       },
-      "required": ["location", "current_temp_c", "condition"],
+      "required": ["location", "forecasts"],
       "additionalProperties": false
     },
     {
