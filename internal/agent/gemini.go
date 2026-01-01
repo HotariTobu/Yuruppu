@@ -235,9 +235,10 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 		}
 		wg.Wait()
 
-		for _, funcResp := range funcResps {
+		for i, funcResp := range funcResps {
 			g.logger.Debug("tool executed",
 				slog.String("tool", funcResp.Name),
+				slog.Any("args", functionCalls[i].Args),
 				slog.Any("response", funcResp.Response),
 			)
 			content := genai.NewContentFromFunctionResponse(funcResp.Name, funcResp.Response, genai.RoleUser)
