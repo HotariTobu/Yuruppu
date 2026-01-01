@@ -32,7 +32,7 @@ botにツールコール機能を追加し、外部ツールを呼び出して�
 
 ### Non-Functional Requirements
 
-- [ ] NFR-001: 天気API呼び出しは3秒以内にタイムアウトする
+- [ ] NFR-001: 天気API呼び出しは設定可能なタイムアウトを持つ
 - [ ] NFR-002: APIエラー時はエラー情報を補足としてLLMに渡す
 
 ## Acceptance Criteria
@@ -54,3 +54,4 @@ botにツールコール機能を追加し、外部ツールを呼び出して�
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2025-12-31 | 1.0 | Initial version | - |
+| 2026-01-02 | 1.1 | NFR-001: change from fixed 3s to configurable timeout (wttr.in API response was slower than expected) | - |
