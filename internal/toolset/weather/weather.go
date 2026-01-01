@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 //go:embed parameters.json
@@ -19,17 +18,20 @@ var responseSchema []byte
 
 const wttrURL = "https://wttr.in/%s?format=j1"
 
-// Tool implements the weather forecast tool using wttr.in API.
-type Tool struct {
-	httpClient *http.Client
+// HTTPClient is an interface for HTTP requests.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
 }
 
-// NewTool creates a new weather tool with the specified timeout.
-func NewTool(timeout time.Duration) *Tool {
+// Tool implements the weather forecast tool using wttr.in API.
+type Tool struct {
+	httpClient HTTPClient
+}
+
+// NewTool creates a new weather tool with the specified HTTP client.
+func NewTool(httpClient HTTPClient) *Tool {
 	return &Tool{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
+		httpClient: httpClient,
 	}
 }
 

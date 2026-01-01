@@ -111,17 +111,8 @@ func toGenaiTools(tools []Tool) []*genai.Tool
 
 ### main.go Changes
 
-```go
-import "yuruppu/internal/toolset/weather"
-
-// In main() or agent initialization:
-weatherTool := weather.NewTool(3 * time.Second)
-
-agentCfg := agent.GeminiConfig{
-    // ... existing fields ...
-    Tools: []agent.Tool{weatherTool},
-}
-```
+- Create weather tool with HTTP client (3 second timeout)
+- Add to `GeminiConfig.Tools` slice
 
 ## Data Flow
 
