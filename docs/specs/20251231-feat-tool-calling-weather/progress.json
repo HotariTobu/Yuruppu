@@ -1,6 +1,6 @@
 {
   "phase": "prototyped",
-  "lastUpdated": "2025-12-31",
+  "lastUpdated": "2026-01-01",
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "NFR-001", "passes": false },

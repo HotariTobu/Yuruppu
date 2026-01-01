@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "location": {
+      "type": "string",
+      "description": "City name (e.g., Tokyo, 東京, Osaka)"
+    }
+  },
+  "required": ["location"]
+}
