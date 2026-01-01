@@ -39,7 +39,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Get current weather forecast for a location. Supports city names in English or Japanese (e.g., Tokyo, 東京, Osaka)."
+	return "Get current weather forecast for a location. Supports city names in English or Japanese (e.g., Tokyo, Osaka)."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.

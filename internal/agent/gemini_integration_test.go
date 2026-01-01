@@ -130,3 +130,52 @@ func TestGeminiAgent_Integration_GenerateWithCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, response.Parts)
 }
+
+func TestGeminiAgent_Integration_GenerateAfterClose(t *testing.T) {
+	projectID, region, model := requireGCPCredentials(t)
+	ctx := context.Background()
+
+	cfg := agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            model,
+		CacheTTL:         5 * time.Minute,
+		CacheDisplayName: "test-cache-close",
+		SystemPrompt:     "You are a helpful assistant.",
+	}
+	logger := slog.New(slog.DiscardHandler)
+	a, err := agent.NewGeminiAgent(ctx, cfg, logger)
+	require.NoError(t, err)
+
+	// Close the agent
+	err = a.Close(ctx)
+	require.NoError(t, err)
+
+	// Generate should return error after Close
+	userMessage := &agent.UserMessage{Parts: []agent.UserPart{&agent.UserTextPart{Text: "hello"}}}
+	_, err = a.Generate(ctx, nil, userMessage)
+	assert.Error(t, err)
+}
+
+func TestGeminiAgent_Integration_CloseIdempotent(t *testing.T) {
+	projectID, region, model := requireGCPCredentials(t)
+	ctx := context.Background()
+
+	cfg := agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            model,
+		CacheTTL:         5 * time.Minute,
+		CacheDisplayName: "test-cache-idempotent",
+		SystemPrompt:     "You are a helpful assistant.",
+	}
+	logger := slog.New(slog.DiscardHandler)
+	a, err := agent.NewGeminiAgent(ctx, cfg, logger)
+	require.NoError(t, err)
+
+	// Close multiple times should not error
+	for i := range 3 {
+		err := a.Close(ctx)
+		assert.NoError(t, err, "Close call %d should not error", i+1)
+	}
+}

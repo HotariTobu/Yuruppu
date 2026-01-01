@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -205,7 +206,7 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 	var addedContents []*genai.Content
 
 	for {
-		allContents := append(initialContents, addedContents...)
+		allContents := slices.Concat(initialContents, addedContents)
 		resp, err := g.client.Models.GenerateContent(ctx, model, allContents, config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate content: %w", err)
