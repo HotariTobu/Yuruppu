@@ -3,8 +3,12 @@
   "properties": {
     "location": {
       "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[^@:/]+$",
       "description": "City name (e.g., Tokyo, 東京, Osaka)"
     }
   },
-  "required": ["location"]
+  "required": ["location"],
+  "additionalProperties": false
 }

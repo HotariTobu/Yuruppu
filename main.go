@@ -181,7 +181,7 @@ func main() {
 	}
 
 	// Create weather tool
-	weatherTool := weather.NewTool(&http.Client{Timeout: 30 * time.Second})
+	weatherTool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, logger)
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute

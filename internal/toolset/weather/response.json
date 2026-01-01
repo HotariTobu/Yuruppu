@@ -1,9 +1,22 @@
 {
-  "type": "object",
-  "properties": {
-    "location": {"type": "string"},
-    "current_temp_c": {"type": "string"},
-    "condition": {"type": "string"},
-    "error": {"type": "string"}
-  }
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "location": {"type": "string"},
+        "current_temp_c": {"type": "string"},
+        "condition": {"type": "string"}
+      },
+      "required": ["location", "current_temp_c", "condition"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {"type": "string"}
+      },
+      "required": ["error"],
+      "additionalProperties": false
+    }
+  ]
 }
