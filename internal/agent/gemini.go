@@ -26,7 +26,6 @@ type GeminiConfig struct {
 	SystemPrompt     string
 	CacheDisplayName string
 	CacheTTL         time.Duration
-	Tools            []Tool
 }
 
 // GeminiAgent is an implementation of Agent using Google Gemini via Vertex AI.
@@ -40,10 +39,6 @@ type GeminiAgent struct {
 	closed             atomic.Bool
 	cancelCacheRefresh context.CancelFunc
 	cacheName          atomic.Value // string
-
-	tools      []Tool
-	toolMap    map[string]Tool
-	genaiTools []*genai.Tool
 }
 
 // NewGeminiAgent creates a new GeminiAgent with Vertex AI backend.
@@ -122,32 +117,17 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 		ThinkingBudget: &budget,
 	}
 
-	// Build tool structures
-	var tools []Tool
-	var toolMap map[string]Tool
-	var genaiToolsList []*genai.Tool
-	if len(cfg.Tools) > 0 {
-		tools = cfg.Tools
-		toolMap = buildToolMap(tools)
-		genaiToolsList = toGenaiTools(tools)
-	}
-
 	agent := &GeminiAgent{
 		client: client,
 		model:  model,
 		logger: logger,
 		contentConfigWithCache: &genai.GenerateContentConfig{
 			ThinkingConfig: thinkingConfig,
-			Tools:          genaiToolsList,
 		},
 		contentConfigWithoutCache: &genai.GenerateContentConfig{
 			SystemInstruction: systemInstruction,
 			ThinkingConfig:    thinkingConfig,
-			Tools:             genaiToolsList,
 		},
-		tools:      tools,
-		toolMap:    toolMap,
-		genaiTools: genaiToolsList,
 	}
 
 	if tokenCount < minCacheTokens {
@@ -168,7 +148,6 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 }
 
 // Generate generates a response for the conversation history and user message.
-// If tools are configured, handles the tool-calling loop internally.
 func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessage *UserMessage) (*AssistantMessage, error) {
 	if g.closed.Load() {
 		return nil, errors.New("agent is closed")
@@ -191,93 +170,12 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message, userMessa
 		config = &configCopy
 	}
 
-	// Tool calling loop
-	for {
-		resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate content: %w", err)
-		}
-
-		// Check for function calls in response
-		functionCalls := g.extractFunctionCalls(resp)
-		if len(functionCalls) == 0 {
-			// No tool calls - return text response
-			return g.extractResponseToAssistantMessage(resp)
-		}
-
-		g.logger.Debug("tool calls detected",
-			slog.Int("count", len(functionCalls)),
-		)
-
-		// Execute tools and collect responses
-		functionResponses := g.executeTools(ctx, functionCalls)
-
-		// Append model's response (with function call) to contents
-		if resp.Candidates[0].Content != nil {
-			contents = append(contents, resp.Candidates[0].Content)
-		}
-
-		// Append function responses
-		contents = append(contents, &genai.Content{
-			Role:  "user",
-			Parts: functionResponses,
-		})
-	}
-}
-
-// extractFunctionCalls extracts FunctionCall parts from response.
-func (g *GeminiAgent) extractFunctionCalls(resp *genai.GenerateContentResponse) []*genai.FunctionCall {
-	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-		return nil
+	resp, err := g.client.Models.GenerateContent(ctx, g.model, contents, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
-	var calls []*genai.FunctionCall
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if part != nil && part.FunctionCall != nil {
-			calls = append(calls, part.FunctionCall)
-		}
-	}
-	return calls
-}
-
-// executeTools runs tools and returns FunctionResponse parts.
-func (g *GeminiAgent) executeTools(ctx context.Context, calls []*genai.FunctionCall) []*genai.Part {
-	results := make([]*genai.Part, 0, len(calls))
-
-	for _, call := range calls {
-		tool, ok := g.toolMap[call.Name]
-
-		var response map[string]any
-		if !ok {
-			g.logger.Warn("tool not found", slog.String("name", call.Name))
-			response = map[string]any{"error": "tool not found: " + call.Name}
-		} else {
-			g.logger.Debug("executing tool",
-				slog.String("name", call.Name),
-				slog.Any("args", call.Args),
-			)
-
-			result, err := tool.Execute(ctx, call.Args)
-			if err != nil {
-				g.logger.Warn("tool execution failed",
-					slog.String("name", call.Name),
-					slog.Any("error", err),
-				)
-				response = map[string]any{"error": err.Error()}
-			} else {
-				response = map[string]any{"result": result}
-			}
-		}
-
-		results = append(results, &genai.Part{
-			FunctionResponse: &genai.FunctionResponse{
-				Name:     call.Name,
-				Response: response,
-			},
-		})
-	}
-
-	return results
+	return g.extractResponseToAssistantMessage(resp)
 }
 
 // Close releases any resources held by the agent.
