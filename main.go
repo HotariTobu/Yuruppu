@@ -25,8 +25,9 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	Endpoint           string // Webhook endpoint path (required)
-	Port               string // Server port (default: 8080)
+	LogLevel           slog.Level // Log level (default: INFO)
+	Endpoint           string     // Webhook endpoint path (required)
+	Port               string     // Server port (default: 8080)
 	ChannelSecret      string
 	ChannelAccessToken string
 	GCPProjectID       string // Optional: auto-detected on Cloud Run
@@ -50,12 +51,29 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and HISTORY_BUCKET from environment.
-// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, HISTORY_BUCKET) are missing or empty after trimming whitespace.
+// It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, HISTORY_BUCKET, and MEDIA_BUCKET from environment.
+// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, HISTORY_BUCKET, MEDIA_BUCKET) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
+// LOG_LEVEL is optional (default: INFO, valid values: DEBUG, INFO, WARN, ERROR).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
 func loadConfig() (*Config, error) {
 	// Load and trim environment variables (order matches Config struct)
+	logLevel := slog.LevelInfo
+	if env := strings.TrimSpace(os.Getenv("LOG_LEVEL")); env != "" {
+		switch strings.ToUpper(env) {
+		case "DEBUG":
+			logLevel = slog.LevelDebug
+		case "INFO":
+			logLevel = slog.LevelInfo
+		case "WARN":
+			logLevel = slog.LevelWarn
+		case "ERROR":
+			logLevel = slog.LevelError
+		default:
+			return nil, fmt.Errorf("LOG_LEVEL must be one of DEBUG, INFO, WARN, ERROR: %s", env)
+		}
+	}
+
 	endpoint := strings.TrimSpace(os.Getenv("ENDPOINT"))
 	if endpoint == "" {
 		return nil, errors.New("ENDPOINT is required")
@@ -121,6 +139,7 @@ func loadConfig() (*Config, error) {
 	}
 
 	return &Config{
+		LogLevel:           logLevel,
 		Endpoint:           endpoint,
 		Port:               port,
 		ChannelSecret:      channelSecret,
@@ -148,15 +167,17 @@ func getProjectIDAndRegion(ctx context.Context) (string, string, error) {
 }
 
 func main() {
-	// Create logger with JSON handler for structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
 	// Load configuration
 	config, err := loadConfig()
 	if err != nil {
-		logger.Error("failed to load configuration", slog.Any("error", err))
+		fmt.Fprintln(os.Stderr, "failed to load configuration:", err)
 		os.Exit(1)
 	}
+
+	// Create logger with JSON handler for structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: config.LogLevel,
+	}))
 
 	// Initialize components
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second

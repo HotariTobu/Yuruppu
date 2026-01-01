@@ -1,12 +1,221 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// =============================================================================
+// LOG_LEVEL Tests
+// =============================================================================
+
+// TestLoadConfig_LogLevel tests LOG_LEVEL environment variable parsing.
+func TestLoadConfig_LogLevel(t *testing.T) {
+	tests := []struct {
+		name          string
+		logLevelEnv   string
+		expectedLevel slog.Level
+	}{
+		{
+			name:          "default is INFO when not set",
+			logLevelEnv:   "",
+			expectedLevel: slog.LevelInfo,
+		},
+		{
+			name:          "DEBUG level",
+			logLevelEnv:   "DEBUG",
+			expectedLevel: slog.LevelDebug,
+		},
+		{
+			name:          "INFO level",
+			logLevelEnv:   "INFO",
+			expectedLevel: slog.LevelInfo,
+		},
+		{
+			name:          "WARN level",
+			logLevelEnv:   "WARN",
+			expectedLevel: slog.LevelWarn,
+		},
+		{
+			name:          "ERROR level",
+			logLevelEnv:   "ERROR",
+			expectedLevel: slog.LevelError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("ENDPOINT", "/webhook")
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+
+			if tt.logLevelEnv != "" {
+				t.Setenv("LOG_LEVEL", tt.logLevelEnv)
+			} else {
+				os.Unsetenv("LOG_LEVEL")
+			}
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LogLevel should match expected value
+			assert.Equal(t, tt.expectedLevel, config.LogLevel,
+				"LogLevel should match expected value")
+		})
+	}
+}
+
+// TestLoadConfig_LogLevel_InvalidValue tests that invalid LOG_LEVEL returns error.
+func TestLoadConfig_LogLevel_InvalidValue(t *testing.T) {
+	tests := []struct {
+		name        string
+		logLevelEnv string
+	}{
+		{
+			name:        "invalid value INVALID",
+			logLevelEnv: "INVALID",
+		},
+		{
+			name:        "invalid value TRACE",
+			logLevelEnv: "TRACE",
+		},
+		{
+			name:        "invalid value 123",
+			logLevelEnv: "123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("ENDPOINT", "/webhook")
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
+
+			// When: Load configuration
+			_, err := loadConfig()
+
+			// Then: Should return error
+			require.Error(t, err, "loadConfig should return error for invalid LOG_LEVEL")
+			assert.Contains(t, err.Error(), "LOG_LEVEL must be one of DEBUG, INFO, WARN, ERROR")
+		})
+	}
+}
+
+// TestLoadConfig_LogLevel_CaseInsensitive tests that LOG_LEVEL is case insensitive.
+func TestLoadConfig_LogLevel_CaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name          string
+		logLevelEnv   string
+		expectedLevel slog.Level
+	}{
+		{
+			name:          "lowercase debug",
+			logLevelEnv:   "debug",
+			expectedLevel: slog.LevelDebug,
+		},
+		{
+			name:          "mixed case Info",
+			logLevelEnv:   "Info",
+			expectedLevel: slog.LevelInfo,
+		},
+		{
+			name:          "mixed case wArN",
+			logLevelEnv:   "wArN",
+			expectedLevel: slog.LevelWarn,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("ENDPOINT", "/webhook")
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LogLevel should match expected value
+			assert.Equal(t, tt.expectedLevel, config.LogLevel,
+				"LogLevel should match expected value (case insensitive)")
+		})
+	}
+}
+
+// TestLoadConfig_LogLevel_WhitespaceHandling tests LOG_LEVEL whitespace trimming.
+func TestLoadConfig_LogLevel_WhitespaceHandling(t *testing.T) {
+	tests := []struct {
+		name          string
+		logLevelEnv   string
+		expectedLevel slog.Level
+	}{
+		{
+			name:          "leading whitespace is trimmed",
+			logLevelEnv:   "  DEBUG",
+			expectedLevel: slog.LevelDebug,
+		},
+		{
+			name:          "trailing whitespace is trimmed",
+			logLevelEnv:   "INFO  ",
+			expectedLevel: slog.LevelInfo,
+		},
+		{
+			name:          "whitespace-only defaults to INFO",
+			logLevelEnv:   "   ",
+			expectedLevel: slog.LevelInfo,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Set required environment variables
+			t.Setenv("ENDPOINT", "/webhook")
+			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("GCP_PROJECT_ID", "test-project-id")
+			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("HISTORY_BUCKET", "test-bucket")
+			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
+
+			// When: Load configuration
+			config, err := loadConfig()
+
+			// Then: Should succeed without error
+			require.NoError(t, err, "loadConfig should not return error")
+
+			// Then: LogLevel should match expected value
+			assert.Equal(t, tt.expectedLevel, config.LogLevel,
+				"LogLevel should match expected value after trimming whitespace")
+		})
+	}
+}
 
 // =============================================================================
 // LINE Credentials Tests

@@ -221,6 +221,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       }
 
       env {
+        name  = "LOG_LEVEL"
+        value = var.log_level
+      }
+
+      env {
         name  = "ENDPOINT"
         value = var.endpoint
       }

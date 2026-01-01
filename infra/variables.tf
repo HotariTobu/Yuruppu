@@ -32,6 +32,17 @@ variable "github_app_installation_id" {
   type        = number
 }
 
+variable "log_level" {
+  description = "Log level (DEBUG, INFO, WARN, ERROR)"
+  type        = string
+  default     = "INFO"
+
+  validation {
+    condition     = contains(["DEBUG", "INFO", "WARN", "ERROR"], upper(var.log_level))
+    error_message = "log_level must be one of: DEBUG, INFO, WARN, ERROR"
+  }
+}
+
 variable "endpoint" {
   description = "Webhook endpoint path"
   type        = string
