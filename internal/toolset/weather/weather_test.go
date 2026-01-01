@@ -30,7 +30,8 @@ func TestCallback(t *testing.T) {
 		responseBody   string
 		responseStatus int
 		httpErr        error
-		wantErr        string
+		wantErr        bool
+		wantErrMsg     string
 		validate       func(t *testing.T, result map[string]any)
 	}{
 		{
@@ -43,13 +44,14 @@ func TestCallback(t *testing.T) {
 			responseStatus: http.StatusOK,
 			validate: func(t *testing.T, result map[string]any) {
 				assert.Equal(t, "Tokyo", result["location"])
-				forecasts := result["forecasts"].([]map[string]any)
+				forecasts := result["forecasts"].([]any)
 				require.Len(t, forecasts, 1)
-				assert.Equal(t, "2026-01-02", forecasts[0]["date"])
-				assert.Equal(t, "15", forecasts[0]["temp_c"])
-				assert.Equal(t, "Sunny", forecasts[0]["condition"])
-				assert.Equal(t, "18", forecasts[0]["max_temp_c"])
-				assert.Equal(t, "10", forecasts[0]["min_temp_c"])
+				f0 := forecasts[0].(map[string]any)
+				assert.Equal(t, "2026-01-02", f0["date"])
+				assert.Equal(t, "15", f0["temp_c"])
+				assert.Equal(t, "Sunny", f0["condition"])
+				assert.Equal(t, "18", f0["max_temp_c"])
+				assert.Equal(t, "10", f0["min_temp_c"])
 			},
 		},
 		{
@@ -64,10 +66,12 @@ func TestCallback(t *testing.T) {
 			}`,
 			responseStatus: http.StatusOK,
 			validate: func(t *testing.T, result map[string]any) {
-				forecasts := result["forecasts"].([]map[string]any)
+				forecasts := result["forecasts"].([]any)
 				require.Len(t, forecasts, 2)
-				assert.Equal(t, "2026-01-02", forecasts[0]["date"])
-				assert.Equal(t, "2026-01-03", forecasts[1]["date"])
+				f0 := forecasts[0].(map[string]any)
+				f1 := forecasts[1].(map[string]any)
+				assert.Equal(t, "2026-01-02", f0["date"])
+				assert.Equal(t, "2026-01-03", f1["date"])
 			},
 		},
 		{
@@ -79,13 +83,14 @@ func TestCallback(t *testing.T) {
 			}`,
 			responseStatus: http.StatusOK,
 			validate: func(t *testing.T, result map[string]any) {
-				forecasts := result["forecasts"].([]map[string]any)
+				forecasts := result["forecasts"].([]any)
 				require.Len(t, forecasts, 1)
-				assert.Equal(t, "50", forecasts[0]["humidity"])
-				assert.Equal(t, "10", forecasts[0]["wind_speed_kmph"])
-				assert.Equal(t, "N", forecasts[0]["wind_direction"])
-				assert.Equal(t, "13", forecasts[0]["feels_like_c"])
-				assert.Equal(t, "20", forecasts[0]["rain_chance"])
+				f0 := forecasts[0].(map[string]any)
+				assert.Equal(t, "50", f0["humidity"])
+				assert.Equal(t, "10", f0["wind_speed_kmph"])
+				assert.Equal(t, "N", f0["wind_direction"])
+				assert.Equal(t, "13", f0["feels_like_c"])
+				assert.Equal(t, "20", f0["rain_chance"])
 			},
 		},
 		{
@@ -100,13 +105,15 @@ func TestCallback(t *testing.T) {
 			}`,
 			responseStatus: http.StatusOK,
 			validate: func(t *testing.T, result map[string]any) {
-				forecasts := result["forecasts"].([]map[string]any)
+				forecasts := result["forecasts"].([]any)
 				require.Len(t, forecasts, 1)
-				hourly := forecasts[0]["hourly"].([]map[string]any)
+				f0 := forecasts[0].(map[string]any)
+				hourly := f0["hourly"].([]any)
 				require.Len(t, hourly, 2)
-				assert.Equal(t, "0", hourly[0]["time"])
-				assert.Equal(t, "12", hourly[0]["temp_c"])
-				assert.Equal(t, "Clear", hourly[0]["condition"])
+				h0 := hourly[0].(map[string]any)
+				assert.Equal(t, "0", h0["time"])
+				assert.Equal(t, "12", h0["temp_c"])
+				assert.Equal(t, "Clear", h0["condition"])
 			},
 		},
 		{
@@ -114,34 +121,39 @@ func TestCallback(t *testing.T) {
 			args:           map[string]any{"location": "Tokyo"},
 			httpErr:        errors.New("connection refused"),
 			responseStatus: 0,
-			wantErr:        "API request failed",
+			wantErr:        true,
+			wantErrMsg:     "API request failed",
 		},
 		{
 			name:           "error status",
 			args:           map[string]any{"location": "Tokyo"},
 			responseBody:   "",
 			responseStatus: http.StatusNotFound,
-			wantErr:        "API returned error status",
+			wantErr:        true,
+			wantErrMsg:     "API returned error status",
 		},
 		{
 			name:           "invalid JSON",
 			args:           map[string]any{"location": "Tokyo"},
 			responseBody:   "invalid json",
 			responseStatus: http.StatusOK,
-			wantErr:        "failed to parse response",
+			wantErr:        true,
+			wantErrMsg:     "failed to parse response",
 		},
 		{
 			name:           "empty weather",
 			args:           map[string]any{"location": "Tokyo"},
 			responseBody:   `{"current_condition":[{"temp_C":"15"}],"weather":[]}`,
 			responseStatus: http.StatusOK,
-			wantErr:        "no weather data available",
+			wantErr:        true,
+			wantErrMsg:     "no weather data available",
 		},
 		{
 			name:           "invalid location type",
 			args:           map[string]any{"location": 123},
 			responseStatus: 0,
-			wantErr:        "invalid location",
+			wantErr:        true,
+			wantErrMsg:     "invalid location",
 		},
 	}
 
@@ -162,14 +174,13 @@ func TestCallback(t *testing.T) {
 			tool := weather.NewTool(client, slog.Default())
 			result, err := tool.Callback(context.Background(), tt.args)
 
-			require.NoError(t, err)
-
-			if tt.wantErr != "" {
-				assert.Equal(t, tt.wantErr, result["error"])
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrMsg)
 				return
 			}
 
-			require.Nil(t, result["error"])
+			require.NoError(t, err)
 			tt.validate(t, result)
 		})
 	}

@@ -27,12 +27,13 @@ func TestTool_Integration_Callback_Tokyo(t *testing.T) {
 	}
 	assert.Equal(t, "Tokyo", result["location"])
 
-	forecasts, ok := result["forecasts"].([]map[string]any)
+	forecasts, ok := result["forecasts"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, forecasts)
-	assert.NotEmpty(t, forecasts[0]["date"])
-	assert.NotEmpty(t, forecasts[0]["temp_c"])
-	assert.NotEmpty(t, forecasts[0]["condition"])
+	f0 := forecasts[0].(map[string]any)
+	assert.NotEmpty(t, f0["date"])
+	assert.NotEmpty(t, f0["temp_c"])
+	assert.NotEmpty(t, f0["condition"])
 }
 
 func TestTool_Integration_Callback_MultipleDates(t *testing.T) {
@@ -49,7 +50,7 @@ func TestTool_Integration_Callback_MultipleDates(t *testing.T) {
 		t.Fatalf("unexpected error: %v", errMsg)
 	}
 
-	forecasts, ok := result["forecasts"].([]map[string]any)
+	forecasts, ok := result["forecasts"].([]any)
 	require.True(t, ok)
 	require.Len(t, forecasts, 2)
 }
@@ -69,21 +70,23 @@ func TestTool_Integration_Callback_DetailedWithHourly(t *testing.T) {
 		t.Fatalf("unexpected error: %v", errMsg)
 	}
 
-	forecasts, ok := result["forecasts"].([]map[string]any)
+	forecasts, ok := result["forecasts"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, forecasts)
+	f0 := forecasts[0].(map[string]any)
 
 	// Check detailed fields
-	assert.NotEmpty(t, forecasts[0]["humidity"])
-	assert.NotEmpty(t, forecasts[0]["wind_speed_kmph"])
-	assert.NotEmpty(t, forecasts[0]["rain_chance"])
+	assert.NotEmpty(t, f0["humidity"])
+	assert.NotEmpty(t, f0["wind_speed_kmph"])
+	assert.NotEmpty(t, f0["rain_chance"])
 
 	// Check hourly data
-	hourly, ok := forecasts[0]["hourly"].([]map[string]any)
+	hourly, ok := f0["hourly"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, hourly)
-	assert.NotEmpty(t, hourly[0]["time"])
-	assert.NotEmpty(t, hourly[0]["temp_c"])
+	h0 := hourly[0].(map[string]any)
+	assert.NotEmpty(t, h0["time"])
+	assert.NotEmpty(t, h0["temp_c"])
 }
 
 func TestTool_Integration_Callback_LocationWithSpace(t *testing.T) {
@@ -98,19 +101,20 @@ func TestTool_Integration_Callback_LocationWithSpace(t *testing.T) {
 	}
 	assert.Equal(t, "New York", result["location"])
 
-	forecasts, ok := result["forecasts"].([]map[string]any)
+	forecasts, ok := result["forecasts"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, forecasts)
-	assert.NotEmpty(t, forecasts[0]["temp_c"])
-	assert.NotEmpty(t, forecasts[0]["condition"])
+	f0 := forecasts[0].(map[string]any)
+	assert.NotEmpty(t, f0["temp_c"])
+	assert.NotEmpty(t, f0["condition"])
 }
 
 func TestTool_Integration_Callback_Timeout(t *testing.T) {
 	tool := weather.NewTool(&http.Client{Timeout: 1 * time.Nanosecond}, slog.Default())
 	ctx := context.Background()
 
-	result, err := tool.Callback(ctx, map[string]any{"location": "Tokyo"})
+	_, err := tool.Callback(ctx, map[string]any{"location": "Tokyo"})
 
-	require.NoError(t, err)
-	assert.Contains(t, result["error"], "API request failed")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API request failed")
 }

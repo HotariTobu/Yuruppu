@@ -65,7 +65,7 @@ func (t *Tool) ResponseJsonSchema() []byte {
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
 	location, ok := args["location"].(string)
 	if !ok {
-		return map[string]any{"error": "invalid location"}, nil
+		return nil, fmt.Errorf("invalid location")
 	}
 
 	dates := []string{"today"}
@@ -88,14 +88,14 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		hourly = h
 	}
 
-	wttrResp, errMsg := t.fetchWeather(ctx, location)
-	if errMsg != "" {
-		return map[string]any{"error": errMsg}, nil
+	wttrResp, err := t.fetchWeather(ctx, location)
+	if err != nil {
+		return nil, err
 	}
 
-	forecasts, errMsg := t.buildForecasts(wttrResp, dates, detail, hourly)
-	if errMsg != "" {
-		return map[string]any{"error": errMsg}, nil
+	forecasts, err := t.buildForecasts(wttrResp, dates, detail, hourly)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]any{
@@ -104,45 +104,45 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}, nil
 }
 
-func (t *Tool) fetchWeather(ctx context.Context, location string) (*wttrResponse, string) {
+func (t *Tool) fetchWeather(ctx context.Context, location string) (*wttrResponse, error) {
 	encodedLocation := url.PathEscape(location)
 	requestURL := fmt.Sprintf(wttrURL, encodedLocation)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		t.logger.Error("failed to create request", slog.Any("error", err))
-		return nil, "failed to create request"
+		return nil, fmt.Errorf("failed to create request")
 	}
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
 		t.logger.Error("API request failed", slog.Any("error", err), slog.String("location", location))
-		return nil, "API request failed"
+		return nil, fmt.Errorf("API request failed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.logger.Error("API returned error status", slog.Int("status", resp.StatusCode), slog.String("location", location))
-		return nil, "API returned error status"
+		return nil, fmt.Errorf("API returned error status")
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
 		t.logger.Error("failed to read response", slog.Any("error", err))
-		return nil, "failed to read response"
+		return nil, fmt.Errorf("failed to read response")
 	}
 
 	var wttrResp wttrResponse
 	if err := json.Unmarshal(body, &wttrResp); err != nil {
 		t.logger.Error("failed to parse response", slog.Any("error", err))
-		return nil, "failed to parse response"
+		return nil, fmt.Errorf("failed to parse response")
 	}
 
-	return &wttrResp, ""
+	return &wttrResp, nil
 }
 
-func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string, hourly bool) ([]map[string]any, string) {
+func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string, hourly bool) ([]any, error) {
 	if len(resp.Weather) == 0 {
-		return nil, "no weather data available"
+		return nil, fmt.Errorf("no weather data available")
 	}
 
 	dateIndexMap := map[string]int{
@@ -151,7 +151,7 @@ func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string,
 		"day_after_tomorrow": 2,
 	}
 
-	forecasts := make([]map[string]any, 0, len(dates))
+	forecasts := make([]any, 0, len(dates))
 	for _, dateKey := range dates {
 		idx, ok := dateIndexMap[dateKey]
 		if !ok || idx >= len(resp.Weather) {
@@ -169,10 +169,10 @@ func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string,
 	}
 
 	if len(forecasts) == 0 {
-		return nil, "no forecast data for requested dates"
+		return nil, fmt.Errorf("no forecast data for requested dates")
 	}
 
-	return forecasts, ""
+	return forecasts, nil
 }
 
 func (t *Tool) buildForecast(resp *wttrResponse, weather wttrWeather, idx int, detail string) map[string]any {
@@ -240,8 +240,8 @@ func (t *Tool) buildForecast(resp *wttrResponse, weather wttrWeather, idx int, d
 	return forecast
 }
 
-func (t *Tool) buildHourly(weather wttrWeather, detail string) []map[string]any {
-	hourlyData := make([]map[string]any, 0, len(weather.Hourly))
+func (t *Tool) buildHourly(weather wttrWeather, detail string) []any {
+	hourlyData := make([]any, 0, len(weather.Hourly))
 	for _, h := range weather.Hourly {
 		condition := "unknown"
 		if len(h.WeatherDesc) > 0 {
