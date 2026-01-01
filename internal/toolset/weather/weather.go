@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -59,8 +60,9 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		return map[string]any{"error": "location is required"}, nil
 	}
 
-	url := fmt.Sprintf(wttrURL, location)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	encodedLocation := url.PathEscape(location)
+	requestURL := fmt.Sprintf(wttrURL, encodedLocation)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return map[string]any{"error": fmt.Sprintf("failed to create request: %s", err.Error())}, nil
 	}
