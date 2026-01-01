@@ -1,11 +1,11 @@
 {
-  "phase": "in-progress",
+  "phase": "completed",
   "lastUpdated": "2026-01-02",
   "requirements": [
-    { "id": "FR-001", "passes": false },
-    { "id": "NFR-001", "passes": false },
-    { "id": "NFR-002", "passes": false }
+    { "id": "FR-001", "passes": true },
+    { "id": "NFR-001", "passes": true },
+    { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Implementation complete but test coverage incomplete. Next session should: (1) Add tool calling integration test for AC-001 to verify weather query flow, (2) Restore unit tests or verify integration tests cover critical paths. Deleted gemini_test.go - lifecycle tests moved to integration. Reviewer findings: URL encoding in weather.go location parameter should be added."
+  "notes": "All requirements verified and passing. URL encoding added for location parameter. Integration tests added for Tokyo, New York (space in name), and timeout scenarios. Reviewer findings for future consideration: (1) Add io.LimitReader for response body size limit, (2) Add unit tests with httptest.Server for edge cases, (3) Consider input validation for special characters. Next session should start with hardening or PR review."
 }
