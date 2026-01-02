@@ -26,10 +26,6 @@ By making replies optional, the bot can behave more naturally and avoid unnecess
 - [ ] FR-001: LLM can decide not to reply, and the bot silently sends no response
 - [ ] FR-002: User message is saved to conversation history even when no reply is sent
 
-### Non-Functional Requirements
-
-- [ ] NFR-001: Decision to skip reply adds minimal latency (< 100ms overhead)
-
 ## Acceptance Criteria
 
 ### AC-001: LLM skips reply [FR-001]
