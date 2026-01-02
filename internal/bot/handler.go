@@ -22,24 +22,18 @@ type HistoryRepository interface {
 	PutHistory(ctx context.Context, sourceID string, messages []history.Message, expectedGeneration int64) (int64, error)
 }
 
-// Sender sends a reply message.
-type Sender interface {
-	SendReply(replyToken string, text string) error
-}
-
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
 	history         HistoryRepository
 	mediaDownloader MediaDownloader
 	mediaStorage    storage.Storage
 	agent           agent.Agent
-	sender          Sender
 	logger          *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, mediaStor storage.Storage, agent agent.Agent, sender Sender, logger *slog.Logger) (*Handler, error) {
+func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, mediaStor storage.Storage, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
 	if historyRepo == nil {
 		return nil, fmt.Errorf("historyRepo is required")
 	}
@@ -52,9 +46,6 @@ func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, 
 	if agent == nil {
 		return nil, fmt.Errorf("agent is required")
 	}
-	if sender == nil {
-		return nil, fmt.Errorf("sender is required")
-	}
 	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
 	}
@@ -63,24 +54,26 @@ func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, 
 		mediaDownloader: mediaDownloader,
 		mediaStorage:    mediaStor,
 		agent:           agent,
-		sender:          sender,
 		logger:          logger,
 	}, nil
 }
 
-func (h *Handler) HandleText(ctx context.Context, msgCtx line.MessageContext, text string) error {
+func (h *Handler) HandleText(ctx context.Context, text string) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: text}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
+	sourceID, _ := line.SourceIDFromContext(ctx)
+	userID, _ := line.UserIDFromContext(ctx)
 	var parts []history.UserPart
 
-	storageKey, mimeType, err := h.uploadMedia(ctx, msgCtx.SourceID, messageID)
+	storageKey, mimeType, err := h.uploadMedia(ctx, sourceID, messageID)
 	if err != nil {
 		h.logger.WarnContext(ctx, "failed to upload image, using placeholder",
 			slog.String("messageID", messageID),
@@ -92,68 +85,75 @@ func (h *Handler) HandleImage(ctx context.Context, msgCtx line.MessageContext, m
 	}
 
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     parts,
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleSticker(ctx context.Context, msgCtx line.MessageContext, packageID, stickerID string) error {
+func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a sticker]"}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleVideo(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a video]"}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleAudio(ctx context.Context, msgCtx line.MessageContext, messageID string) error {
+func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an audio]"}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleLocation(ctx context.Context, msgCtx line.MessageContext, latitude, longitude float64) error {
+func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float64) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a location]"}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleUnknown(ctx context.Context, msgCtx line.MessageContext) error {
+func (h *Handler) HandleUnknown(ctx context.Context) error {
+	userID, _ := line.UserIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		UserID:    msgCtx.UserID,
+		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a message]"}},
 		Timestamp: time.Now(),
 	}
-	return h.handleMessage(ctx, msgCtx, userMsg)
+	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext, userMsg *history.UserMessage) error {
+func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessage) error {
+	sourceID, _ := line.SourceIDFromContext(ctx)
+
 	// Step 1: Load history
-	hist, gen, err := h.history.GetHistory(ctx, msgCtx.SourceID)
+	hist, gen, err := h.history.GetHistory(ctx, sourceID)
 	if err != nil {
 		return fmt.Errorf("failed to load history: %w", err)
 	}
 
 	// Step 2: Save user message to history
 	hist = append(hist, userMsg)
-	gen, err = h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen)
+	_, err = h.history.PutHistory(ctx, sourceID, hist, gen)
 	if err != nil {
 		return fmt.Errorf("failed to save user message to history: %w", err)
 	}
@@ -164,30 +164,16 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 		return fmt.Errorf("failed to convert history: %w", err)
 	}
 
-	assistantMsg, err := h.agent.Generate(ctx, agentHistory)
+	response, err := h.agent.Generate(ctx, agentHistory)
 	if err != nil {
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
 
-	// Step 4: Extract text from response and send reply
-	responseText := extractTextFromAssistantMessage(assistantMsg)
-	if responseText == "" {
-		h.logger.WarnContext(ctx, "assistant message has no visible text content",
-			slog.Any("msgCtx", msgCtx),
-		)
-		return nil
-	}
-	if err := h.sender.SendReply(msgCtx.ReplyToken, responseText); err != nil {
-		return fmt.Errorf("failed to send reply: %w", err)
-	}
-
-	// Step 5: Save assistant message to history
-	historyAssistantMessage := convertToHistoryAssistantMessage(assistantMsg)
-	historyAssistantMessage.Timestamp = time.Now()
-	hist = append(hist, historyAssistantMessage)
-	if _, err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
-		return fmt.Errorf("failed to save assistant message to history: %w", err)
-	}
+	// Step 4: Log response contents for debugging
+	h.logger.DebugContext(ctx, "agent response",
+		slog.String("sourceID", sourceID),
+		slog.Any("response", response),
+	)
 
 	return nil
 }
@@ -327,48 +313,4 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 	}
 
 	return urls, nil
-}
-
-// extractTextFromAssistantMessage extracts all text content from an AssistantMessage.
-func extractTextFromAssistantMessage(m *agent.AssistantMessage) string {
-	if m == nil {
-		return ""
-	}
-	var text string
-	for _, p := range m.Parts {
-		if textPart, ok := p.(*agent.AssistantTextPart); ok {
-			if !textPart.Thought {
-				text += textPart.Text
-			}
-		}
-	}
-	return text
-}
-
-// convertToHistoryAssistantMessage converts agent.AssistantMessage to history.AssistantMessage.
-func convertToHistoryAssistantMessage(m *agent.AssistantMessage) *history.AssistantMessage {
-	if m == nil {
-		return nil
-	}
-	parts := make([]history.AssistantPart, 0, len(m.Parts))
-	for _, p := range m.Parts {
-		switch v := p.(type) {
-		case *agent.AssistantTextPart:
-			parts = append(parts, &history.AssistantTextPart{
-				Text:             v.Text,
-				Thought:          v.Thought,
-				ThoughtSignature: v.ThoughtSignature,
-			})
-		case *agent.AssistantFileDataPart:
-			parts = append(parts, &history.AssistantFileDataPart{
-				StorageKey:  "TODO:handle-model-output",
-				MIMEType:    v.MIMEType,
-				DisplayName: v.DisplayName,
-			})
-		}
-	}
-	return &history.AssistantMessage{
-		ModelName: m.ModelName,
-		Parts:     parts,
-	}
 }

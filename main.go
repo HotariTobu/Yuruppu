@@ -17,6 +17,7 @@ import (
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
+	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
 
@@ -201,26 +202,10 @@ func main() {
 		region = config.GCPRegion
 	}
 
-	// Create weather tool
+	// Create tools
 	weatherTool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, logger)
 
-	// Create Gemini agent with Yuruppu system prompt
-	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
-	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
-		ProjectID:        projectID,
-		Region:           region,
-		Model:            config.LLMModel,
-		CacheTTL:         llmCacheTTL,
-		CacheDisplayName: "yuruppu-system-prompt",
-		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            []agent.Tool{weatherTool},
-	}, logger)
-	if err != nil {
-		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
-		os.Exit(1)
-	}
-
-	// Create history repository
+	// Create history repository (needed by reply tool and handler)
 	historyStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
 	if err != nil {
 		logger.Error("failed to create history storage", slog.Any("error", err))
@@ -232,13 +217,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create reply tool
+	replyTool := reply.NewTool(lineClient, historyRepo, logger)
+
+	// Create Gemini agent with Yuruppu system prompt
+	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
+	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            config.LLMModel,
+		CacheTTL:         llmCacheTTL,
+		CacheDisplayName: "yuruppu-system-prompt",
+		SystemPrompt:     yuruppu.SystemPrompt,
+		Tools:            []agent.Tool{weatherTool, replyTool},
+	}, logger)
+	if err != nil {
+		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	// Create message handler
 	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
 	if err != nil {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	messageHandler, err := bot.NewHandler(historyRepo, lineClient, mediaStorage, geminiAgent, lineClient, logger)
+	messageHandler, err := bot.NewHandler(historyRepo, lineClient, mediaStorage, geminiAgent, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)

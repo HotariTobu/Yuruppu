@@ -11,33 +11,19 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
-type MessageContext struct {
-	ReplyToken string
-	SourceID   string
-	UserID     string
-}
-
-// LogValue implements slog.LogValuer to control which fields are logged.
-// ReplyToken is excluded for security reasons.
-func (m MessageContext) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("sourceID", m.SourceID),
-		slog.String("userID", m.UserID),
-	)
-}
-
 // Handler handles incoming LINE messages by type.
-// Each method receives a context with timeout and message-specific parameters.
+// Each method receives a context with timeout and LINE-specific values
+// (reply token, source ID, user ID) accessible via context accessor functions.
 // The error return is used for logging purposes only - the HTTP response
 // is already sent before handler execution.
 type Handler interface {
-	HandleText(ctx context.Context, msgCtx MessageContext, text string) error
-	HandleImage(ctx context.Context, msgCtx MessageContext, messageID string) error
-	HandleSticker(ctx context.Context, msgCtx MessageContext, packageID, stickerID string) error
-	HandleVideo(ctx context.Context, msgCtx MessageContext, messageID string) error
-	HandleAudio(ctx context.Context, msgCtx MessageContext, messageID string) error
-	HandleLocation(ctx context.Context, msgCtx MessageContext, latitude, longitude float64) error
-	HandleUnknown(ctx context.Context, msgCtx MessageContext) error
+	HandleText(ctx context.Context, text string) error
+	HandleImage(ctx context.Context, messageID string) error
+	HandleSticker(ctx context.Context, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, messageID string) error
+	HandleAudio(ctx context.Context, messageID string) error
+	HandleLocation(ctx context.Context, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -111,15 +97,8 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 		return
 	}
 
-	sourceID, userID := extractSourceIDs(msgEvent.Source)
-	msgCtx := MessageContext{
-		ReplyToken: msgEvent.ReplyToken,
-		SourceID:   sourceID,
-		UserID:     userID,
-	}
-
 	for _, handler := range s.handlers {
-		go s.invokeHandler(handler, msgCtx, msgEvent)
+		go s.invokeHandler(handler, msgEvent)
 	}
 }
 
@@ -143,11 +122,14 @@ func extractSourceIDs(source webhook.SourceInterface) (string, string) {
 }
 
 // invokeHandler invokes a single handler with panic recovery.
-func (s *Server) invokeHandler(handler Handler, msgCtx MessageContext, msgEvent webhook.MessageEvent) {
+func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent) {
+	sourceID, userID := extractSourceIDs(msgEvent.Source)
+
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("handler panicked",
-				slog.Any("msgCtx", msgCtx),
+				slog.String("sourceID", sourceID),
+				slog.String("userID", userID),
 				slog.Any("panic", r),
 			)
 		}
@@ -156,27 +138,33 @@ func (s *Server) invokeHandler(handler Handler, msgCtx MessageContext, msgEvent 
 	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
 	defer cancel()
 
+	// Set LINE-specific values in context
+	ctx = WithReplyToken(ctx, msgEvent.ReplyToken)
+	ctx = WithSourceID(ctx, sourceID)
+	ctx = WithUserID(ctx, userID)
+
 	var err error
 	switch msg := msgEvent.Message.(type) {
 	case webhook.TextMessageContent:
-		err = handler.HandleText(ctx, msgCtx, msg.Text)
+		err = handler.HandleText(ctx, msg.Text)
 	case webhook.ImageMessageContent:
-		err = handler.HandleImage(ctx, msgCtx, msg.Id)
+		err = handler.HandleImage(ctx, msg.Id)
 	case webhook.StickerMessageContent:
-		err = handler.HandleSticker(ctx, msgCtx, msg.PackageId, msg.StickerId)
+		err = handler.HandleSticker(ctx, msg.PackageId, msg.StickerId)
 	case webhook.VideoMessageContent:
-		err = handler.HandleVideo(ctx, msgCtx, msg.Id)
+		err = handler.HandleVideo(ctx, msg.Id)
 	case webhook.AudioMessageContent:
-		err = handler.HandleAudio(ctx, msgCtx, msg.Id)
+		err = handler.HandleAudio(ctx, msg.Id)
 	case webhook.LocationMessageContent:
-		err = handler.HandleLocation(ctx, msgCtx, msg.Latitude, msg.Longitude)
+		err = handler.HandleLocation(ctx, msg.Latitude, msg.Longitude)
 	default:
-		err = handler.HandleUnknown(ctx, msgCtx)
+		err = handler.HandleUnknown(ctx)
 	}
 
 	if err != nil {
 		s.logger.Error("handler failed",
-			slog.Any("msgCtx", msgCtx),
+			slog.String("sourceID", sourceID),
+			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
 	}
