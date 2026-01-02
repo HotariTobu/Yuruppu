@@ -59,7 +59,10 @@ func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, 
 }
 
 func (h *Handler) HandleText(ctx context.Context, text string) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: text}},
@@ -69,8 +72,14 @@ func (h *Handler) HandleText(ctx context.Context, text string) error {
 }
 
 func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
-	sourceID, _ := line.SourceIDFromContext(ctx)
-	userID, _ := line.UserIDFromContext(ctx)
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("sourceID not found in context")
+	}
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	var parts []history.UserPart
 
 	storageKey, mimeType, err := h.uploadMedia(ctx, sourceID, messageID)
@@ -93,7 +102,10 @@ func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 }
 
 func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a sticker]"}},
@@ -103,7 +115,10 @@ func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string
 }
 
 func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a video]"}},
@@ -113,7 +128,10 @@ func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
 }
 
 func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an audio]"}},
@@ -123,7 +141,10 @@ func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
 }
 
 func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float64) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a location]"}},
@@ -133,7 +154,10 @@ func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float6
 }
 
 func (h *Handler) HandleUnknown(ctx context.Context) error {
-	userID, _ := line.UserIDFromContext(ctx)
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a message]"}},
@@ -143,7 +167,10 @@ func (h *Handler) HandleUnknown(ctx context.Context) error {
 }
 
 func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessage) error {
-	sourceID, _ := line.SourceIDFromContext(ctx)
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("sourceID not found in context")
+	}
 
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, sourceID)

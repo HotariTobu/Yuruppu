@@ -102,25 +102,6 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 	}
 }
 
-// extractSourceIDs extracts source ID and user ID from a webhook source.
-// Returns (sourceID, userID) where:
-//   - sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms
-//   - userID: the user ID for all source types
-func extractSourceIDs(source webhook.SourceInterface) (string, string) {
-	if source == nil {
-		return "", ""
-	}
-	switch s := source.(type) {
-	case webhook.UserSource:
-		return s.UserId, s.UserId
-	case webhook.GroupSource:
-		return s.GroupId, s.UserId
-	case webhook.RoomSource:
-		return s.RoomId, s.UserId
-	}
-	return "", ""
-}
-
 // invokeHandler invokes a single handler with panic recovery.
 func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent) {
 	sourceID, userID := extractSourceIDs(msgEvent.Source)
@@ -168,4 +149,23 @@ func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent) {
 			slog.Any("error", err),
 		)
 	}
+}
+
+// extractSourceIDs extracts source ID and user ID from a webhook source.
+// Returns (sourceID, userID) where:
+//   - sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms
+//   - userID: the user ID for all source types
+func extractSourceIDs(source webhook.SourceInterface) (string, string) {
+	if source == nil {
+		return "", ""
+	}
+	switch s := source.(type) {
+	case webhook.UserSource:
+		return s.UserId, s.UserId
+	case webhook.GroupSource:
+		return s.GroupId, s.UserId
+	case webhook.RoomSource:
+		return s.RoomId, s.UserId
+	}
+	return "", ""
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/toolset/reply"
@@ -17,9 +18,10 @@ import (
 // Test Helpers
 // =============================================================================
 
-func withLineContext(ctx context.Context, replyToken, sourceID string) context.Context {
+func withToolContext(ctx context.Context, replyToken, sourceID, modelName string) context.Context {
 	ctx = line.WithReplyToken(ctx, replyToken)
 	ctx = line.WithSourceID(ctx, sourceID)
+	ctx = agent.WithModelName(ctx, modelName)
 	return ctx
 }
 
@@ -80,7 +82,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
 			"message": "Hello!",
 		})
@@ -97,7 +99,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{})
 
 		require.Error(t, err)
@@ -111,7 +113,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
 			"message": "",
 		})
@@ -153,6 +155,23 @@ func TestTool_Callback(t *testing.T) {
 		assert.Contains(t, err.Error(), "internal error")
 	})
 
+	t.Run("error - model name not in context", func(t *testing.T) {
+		sender := &mockSender{}
+		historyRepo := &mockHistoryRepo{}
+		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+
+		// Set replyToken and sourceID, but not modelName
+		ctx := line.WithReplyToken(t.Context(), "reply-token")
+		ctx = line.WithSourceID(ctx, "source-123")
+		result, err := tool.Callback(ctx, map[string]any{
+			"message": "Hello!",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "internal error")
+	})
+
 	t.Run("error - history load fails", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{
@@ -160,7 +179,7 @@ func TestTool_Callback(t *testing.T) {
 		}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
 			"message": "Hello!",
 		})
@@ -178,7 +197,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
 			"message": "Hello!",
 		})
@@ -196,7 +215,7 @@ func TestTool_Callback(t *testing.T) {
 		}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
 			"message": "Hello!",
 		})
@@ -221,7 +240,7 @@ func TestTool_Callback(t *testing.T) {
 		}
 		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
-		ctx := withLineContext(t.Context(), "reply-token", "source-123")
+		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		_, err := tool.Callback(ctx, map[string]any{
 			"message": "Hello!",
 		})
@@ -236,6 +255,7 @@ func TestTool_Callback(t *testing.T) {
 		// Second message is assistant message
 		assistantMsg, ok := historyRepo.lastPutMessages[1].(*history.AssistantMessage)
 		require.True(t, ok)
+		assert.Equal(t, "gemini-2.0-flash", assistantMsg.ModelName)
 		require.Len(t, assistantMsg.Parts, 1)
 		textPart, ok := assistantMsg.Parts[0].(*history.AssistantTextPart)
 		require.True(t, ok)
