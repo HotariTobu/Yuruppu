@@ -10,7 +10,6 @@ import (
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
-	"yuruppu/internal/toolset/reply"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -154,23 +153,40 @@ func (h *Handler) handleMessage(ctx context.Context, msgCtx line.MessageContext,
 
 	// Step 2: Save user message to history
 	hist = append(hist, userMsg)
-	if _, err = h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
+	gen, err = h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen)
+	if err != nil {
 		return fmt.Errorf("failed to save user message to history: %w", err)
 	}
 
-	// Step 3: Set context values for reply tool
-	ctx = context.WithValue(ctx, reply.ReplyTokenKey, msgCtx.ReplyToken)
-	ctx = context.WithValue(ctx, reply.SourceIDKey, msgCtx.SourceID)
-
-	// Step 4: Convert history to agent format and generate response
-	// Reply tool handles sending and saving assistant message if called
+	// Step 3: Convert history to agent format and generate response
 	agentHistory, err := h.convertToAgentHistory(ctx, hist)
 	if err != nil {
 		return fmt.Errorf("failed to convert history: %w", err)
 	}
 
-	if _, err := h.agent.Generate(ctx, agentHistory); err != nil {
+	assistantMsg, err := h.agent.Generate(ctx, agentHistory)
+	if err != nil {
 		return fmt.Errorf("failed to generate response: %w", err)
+	}
+
+	// Step 4: Extract text from response and send reply
+	responseText := extractTextFromAssistantMessage(assistantMsg)
+	if responseText == "" {
+		h.logger.WarnContext(ctx, "assistant message has no visible text content",
+			slog.Any("msgCtx", msgCtx),
+		)
+		return nil
+	}
+	if err := h.sender.SendReply(msgCtx.ReplyToken, responseText); err != nil {
+		return fmt.Errorf("failed to send reply: %w", err)
+	}
+
+	// Step 5: Save assistant message to history
+	historyAssistantMessage := convertToHistoryAssistantMessage(assistantMsg)
+	historyAssistantMessage.Timestamp = time.Now()
+	hist = append(hist, historyAssistantMessage)
+	if _, err := h.history.PutHistory(ctx, msgCtx.SourceID, hist, gen); err != nil {
+		return fmt.Errorf("failed to save assistant message to history: %w", err)
 	}
 
 	return nil
