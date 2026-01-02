@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 )
@@ -83,6 +84,12 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		return nil, fmt.Errorf("internal error")
 	}
 
+	modelName, ok := agent.ModelNameFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "model name not found in context")
+		return nil, fmt.Errorf("internal error")
+	}
+
 	// Load history
 	hist, gen, err := t.history.GetHistory(ctx, sourceID)
 	if err != nil {
@@ -104,6 +111,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 
 	// Append assistant message to history
 	assistantMsg := &history.AssistantMessage{
+		ModelName: modelName,
 		Parts:     []history.AssistantPart{&history.AssistantTextPart{Text: message}},
 		Timestamp: time.Now(),
 	}

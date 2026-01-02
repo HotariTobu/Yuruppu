@@ -225,13 +225,14 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 		}
 
 		// Execute all function calls in parallel
+		toolCtx := WithModelName(ctx, resp.ModelVersion)
 		funcResps := make([]*genai.FunctionResponse, len(functionCalls))
 		var wg sync.WaitGroup
 		for i, call := range functionCalls {
 			wg.Add(1)
 			go func(i int, call *genai.FunctionCall) {
 				defer wg.Done()
-				funcResps[i] = g.executeTool(ctx, call)
+				funcResps[i] = g.executeTool(toolCtx, call)
 			}(i, call)
 		}
 		wg.Wait()
