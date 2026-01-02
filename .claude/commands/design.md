@@ -98,9 +98,7 @@ type Example struct {
     // fields
 }
 
-func (e *Example) Method() error {
-    // signature
-}
+func (e *Example) Method() error
 ```
 
 ## Data Flow
@@ -108,9 +106,6 @@ func (e *Example) Method() error {
 2. Process: <description>
 3. Output: <description>
 
-## Implementation Notes
-- <Important consideration 1>
-- <Important consideration 2>
 ```
 
 ## Output
@@ -134,6 +129,7 @@ Run `/session-start <spec-name>` to begin TDD implementation.
 - Keep design focused on what's needed for implementation
 - Reference ADRs and prototype learnings
 - If user disagrees, revise and confirm again
+- **Describe the target state, not diffs** - Write the final implementation, not "Before/After" comparisons. Design documents should work regardless of whether prototype code exists or has been reverted.
 
 ## Error Recovery
 

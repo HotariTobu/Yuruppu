@@ -28,17 +28,25 @@ Feature name: $ARGUMENTS
    - Fix: `fix/<name>`
    - Refactor: `refactor/<name>`
 
-4. Create spec directory and files:
+4. Create spec directory and file:
    - Directory: `docs/specs/yyyymmdd-[type]-name/`
      - `yyyymmdd`: Date (e.g., `20251204`)
      - `[type]`: `feat` | `enhance` | `fix` | `refact`
      - `name`: Kebab-case name (e.g., `spotify-adapter`)
    - Create `spec.md` based on the selected template
-   - Create `progress.json` with all requirements set to `passes: false`
 
 5. Work with the user to fill in the spec.md sections
 
-6. After spec.md is complete, generate progress.json:
+6. **Run spec-reviewer to validate the specification**:
+   - Launch spec-reviewer agent with the spec name
+   - Review the output with the user
+   - If "Needs revision": work with user to fix issues, then re-run spec-reviewer
+   - Repeat until spec-reviewer returns "Requirements are clear and complete"
+
+7. **Get user confirmation** and generate progress.json:
+   - Confirm with user that the spec is ready to proceed
+   - Extract all requirement IDs from spec.md (FR-*, NFR-*, TR-*)
+   - Generate progress.json with all `passes` set to `false`:
    ```json
    {
      "phase": "spec",
@@ -51,14 +59,6 @@ Feature name: $ARGUMENTS
      "notes": ""
    }
    ```
-   - Extract all requirement IDs from spec.md (FR-*, NFR-*, TR-*)
-   - Set all `passes` to `false`
-
-7. **Run spec-reviewer to validate the specification**:
-   - Launch spec-reviewer agent with the spec name
-   - Review the output with the user
-   - If "Needs revision": work with user to fix issues, then re-run spec-reviewer
-   - Repeat until spec-reviewer returns "Ready for implementation"
 
 8. Create initial commit:
    ```bash
