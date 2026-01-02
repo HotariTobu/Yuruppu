@@ -125,7 +125,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 	var genaiTools []*genai.Tool
 	var toolMap map[string]tool
 	if len(cfg.Tools) > 0 {
-		genaiTools = toGenaiTools(cfg.Tools)
+		genaiTools = []*genai.Tool{toGenaiTool(cfg.Tools)}
 		toolMap = make(map[string]tool, len(cfg.Tools))
 		for _, t := range cfg.Tools {
 			wrapped, err := newTool(t)
@@ -441,9 +441,15 @@ func (g *GeminiAgent) extractContentsToAssistantMessage(model string, contents [
 	}, nil
 }
 
-// toGenaiTools converts Tool[] to []*genai.Tool.
-func toGenaiTools(tools []Tool) []*genai.Tool {
-	genaiTools := make([]*genai.Tool, 0, len(tools))
+// toGenaiTool converts Tool[] to a single *genai.Tool.
+// All function declarations are combined into one genai.Tool because
+// Gemini only allows multiple tools when they are all search tools.
+func toGenaiTool(tools []Tool) *genai.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	funcDecls := make([]*genai.FunctionDeclaration, 0, len(tools))
 
 	for _, t := range tools {
 		var paramsSchema any
@@ -456,17 +462,17 @@ func toGenaiTools(tools []Tool) []*genai.Tool {
 			continue
 		}
 
-		genaiTools = append(genaiTools, &genai.Tool{
-			FunctionDeclarations: []*genai.FunctionDeclaration{
-				{
-					Name:                 t.Name(),
-					Description:          t.Description(),
-					ParametersJsonSchema: paramsSchema,
-					ResponseJsonSchema:   respSchema,
-				},
-			},
+		funcDecls = append(funcDecls, &genai.FunctionDeclaration{
+			Name:                 t.Name(),
+			Description:          t.Description(),
+			ParametersJsonSchema: paramsSchema,
+			ResponseJsonSchema:   respSchema,
 		})
 	}
 
-	return genaiTools
+	if len(funcDecls) == 0 {
+		return nil
+	}
+
+	return &genai.Tool{FunctionDeclarations: funcDecls}
 }
