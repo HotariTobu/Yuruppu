@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string",
+      "description": "The reply message to send to the user",
+      "minLength": 1,
+      "maxLength": 5000
+    }
+  },
+  "required": ["message"],
+  "additionalProperties": false
+}
