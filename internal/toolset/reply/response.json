@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["sent"],
+      "description": "The status of the reply"
+    }
+  },
+  "required": ["status"]
+}

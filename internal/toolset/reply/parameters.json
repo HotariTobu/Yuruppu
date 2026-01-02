@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string",
+      "description": "The reply message to send to the user"
+    }
+  },
+  "required": ["message"]
+}
