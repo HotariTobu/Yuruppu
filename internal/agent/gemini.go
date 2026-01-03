@@ -211,7 +211,18 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message) (*Assista
 		return nil, err
 	}
 
-	return g.extractContentsToAssistantMessage(g.model, addedContents)
+	parts := g.extractAssistantParts(addedContents)
+
+	g.logger.Info("response generated successfully",
+		slog.String("model", g.model),
+		slog.Int("partsCount", len(parts)),
+	)
+
+	return &AssistantMessage{
+		ModelName: g.model,
+		Parts:     parts,
+		LocalTime: time.Now().Format(time.RFC3339),
+	}, nil
 }
 
 // generateWithToolLoop handles multi-turn conversation with tool calling.
@@ -416,8 +427,8 @@ func (g *GeminiAgent) buildAssistantParts(parts []AssistantPart) []*genai.Part {
 	return result
 }
 
-// extractContentsToAssistantMessage extracts all model responses from contents.
-func (g *GeminiAgent) extractContentsToAssistantMessage(model string, contents []*genai.Content) (*AssistantMessage, error) {
+// extractAssistantParts extracts all model response parts from contents.
+func (g *GeminiAgent) extractAssistantParts(contents []*genai.Content) []AssistantPart {
 	var parts []AssistantPart
 
 	for _, content := range contents {
@@ -444,20 +455,7 @@ func (g *GeminiAgent) extractContentsToAssistantMessage(model string, contents [
 		}
 	}
 
-	if len(parts) == 0 {
-		return nil, errors.New("no valid parts in model responses")
-	}
-
-	g.logger.Info("response generated successfully",
-		slog.String("model", model),
-		slog.Int("partsCount", len(parts)),
-	)
-
-	return &AssistantMessage{
-		ModelName: model,
-		Parts:     parts,
-		LocalTime: time.Now().Format(time.RFC3339),
-	}, nil
+	return parts
 }
 
 // toGenaiTool converts Tool[] to a single *genai.Tool.
