@@ -9,6 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setRequiredEnvVars sets all required environment variables for loadConfig tests.
+func setRequiredEnvVars(t *testing.T) {
+	t.Setenv("ENDPOINT", "/webhook")
+	t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
+	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+	t.Setenv("LLM_MODEL", "test-model")
+	t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
+	t.Setenv("HISTORY_BUCKET", "test-bucket")
+	t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+}
+
 // =============================================================================
 // LOG_LEVEL Tests
 // =============================================================================
@@ -50,13 +61,8 @@ func TestLoadConfig_LogLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.logLevelEnv != "" {
 				t.Setenv("LOG_LEVEL", tt.logLevelEnv)
@@ -100,13 +106,8 @@ func TestLoadConfig_LogLevel_InvalidValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
 
 			// When: Load configuration
@@ -146,13 +147,8 @@ func TestLoadConfig_LogLevel_CaseInsensitive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
 
 			// When: Load configuration
@@ -195,13 +191,8 @@ func TestLoadConfig_LogLevel_WhitespaceHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LOG_LEVEL", tt.logLevelEnv)
 
 			// When: Load configuration
@@ -260,6 +251,7 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -327,6 +319,7 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			}
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -392,6 +385,7 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			}
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -431,6 +425,7 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -499,6 +494,7 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -585,6 +581,7 @@ func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	t.Setenv("LINE_CHANNEL_SECRET", "test-valid-secret")
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
 	t.Setenv("LLM_MODEL", "test-model")
+	t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 	t.Setenv("HISTORY_BUCKET", "test-bucket")
 	t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 	os.Unsetenv("GCP_PROJECT_ID")
@@ -634,12 +631,7 @@ func TestLoadConfig_GCPRegion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			setRequiredEnvVars(t)
 
 			if tt.gcpRegionEnv != "" {
 				t.Setenv("GCP_REGION", tt.gcpRegionEnv)
@@ -693,12 +685,7 @@ func TestLoadConfig_GCPRegion_TrimsWhitespace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_REGION", tt.gcpRegionEnv)
 
 			// When: Load configuration
@@ -751,13 +738,8 @@ func TestLoadConfig_Port(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.portEnv != "" {
 				t.Setenv("PORT", tt.portEnv)
@@ -811,13 +793,8 @@ func TestLoadConfig_Port_TrimsWhitespace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("PORT", tt.portEnv)
 
 			// When: Load configuration
@@ -870,6 +847,7 @@ func TestLoadConfig_LLMModel_Valid(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -915,6 +893,7 @@ func TestLoadConfig_LLMModel_Missing(t *testing.T) {
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -971,6 +950,7 @@ func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_MODEL", tt.llmModel)
@@ -1022,6 +1002,7 @@ func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", "test-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
@@ -1075,13 +1056,8 @@ func TestLoadConfig_LLMTimeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.llmTimeoutEnv != "" {
 				t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
@@ -1135,13 +1111,8 @@ func TestLoadConfig_LLMTimeout_InvalidValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_TIMEOUT_SECONDS", tt.llmTimeoutEnv)
 
 			// When: Load configuration
@@ -1192,13 +1163,8 @@ func TestLoadConfig_LLMCacheTTL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			if tt.llmCacheTTLEnv != "" {
 				t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
@@ -1251,13 +1217,8 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given: Set required environment variables
-			t.Setenv("ENDPOINT", "/webhook")
-			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
-			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+			setRequiredEnvVars(t)
 			t.Setenv("GCP_PROJECT_ID", "test-project-id")
-			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("LLM_CACHE_TTL_MINUTES", tt.llmCacheTTLEnv)
 
 			// When: Load configuration
@@ -1305,6 +1266,7 @@ func TestLoadConfig_HistoryBucket_Missing(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
 			// Given: Handle HISTORY_BUCKET based on test case
@@ -1360,6 +1322,7 @@ func TestLoadConfig_HistoryBucket_WhitespaceOnly(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
 
@@ -1410,6 +1373,7 @@ func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
 			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
 			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 

@@ -162,6 +162,10 @@ func (m *mockHandler) HandleUnknown(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockHandler) HandleFollow(ctx context.Context) error {
+	return nil
+}
+
 // =============================================================================
 // New Tests
 // =============================================================================

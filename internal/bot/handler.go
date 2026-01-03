@@ -274,12 +274,12 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 		return name
 	}
 
-	var contextMsg *agent.UserMessage
+	var contextParts []agent.UserPart
 	var agentHistory []agent.Message
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		contextMsg, err = h.buildContextMessage(gCtx, userMsg.UserID)
+		contextParts, err = h.buildContextParts(gCtx, userMsg.UserID)
 		return err
 	})
 	g.Go(func() error {
@@ -292,8 +292,8 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	}
 
 	agentInput := agentHistory
-	if contextMsg != nil {
-		agentInput = append([]agent.Message{contextMsg}, agentHistory...)
+	if len(contextParts) > 0 {
+		agentInput = append([]agent.Message{&agent.UserMessage{Parts: contextParts}}, agentHistory...)
 	}
 	response, err := h.agent.Generate(ctx, agentInput)
 	if err != nil {
@@ -325,15 +325,16 @@ func (h *Handler) fetchPictureMIMEType(ctx context.Context, url string) (string,
 	return resp.Header.Get("Content-Type"), nil
 }
 
-// buildContextMessage builds a context message containing user profile and other metadata.
-func (h *Handler) buildContextMessage(ctx context.Context, userID string) (*agent.UserMessage, error) {
+// buildContextParts builds context parts containing user profile and other metadata.
+func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent.UserPart, error) {
 	p, err := h.profileService.GetUserProfile(ctx, userID)
 	if err != nil {
 		h.logger.WarnContext(ctx, "failed to get user profile",
 			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
-		return nil, nil
+		// Profile fetch failure is non-fatal; return empty parts (NFR-001)
+		return []agent.UserPart{}, nil
 	}
 
 	var buf bytes.Buffer
@@ -351,7 +352,7 @@ func (h *Handler) buildContextMessage(ctx context.Context, userID string) (*agen
 		})
 	}
 
-	return &agent.UserMessage{Parts: parts}, nil
+	return parts, nil
 }
 
 // convertToAgentHistory converts history.Message slice to agent.Message slice.
@@ -398,7 +399,7 @@ func convertUserMessage(m *history.UserMessage, getUsername func(string) string)
 
 	// Add header with username and timestamp
 	var header bytes.Buffer
-	userMessageTemplate.Execute(&header, map[string]string{
+	_ = userMessageTemplate.Execute(&header, map[string]string{
 		"UserName":  getUsername(m.UserID),
 		"LocalTime": m.Timestamp.In(jst).Format("Jan 2(Mon) 3:04PM"),
 	})
