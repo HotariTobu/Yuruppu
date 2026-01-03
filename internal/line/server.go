@@ -24,6 +24,7 @@ type Handler interface {
 	HandleAudio(ctx context.Context, messageID string) error
 	HandleLocation(ctx context.Context, latitude, longitude float64) error
 	HandleUnknown(ctx context.Context) error
+	HandleFollow(ctx context.Context) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -84,8 +85,11 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	// Process each event asynchronously
 	for _, event := range cb.Events {
-		if msgEvent, ok := event.(webhook.MessageEvent); ok {
-			s.dispatchMessage(msgEvent)
+		switch e := event.(type) {
+		case webhook.MessageEvent:
+			s.dispatchMessage(e)
+		case webhook.FollowEvent:
+			s.dispatchFollow(e)
 		}
 	}
 }
@@ -144,6 +148,48 @@ func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent) {
 
 	if err != nil {
 		s.logger.Error("handler failed",
+			slog.String("sourceID", sourceID),
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+	}
+}
+
+// dispatchFollow dispatches the follow event to all registered handlers.
+func (s *Server) dispatchFollow(followEvent webhook.FollowEvent) {
+	if len(s.handlers) == 0 {
+		return
+	}
+
+	for _, handler := range s.handlers {
+		go s.invokeFollowHandler(handler, followEvent)
+	}
+}
+
+// invokeFollowHandler invokes a single handler for follow event with panic recovery.
+func (s *Server) invokeFollowHandler(handler Handler, followEvent webhook.FollowEvent) {
+	sourceID, userID := extractSourceIDs(followEvent.Source)
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("follow handler panicked",
+				slog.String("sourceID", sourceID),
+				slog.String("userID", userID),
+				slog.Any("panic", r),
+			)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
+	defer cancel()
+
+	// Set LINE-specific values in context
+	ctx = WithSourceID(ctx, sourceID)
+	ctx = WithUserID(ctx, userID)
+
+	err := handler.HandleFollow(ctx)
+	if err != nil {
+		s.logger.Error("follow handler failed",
 			slog.String("sourceID", sourceID),
 			slog.String("userID", userID),
 			slog.Any("error", err),

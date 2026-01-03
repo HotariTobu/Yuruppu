@@ -1,20 +1,47 @@
 package bot
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
+	"text/template"
 	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
 
 	"golang.org/x/sync/errgroup"
 )
 
+//go:embed template/user_profile.txt
+var userProfileTemplateText string
+var userProfileTemplate = template.Must(template.New("user_profile").Parse(userProfileTemplateText))
+
+//go:embed template/user_message.txt
+var userMessageTemplateText string
+var userMessageTemplate = template.Must(template.New("user_message").Parse(userMessageTemplateText))
+
+var jst = time.FixedZone("JST", 9*60*60)
+
 const signedURLTTL = 60 * time.Second
+
+// LineClient provides access to LINE API.
+type LineClient interface {
+	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
+	GetProfile(ctx context.Context, userID string) (*line.UserProfile, error)
+}
+
+// ProfileService provides access to user profiles.
+type ProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
+	SetUserProfile(ctx context.Context, userID string, profile *profile.UserProfile) error
+}
 
 // HistoryRepository provides access to conversation history.
 type HistoryRepository interface {
@@ -24,21 +51,25 @@ type HistoryRepository interface {
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
-	history         HistoryRepository
-	mediaDownloader MediaDownloader
-	mediaStorage    storage.Storage
-	agent           agent.Agent
-	logger          *slog.Logger
+	lineClient     LineClient
+	profileService ProfileService
+	history        HistoryRepository
+	mediaStorage   storage.Storage
+	agent          agent.Agent
+	logger         *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, mediaStor storage.Storage, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
+func NewHandler(lineClient LineClient, profileService ProfileService, historyRepo HistoryRepository, mediaStor storage.Storage, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
+	if lineClient == nil {
+		return nil, fmt.Errorf("lineClient is required")
+	}
+	if profileService == nil {
+		return nil, fmt.Errorf("profileService is required")
+	}
 	if historyRepo == nil {
 		return nil, fmt.Errorf("historyRepo is required")
-	}
-	if mediaDownloader == nil {
-		return nil, fmt.Errorf("mediaDownloader is required")
 	}
 	if mediaStor == nil {
 		return nil, fmt.Errorf("mediaStorage is required")
@@ -50,11 +81,12 @@ func NewHandler(historyRepo HistoryRepository, mediaDownloader MediaDownloader, 
 		return nil, fmt.Errorf("logger is required")
 	}
 	return &Handler{
-		history:         historyRepo,
-		mediaDownloader: mediaDownloader,
-		mediaStorage:    mediaStor,
-		agent:           agent,
-		logger:          logger,
+		lineClient:     lineClient,
+		profileService: profileService,
+		history:        historyRepo,
+		mediaStorage:   mediaStor,
+		agent:          agent,
+		logger:         logger,
 	}, nil
 }
 
@@ -166,6 +198,43 @@ func (h *Handler) HandleUnknown(ctx context.Context) error {
 	return h.handleMessage(ctx, userMsg)
 }
 
+func (h *Handler) HandleFollow(ctx context.Context) error {
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
+
+	lineProfile, err := h.lineClient.GetProfile(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch profile: %w", err)
+	}
+
+	p := &profile.UserProfile{
+		DisplayName:   lineProfile.DisplayName,
+		PictureURL:    lineProfile.PictureURL,
+		StatusMessage: lineProfile.StatusMessage,
+	}
+
+	if p.PictureURL != "" {
+		if mimeType, err := h.fetchPictureMIMEType(ctx, p.PictureURL); err != nil {
+			h.logger.WarnContext(ctx, "failed to fetch picture MIME type",
+				slog.String("userID", userID),
+				slog.Any("profile", p),
+				slog.Any("error", err),
+			)
+			p.PictureURL = ""
+		} else {
+			p.PictureMIMEType = mimeType
+		}
+	}
+
+	if err := h.profileService.SetUserProfile(ctx, userID, p); err != nil {
+		return fmt.Errorf("failed to store profile %+v: %w", p, err)
+	}
+
+	return nil
+}
+
 func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessage) error {
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
@@ -185,13 +254,48 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 		return fmt.Errorf("failed to save user message to history: %w", err)
 	}
 
-	// Step 3: Convert history to agent format and generate response
-	agentHistory, err := h.convertToAgentHistory(ctx, hist)
-	if err != nil {
-		return fmt.Errorf("failed to convert history: %w", err)
+	// Step 3: Build context message and convert history to agent format
+	usernameCache := make(map[string]string)
+	getUsername := func(userID string) string {
+		if name, ok := usernameCache[userID]; ok {
+			return name
+		}
+		var name string
+		if p, err := h.profileService.GetUserProfile(ctx, userID); err == nil {
+			name = p.DisplayName
+		} else {
+			name = "Unknown User"
+			h.logger.InfoContext(ctx, "failed to get username",
+				slog.String("userID", userID),
+				slog.Any("error", err),
+			)
+		}
+		usernameCache[userID] = name
+		return name
 	}
 
-	response, err := h.agent.Generate(ctx, agentHistory)
+	var contextMsg *agent.UserMessage
+	var agentHistory []agent.Message
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		contextMsg, err = h.buildContextMessage(gCtx, userMsg.UserID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		agentHistory, err = h.convertToAgentHistory(gCtx, hist, getUsername)
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("failed to prepare agent input: %w", err)
+	}
+
+	agentInput := agentHistory
+	if contextMsg != nil {
+		agentInput = append([]agent.Message{contextMsg}, agentHistory...)
+	}
+	response, err := h.agent.Generate(ctx, agentInput)
 	if err != nil {
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
@@ -205,16 +309,61 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	return nil
 }
 
+// fetchPictureMIMEType fetches the MIME type of a picture URL via HEAD request.
+func (h *Handler) fetchPictureMIMEType(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	return resp.Header.Get("Content-Type"), nil
+}
+
+// buildContextMessage builds a context message containing user profile and other metadata.
+func (h *Handler) buildContextMessage(ctx context.Context, userID string) (*agent.UserMessage, error) {
+	p, err := h.profileService.GetUserProfile(ctx, userID)
+	if err != nil {
+		h.logger.WarnContext(ctx, "failed to get user profile",
+			slog.String("userID", userID),
+			slog.Any("error", err),
+		)
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	if err := userProfileTemplate.Execute(&buf, p); err != nil {
+		return nil, fmt.Errorf("failed to execute user profile template: %w", err)
+	}
+
+	parts := []agent.UserPart{&agent.UserTextPart{Text: buf.String()}}
+
+	if p.PictureURL != "" {
+		parts = append(parts, &agent.UserFileDataPart{
+			FileURI:     p.PictureURL,
+			MIMEType:    p.PictureMIMEType,
+			DisplayName: p.DisplayName + "'s avatar",
+		})
+	}
+
+	return &agent.UserMessage{Parts: parts}, nil
+}
+
 // convertToAgentHistory converts history.Message slice to agent.Message slice.
 // Fetches signed URLs in parallel for all file parts.
-func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Message) ([]agent.Message, error) {
+func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Message, getUsername func(string) string) ([]agent.Message, error) {
 	result := make([]agent.Message, 0, len(hist))
 	pending := make(map[string]agent.FileDataPart)
 
 	for _, msg := range hist {
 		switch m := msg.(type) {
 		case *history.UserMessage:
-			agentMsg, p := convertUserMessage(m)
+			agentMsg, p := convertUserMessage(m, getUsername)
 			for k, v := range p {
 				pending[k] = v
 			}
@@ -243,9 +392,17 @@ func (h *Handler) convertToAgentHistory(ctx context.Context, hist []history.Mess
 
 // convertUserMessage converts history.UserMessage to agent.UserMessage.
 // Returns pending file parts that need FileURI to be filled.
-func convertUserMessage(m *history.UserMessage) (*agent.UserMessage, map[string]agent.FileDataPart) {
-	parts := make([]agent.UserPart, 0, len(m.Parts))
+func convertUserMessage(m *history.UserMessage, getUsername func(string) string) (*agent.UserMessage, map[string]agent.FileDataPart) {
+	parts := make([]agent.UserPart, 0, len(m.Parts)+1)
 	pending := make(map[string]agent.FileDataPart)
+
+	// Add header with username and timestamp
+	var header bytes.Buffer
+	userMessageTemplate.Execute(&header, map[string]string{
+		"UserName":  getUsername(m.UserID),
+		"LocalTime": m.Timestamp.In(jst).Format("Jan 2(Mon) 3:04PM"),
+	})
+	parts = append(parts, &agent.UserTextPart{Text: header.String()})
 
 	for _, p := range m.Parts {
 		switch v := p.(type) {
@@ -271,9 +428,7 @@ func convertUserMessage(m *history.UserMessage) (*agent.UserMessage, map[string]
 	}
 
 	return &agent.UserMessage{
-		UserName:  m.UserID,
-		Parts:     parts,
-		LocalTime: m.Timestamp.Format(time.RFC3339),
+		Parts: parts,
 	}, pending
 }
 
@@ -302,9 +457,7 @@ func convertAssistantMessage(m *history.AssistantMessage) (*agent.AssistantMessa
 	}
 
 	return &agent.AssistantMessage{
-		ModelName: m.ModelName,
-		Parts:     parts,
-		LocalTime: m.Timestamp.Format(time.RFC3339),
+		Parts: parts,
 	}, pending
 }
 

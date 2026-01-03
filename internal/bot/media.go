@@ -14,11 +14,6 @@ import (
 // Pattern allows alphanumeric and hyphens but prevents path traversal sequences.
 var sourceIDPattern = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
-// MediaDownloader downloads media content from LINE.
-type MediaDownloader interface {
-	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
-}
-
 // uploadMedia downloads media content and stores it in storage.
 // sourceID is the LINE source identifier (user or group ID).
 // messageID is the LINE message ID containing the media.
@@ -35,7 +30,7 @@ func (h *Handler) uploadMedia(ctx context.Context, sourceID, messageID string) (
 	}
 
 	// Download media content from LINE
-	data, mimeType, err := h.mediaDownloader.GetMessageContent(messageID)
+	data, mimeType, err := h.lineClient.GetMessageContent(messageID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to download media content: %w", err)
 	}
