@@ -18,7 +18,7 @@ import (
 func TestHandleImage_UploadMedia(t *testing.T) {
 	t.Run("success - downloads and stores image", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockDownloader := &mockMediaDownloader{
+		mockClient := &mockLineClient{
 			data:     []byte("fake-image-data"),
 			mimeType: "image/jpeg",
 		}
@@ -27,14 +27,14 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(historyRepo, mockDownloader, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
 		err = h.HandleImage(ctx, "msg-456")
 
 		require.NoError(t, err)
-		assert.Equal(t, "msg-456", mockDownloader.lastMessageID)
+		assert.Equal(t, "msg-456", mockClient.lastMessageID)
 		// Image upload + 1 history write (user msg only, assistant msg saved by reply tool)
 		assert.Equal(t, 2, mockStore.writeCallCount)
 		// Verify image was stored by checking first write
@@ -44,7 +44,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 
 	t.Run("success - storage key format is sourceID/uuid", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockDownloader := &mockMediaDownloader{
+		mockClient := &mockLineClient{
 			data:     []byte("image-data"),
 			mimeType: "image/png",
 		}
@@ -53,7 +53,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(historyRepo, mockDownloader, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
@@ -66,7 +66,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 
 	t.Run("fallback - download error uses placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockDownloader := &mockMediaDownloader{
+		mockClient := &mockLineClient{
 			err: errors.New("LINE API failed"),
 		}
 		mockAg := &mockAgent{response: "I see!"}
@@ -74,7 +74,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(historyRepo, mockDownloader, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -87,7 +87,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 	t.Run("fallback - storage error uses placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockStore.writeResults = []writeResult{{gen: 0, err: errors.New("GCS failed")}}
-		mockDownloader := &mockMediaDownloader{
+		mockClient := &mockLineClient{
 			data:     []byte("image-data"),
 			mimeType: "image/jpeg",
 		}
@@ -96,7 +96,7 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(historyRepo, mockDownloader, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")

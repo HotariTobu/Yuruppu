@@ -16,6 +16,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
@@ -37,6 +38,7 @@ type Config struct {
 	LLMModel           string // Required: LLM model name
 	LLMCacheTTLMinutes int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
+	ProfileBucket      string // GCS bucket for user profiles
 	HistoryBucket      string // GCS bucket for chat history
 	MediaBucket        string // GCS bucket for media files
 }
@@ -53,8 +55,8 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, HISTORY_BUCKET, and MEDIA_BUCKET from environment.
-// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, HISTORY_BUCKET, MEDIA_BUCKET) are missing or empty after trimming whitespace.
+// It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, PROFILE_BUCKET, HISTORY_BUCKET, and MEDIA_BUCKET from environment.
+// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, PROFILE_BUCKET, HISTORY_BUCKET, MEDIA_BUCKET) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // LOG_LEVEL is optional (default: INFO, valid values: DEBUG, INFO, WARN, ERROR).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
@@ -128,6 +130,12 @@ func loadConfig() (*Config, error) {
 		llmTimeoutSeconds = parsed
 	}
 
+	// Load and validate PROFILE_BUCKET (required)
+	profileBucket := strings.TrimSpace(os.Getenv("PROFILE_BUCKET"))
+	if profileBucket == "" {
+		return nil, errors.New("PROFILE_BUCKET is required")
+	}
+
 	// Load and validate HISTORY_BUCKET (required)
 	historyBucket := strings.TrimSpace(os.Getenv("HISTORY_BUCKET"))
 	if historyBucket == "" {
@@ -151,6 +159,7 @@ func loadConfig() (*Config, error) {
 		LLMModel:           llmModel,
 		LLMCacheTTLMinutes: llmCacheTTLMinutes,
 		LLMTimeoutSeconds:  llmTimeoutSeconds,
+		ProfileBucket:      profileBucket,
 		HistoryBucket:      historyBucket,
 		MediaBucket:        mediaBucket,
 	}, nil
@@ -241,13 +250,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create profile service
+	profileStorage, err := storage.NewGCSStorage(context.Background(), config.ProfileBucket)
+	if err != nil {
+		logger.Error("failed to create profile storage", slog.Any("error", err))
+		os.Exit(1)
+	}
+	profileService := profile.NewService(profileStorage, logger)
+
 	// Create message handler
 	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
 	if err != nil {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	messageHandler, err := bot.NewHandler(historyRepo, lineClient, mediaStorage, geminiAgent, logger)
+	messageHandler, err := bot.NewHandler(lineClient, profileService, historyRepo, mediaStorage, geminiAgent, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)

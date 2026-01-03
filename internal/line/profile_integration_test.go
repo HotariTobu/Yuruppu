@@ -1,0 +1,37 @@
+//go:build integration
+
+package line_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+	"yuruppu/internal/line"
+
+	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestGetProfile_Integration tests that GetProfile returns user profile from LINE API.
+// FR-001: Fetch user profile from LINE when processing a message.
+func TestGetProfile_Integration(t *testing.T) {
+	_, channelAccessToken := requireLINECredentials(t)
+
+	client, err := line.NewClient(channelAccessToken, slog.New(slog.DiscardHandler))
+	require.NoError(t, err, "NewClient should succeed")
+
+	// Get bot info first to get a valid user ID (the bot itself)
+	api, err := messaging_api.NewMessagingApiAPI(channelAccessToken)
+	require.NoError(t, err)
+	botInfo, err := api.GetBotInfo()
+	require.NoError(t, err)
+
+	// Use the bot's own user ID for testing
+	profile, err := client.GetProfile(context.Background(), botInfo.UserId)
+
+	require.NoError(t, err, "GetProfile should succeed for bot's own user ID")
+	assert.NotNil(t, profile, "profile should not be nil")
+	assert.NotEmpty(t, profile.DisplayName, "display name should not be empty")
+	assert.Equal(t, botInfo.DisplayName, profile.DisplayName, "display name should match bot info")
+}
