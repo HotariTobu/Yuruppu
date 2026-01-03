@@ -317,6 +317,9 @@ func main() {
 	}
 
 	// Close GCS storage
+	if err := profileStorage.Close(shutdownCtx); err != nil {
+		logger.Error("failed to close profile storage", slog.Any("error", err))
+	}
 	if err := historyStorage.Close(shutdownCtx); err != nil {
 		logger.Error("failed to close history storage", slog.Any("error", err))
 	}

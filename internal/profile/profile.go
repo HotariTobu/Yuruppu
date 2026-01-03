@@ -45,6 +45,9 @@ func (s *Service) GetUserProfile(ctx context.Context, userID string) (*UserProfi
 	if err != nil {
 		return nil, fmt.Errorf("failed to read profile: %w", err)
 	}
+	if data == nil {
+		return nil, fmt.Errorf("profile not found: %s", userID)
+	}
 
 	var profile UserProfile
 	if err := json.Unmarshal(data, &profile); err != nil {
