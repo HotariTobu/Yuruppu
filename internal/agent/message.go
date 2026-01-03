@@ -73,18 +73,14 @@ type Message interface {
 
 // UserMessage represents a message from a user.
 type UserMessage struct {
-	UserName  string
-	Parts     []UserPart
-	LocalTime string
+	Parts []UserPart
 }
 
 func (*UserMessage) message() {}
 
 // AssistantMessage represents a message from an assistant.
 type AssistantMessage struct {
-	ModelName string
-	Parts     []AssistantPart
-	LocalTime string
+	Parts []AssistantPart
 }
 
 func (*AssistantMessage) message() {}

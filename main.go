@@ -16,6 +16,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
@@ -247,7 +248,11 @@ func main() {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	messageHandler, err := bot.NewHandler(historyRepo, lineClient, mediaStorage, geminiAgent, logger)
+
+	// Create profile service (uses media bucket with "profiles/" prefix)
+	profileService := profile.NewService(mediaStorage, logger)
+
+	messageHandler, err := bot.NewHandler(lineClient, profileService, historyRepo, mediaStorage, geminiAgent, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)

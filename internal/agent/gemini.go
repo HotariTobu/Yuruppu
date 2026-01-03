@@ -219,9 +219,7 @@ func (g *GeminiAgent) Generate(ctx context.Context, history []Message) (*Assista
 	)
 
 	return &AssistantMessage{
-		ModelName: g.model,
-		Parts:     parts,
-		LocalTime: time.Now().Format(time.RFC3339),
+		Parts: parts,
 	}, nil
 }
 
