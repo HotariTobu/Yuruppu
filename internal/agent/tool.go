@@ -27,6 +27,12 @@ type Tool interface {
 	Callback(ctx context.Context, validatedArgs map[string]any) (map[string]any, error)
 }
 
+// FinalAction is an optional interface for tools that can end the tool loop.
+// If a tool implements this interface, IsFinal is called after successful execution.
+type FinalAction interface {
+	IsFinal(validatedResult map[string]any) bool
+}
+
 // Validator validates data against a schema.
 type Validator interface {
 	Validate(data any) error
@@ -58,22 +64,33 @@ func newTool(t Tool) (tool, error) {
 	}, nil
 }
 
+// UseResult contains the result of a tool execution.
+type UseResult struct {
+	Response map[string]any
+	Final    bool
+}
+
 // Use validates args, executes callback, and validates response.
-func (t *tool) Use(ctx context.Context, args map[string]any) (map[string]any, error) {
+func (t *tool) Use(ctx context.Context, args map[string]any) (UseResult, error) {
 	if err := t.parametersValidator.Validate(args); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
+		return UseResult{}, fmt.Errorf("invalid parameters: %w", err)
 	}
 
 	result, err := t.impl.Callback(ctx, args)
 	if err != nil {
-		return nil, err
+		return UseResult{}, err
 	}
 
 	if err := t.responseValidator.Validate(result); err != nil {
-		return nil, fmt.Errorf("invalid response: %w", err)
+		return UseResult{}, fmt.Errorf("invalid response: %w", err)
 	}
 
-	return result, nil
+	final := false
+	if fa, ok := t.impl.(FinalAction); ok {
+		final = fa.IsFinal(result)
+	}
+
+	return UseResult{Response: result, Final: final}, nil
 }
 
 // compileSchema compiles JSON Schema bytes into a validator.

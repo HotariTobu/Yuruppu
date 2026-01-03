@@ -130,3 +130,9 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		"status": "sent",
 	}, nil
 }
+
+// IsFinal returns true if the reply was sent successfully.
+func (t *Tool) IsFinal(validatedResult map[string]any) bool {
+	status, ok := validatedResult["status"].(string)
+	return ok && status == "sent"
+}

@@ -240,12 +240,13 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 		// Execute all function calls in parallel
 		toolCtx := WithModelName(ctx, resp.ModelVersion)
 		funcResps := make([]*genai.FunctionResponse, len(functionCalls))
+		finals := make([]bool, len(functionCalls))
 		var wg sync.WaitGroup
 		for i, call := range functionCalls {
 			wg.Add(1)
 			go func(i int, call *genai.FunctionCall) {
 				defer wg.Done()
-				funcResps[i] = g.executeTool(toolCtx, call)
+				funcResps[i], finals[i] = g.executeTool(toolCtx, call)
 			}(i, call)
 		}
 		wg.Wait()
@@ -255,15 +256,20 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 				slog.String("tool", funcResp.Name),
 				slog.Any("args", functionCalls[i].Args),
 				slog.Any("response", funcResp.Response),
+				slog.Bool("final", finals[i]),
 			)
 			content := genai.NewContentFromFunctionResponse(funcResp.Name, funcResp.Response, genai.RoleUser)
 			addedContents = append(addedContents, content)
+		}
+
+		if slices.Contains(finals, true) {
+			return addedContents, nil
 		}
 	}
 }
 
 // executeTool executes a tool and returns the function response.
-func (g *GeminiAgent) executeTool(ctx context.Context, call *genai.FunctionCall) *genai.FunctionResponse {
+func (g *GeminiAgent) executeTool(ctx context.Context, call *genai.FunctionCall) (*genai.FunctionResponse, bool) {
 	resp := &genai.FunctionResponse{
 		Name: call.Name,
 		ID:   call.ID,
@@ -272,17 +278,17 @@ func (g *GeminiAgent) executeTool(ctx context.Context, call *genai.FunctionCall)
 	t, ok := g.toolMap[call.Name]
 	if !ok {
 		resp.Response = map[string]any{"error": fmt.Sprintf("unknown tool: %s", call.Name)}
-		return resp
+		return resp, false
 	}
 
 	result, err := t.Use(ctx, call.Args)
 	if err != nil {
 		resp.Response = map[string]any{"error": err.Error()}
-		return resp
+		return resp, false
 	}
 
-	resp.Response = result
-	return resp
+	resp.Response = result.Response
+	return resp, result.Final
 }
 
 // Close releases any resources held by the agent.
