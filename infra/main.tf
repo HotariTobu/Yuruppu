@@ -37,6 +37,19 @@ resource "google_project_service" "apis" {
   disable_on_destroy = false
 }
 
+# GCS bucket for user profiles
+resource "google_storage_bucket" "profile" {
+  name                        = "yuruppu-profile"
+  location                    = var.region
+  uniform_bucket_level_access = true
+
+  autoclass {
+    enabled = true
+  }
+
+  # No lifecycle rule - profiles should persist indefinitely
+}
+
 # GCS bucket for chat history storage
 resource "google_storage_bucket" "history" {
   name                        = "yuruppu-history"
@@ -144,6 +157,12 @@ resource "google_project_iam_member" "cloudrun_vertex_ai" {
   member  = "serviceAccount:${google_service_account.cloudrun.email}"
 }
 
+resource "google_storage_bucket_iam_member" "cloudrun_profile" {
+  bucket = google_storage_bucket.profile.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.cloudrun.email}"
+}
+
 resource "google_storage_bucket_iam_member" "cloudrun_history" {
   bucket = google_storage_bucket.history.name
   role   = "roles/storage.objectUser"
@@ -233,6 +252,11 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       env {
         name  = "LLM_MODEL"
         value = var.llm_model
+      }
+
+      env {
+        name  = "PROFILE_BUCKET"
+        value = google_storage_bucket.profile.name
       }
 
       env {

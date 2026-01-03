@@ -23,9 +23,9 @@ import (
 var userProfileTemplateText string
 var userProfileTemplate = template.Must(template.New("user_profile").Parse(userProfileTemplateText))
 
-//go:embed template/user_message.txt
-var userMessageTemplateText string
-var userMessageTemplate = template.Must(template.New("user_message").Parse(userMessageTemplateText))
+//go:embed template/user_header.txt
+var userHeaderTemplateText string
+var userHeaderTemplate = template.Must(template.New("user_header").Parse(userHeaderTemplateText))
 
 var jst = time.FixedZone("JST", 9*60*60)
 
@@ -219,7 +219,6 @@ func (h *Handler) HandleFollow(ctx context.Context) error {
 		if mimeType, err := h.fetchPictureMIMEType(ctx, p.PictureURL); err != nil {
 			h.logger.WarnContext(ctx, "failed to fetch picture MIME type",
 				slog.String("userID", userID),
-				slog.Any("profile", p),
 				slog.Any("error", err),
 			)
 			p.PictureURL = ""
@@ -229,7 +228,7 @@ func (h *Handler) HandleFollow(ctx context.Context) error {
 	}
 
 	if err := h.profileService.SetUserProfile(ctx, userID, p); err != nil {
-		return fmt.Errorf("failed to store profile %+v: %w", p, err)
+		return fmt.Errorf("failed to store profile: %w", err)
 	}
 
 	return nil
@@ -399,7 +398,7 @@ func convertUserMessage(m *history.UserMessage, getUsername func(string) string)
 
 	// Add header with username and timestamp
 	var header bytes.Buffer
-	_ = userMessageTemplate.Execute(&header, map[string]string{
+	_ = userHeaderTemplate.Execute(&header, map[string]string{
 		"UserName":  getUsername(m.UserID),
 		"LocalTime": m.Timestamp.In(jst).Format("Jan 2(Mon) 3:04PM"),
 	})
