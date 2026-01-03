@@ -308,9 +308,13 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	return nil
 }
 
-// fetchPictureMIMEType fetches the MIME type of a picture URL via HEAD request.
+// fetchPictureMIMEType fetches the MIME type of a picture URL via GET request.
+// Uses /small suffix to minimize data transfer. Falls back to image/jpeg if
+// Content-Type is not available.
 func (h *Handler) fetchPictureMIMEType(ctx context.Context, url string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	// Use /small suffix to minimize data transfer
+	smallURL := url + "/small"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, smallURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -321,7 +325,17 @@ func (h *Handler) fetchPictureMIMEType(ctx context.Context, url string) (string,
 	}
 	defer resp.Body.Close()
 
-	return resp.Header.Get("Content-Type"), nil
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	mimeType := resp.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "image/jpeg"
+		h.logger.WarnContext(ctx, "Content-Type header missing, falling back to image/jpeg")
+	}
+
+	return mimeType, nil
 }
 
 // buildContextParts builds context parts containing user profile and other metadata.
