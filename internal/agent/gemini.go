@@ -28,6 +28,7 @@ type GeminiConfig struct {
 	Model            string
 	SystemPrompt     string
 	Tools            []Tool
+	FunctionCallOnly bool
 	CacheDisplayName string
 	CacheTTL         time.Duration
 }
@@ -123,6 +124,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 	}
 
 	var genaiTools []*genai.Tool
+	var toolConfig *genai.ToolConfig
 	var toolMap map[string]tool
 	if len(cfg.Tools) > 0 {
 		genaiTools = []*genai.Tool{toGenaiTool(cfg.Tools)}
@@ -134,11 +136,20 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 			}
 			toolMap[t.Name()] = wrapped
 		}
+		if cfg.FunctionCallOnly {
+			toolConfig = &genai.ToolConfig{
+				FunctionCallingConfig: &genai.FunctionCallingConfig{
+					Mode: genai.FunctionCallingConfigModeAny,
+				},
+			}
+		}
 	}
 
 	agent := &GeminiAgent{
 		client: client,
 		model:  model,
+		// Do not duplicate fields already set in cachedContentConfig.
+		// Duplicating them will cause an error.
 		contentConfigWithCache: &genai.GenerateContentConfig{
 			ThinkingConfig: thinkingConfig,
 		},
@@ -146,6 +157,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 			SystemInstruction: systemInstruction,
 			ThinkingConfig:    thinkingConfig,
 			Tools:             genaiTools,
+			ToolConfig:        toolConfig,
 		},
 		toolMap: toolMap,
 		logger:  logger,
@@ -162,6 +174,7 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 			TTL:               cfg.CacheTTL,
 			SystemInstruction: systemInstruction,
 			Tools:             genaiTools,
+			ToolConfig:        toolConfig,
 		}
 		go agent.refreshCache(refreshCtx, cachedContentConfig)
 	}

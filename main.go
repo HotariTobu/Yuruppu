@@ -18,6 +18,7 @@ import (
 	"yuruppu/internal/line"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/toolset/reply"
+	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
 
@@ -220,16 +221,20 @@ func main() {
 	// Create reply tool
 	replyTool := reply.NewTool(lineClient, historyRepo, logger)
 
+	// Create skip tool
+	skipTool := skip.NewTool()
+
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
 	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
 		ProjectID:        projectID,
 		Region:           region,
 		Model:            config.LLMModel,
-		CacheTTL:         llmCacheTTL,
-		CacheDisplayName: "yuruppu-system-prompt",
 		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            []agent.Tool{weatherTool, replyTool},
+		Tools:            []agent.Tool{weatherTool, replyTool, skipTool},
+		FunctionCallOnly: true,
+		CacheDisplayName: "yuruppu-system-prompt",
+		CacheTTL:         llmCacheTTL,
 	}, logger)
 	if err != nil {
 		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "description": "The status of the skip operation"
+    }
+  },
+  "required": ["status"]
+}
