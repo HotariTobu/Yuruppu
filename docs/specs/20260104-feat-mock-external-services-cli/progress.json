@@ -2,7 +2,7 @@
   "phase": "in-progress",
   "lastUpdated": "2026-01-05",
   "requirements": [
-    { "id": "FR-001", "passes": false },
+    { "id": "FR-001", "passes": true },
     { "id": "FR-002", "passes": false },
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
@@ -11,15 +11,15 @@
     { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": true },
     { "id": "FR-009", "passes": true },
-    { "id": "FR-010", "passes": false },
+    { "id": "FR-010", "passes": true },
     { "id": "FR-011", "passes": false },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false },
     { "id": "TR-001", "passes": false },
     { "id": "TR-002", "passes": false },
-    { "id": "TR-003", "passes": false },
+    { "id": "TR-003", "passes": true },
     { "id": "TR-004", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 4: Implemented cmd/cli/profile/profile.go with PromptNewProfile function for FR-005. All reviews pass (8 reviewers). Improvements identified for future: HTTP client timeout, SSRF protection (low priority for local CLI), input length validation. Next session: implement repl/repl.go for FR-001 (REPL loop with Ctrl+C/quit handling)."
+  "notes": "Session 5: Implemented cmd/cli/repl/repl.go with Run function for FR-001 (REPL with prompt), FR-010 (/quit and Ctrl+C twice), and TR-003 (userID=sourceID). All 7 reviewers complete: spec compliance, architecture, correctness, readability, testing, security, performance. Minor issues noted: hardcoded os.Stderr (testability), Ctrl+C counter reset on empty input (acceptable UX). Preflight passed. Next session: implement cmd/cli/main.go to wire everything together (TR-002, FR-002, FR-004, FR-011, NFR-001, NFR-002, TR-001)."
 }
