@@ -12,22 +12,23 @@ import (
 )
 
 // =============================================================================
-// HandleImage Media Tests
+// HandleImage Tests
 // =============================================================================
 
-func TestHandleImage_UploadMedia(t *testing.T) {
+func TestHandleImage(t *testing.T) {
 	t.Run("success - downloads and stores image", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockClient := &mockLineClient{
 			data:     []byte("fake-image-data"),
 			mimeType: "image/jpeg",
 		}
+		mockMedia := &mockMediaService{}
 		mockAg := &mockAgent{response: "Nice image!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -35,11 +36,9 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "msg-456", mockClient.lastMessageID)
-		// Image upload + 1 history write (user msg only, assistant msg saved by reply tool)
-		assert.Equal(t, 2, mockStore.writeCallCount)
-		// Verify image was stored by checking first write
-		assert.Equal(t, "image/jpeg", mockStore.writes[0].mimeType)
-		assert.Equal(t, []byte("fake-image-data"), mockStore.writes[0].data)
+		assert.Equal(t, "user-123", mockMedia.lastSourceID)
+		assert.Equal(t, []byte("fake-image-data"), mockMedia.lastData)
+		assert.Equal(t, "image/jpeg", mockMedia.lastMIMEType)
 	})
 
 	t.Run("success - storage key format is sourceID/uuid", func(t *testing.T) {
@@ -48,20 +47,20 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 			data:     []byte("image-data"),
 			mimeType: "image/png",
 		}
+		mockMedia := &mockMediaService{}
 		mockAg := &mockAgent{response: "Nice!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
 		err = h.HandleImage(ctx, "msg-456")
 
 		require.NoError(t, err)
-		// First write is the image upload
-		assert.Contains(t, mockStore.writes[0].key, "group-789/")
+		assert.Equal(t, "group-789", mockMedia.lastSourceID)
 	})
 
 	t.Run("fallback - download error uses placeholder", func(t *testing.T) {
@@ -69,12 +68,13 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 		mockClient := &mockLineClient{
 			err: errors.New("LINE API failed"),
 		}
+		mockMedia := &mockMediaService{}
 		mockAg := &mockAgent{response: "I see!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -86,17 +86,17 @@ func TestHandleImage_UploadMedia(t *testing.T) {
 
 	t.Run("fallback - storage error uses placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockStore.writeResults = []writeResult{{gen: 0, err: errors.New("GCS failed")}}
 		mockClient := &mockLineClient{
 			data:     []byte("image-data"),
 			mimeType: "image/jpeg",
 		}
+		mockMedia := &mockMediaService{storeErr: errors.New("GCS failed")}
 		mockAg := &mockAgent{response: "I see!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")

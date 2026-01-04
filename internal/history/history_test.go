@@ -19,22 +19,22 @@ var (
 )
 
 // =============================================================================
-// Repository Tests
+// Service Tests
 // =============================================================================
 
-// TestNewRepository_NilStorage tests that nil storage returns an error.
-func TestNewRepository_NilStorage(t *testing.T) {
+// TestNewService_NilStorage tests that nil storage returns an error.
+func TestNewService_NilStorage(t *testing.T) {
 	t.Run("nil storage returns error", func(t *testing.T) {
-		repo, err := history.NewRepository(nil)
+		svc, err := history.NewService(nil)
 
 		require.Error(t, err)
-		assert.Nil(t, repo)
+		assert.Nil(t, svc)
 		assert.Contains(t, err.Error(), "storage cannot be nil")
 	})
 }
 
-// TestRepository_SourceIDValidation tests sourceID validation for both Get and Put operations.
-func TestRepository_SourceIDValidation(t *testing.T) {
+// TestService_SourceIDValidation tests sourceID validation for both Get and Put operations.
+func TestService_SourceIDValidation(t *testing.T) {
 	tests := []struct {
 		name       string
 		sourceID   string
@@ -49,20 +49,20 @@ func TestRepository_SourceIDValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("GetHistory_"+tt.name, func(t *testing.T) {
-			repo, err := history.NewRepository(newMockStorage())
+			svc, err := history.NewService(newMockStorage())
 			require.NoError(t, err)
 
-			_, _, err = repo.GetHistory(t.Context(), tt.sourceID)
+			_, _, err = svc.GetHistory(t.Context(), tt.sourceID)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErrMsg)
 		})
 
 		t.Run("PutHistory_"+tt.name, func(t *testing.T) {
-			repo, err := history.NewRepository(newMockStorage())
+			svc, err := history.NewService(newMockStorage())
 			require.NoError(t, err)
 
-			_, err = repo.PutHistory(t.Context(), tt.sourceID, []history.Message{}, 0)
+			_, err = svc.PutHistory(t.Context(), tt.sourceID, []history.Message{}, 0)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -70,11 +70,11 @@ func TestRepository_SourceIDValidation(t *testing.T) {
 	}
 }
 
-// TestRepository_RoundTrip tests PutHistory and GetHistory round-trip.
-func TestRepository_RoundTrip(t *testing.T) {
+// TestService_RoundTrip tests PutHistory and GetHistory round-trip.
+func TestService_RoundTrip(t *testing.T) {
 	t.Run("round-trip with text message", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Given: A user message with text
@@ -87,10 +87,10 @@ func TestRepository_RoundTrip(t *testing.T) {
 		}
 
 		// When: Put and Get
-		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
-		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 
 		// Then: Should match
@@ -106,7 +106,7 @@ func TestRepository_RoundTrip(t *testing.T) {
 
 	t.Run("round-trip with file data", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Given: A user message with file data
@@ -125,10 +125,10 @@ func TestRepository_RoundTrip(t *testing.T) {
 		}
 
 		// When: Put and Get
-		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
-		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 
 		// Then: Should match
@@ -145,7 +145,7 @@ func TestRepository_RoundTrip(t *testing.T) {
 
 	t.Run("round-trip with multiple messages", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Given: Multiple messages (user and assistant)
@@ -168,10 +168,10 @@ func TestRepository_RoundTrip(t *testing.T) {
 		}
 
 		// When: Put and Get
-		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
-		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 
 		// Then: Should have 3 messages in order
@@ -197,7 +197,7 @@ func TestRepository_RoundTrip(t *testing.T) {
 
 	t.Run("round-trip with assistant thought", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Given: An assistant message with thought
@@ -218,10 +218,10 @@ func TestRepository_RoundTrip(t *testing.T) {
 		}
 
 		// When: Put and Get
-		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 
-		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 
 		// Then: Should preserve thought flag
@@ -242,11 +242,11 @@ func TestRepository_RoundTrip(t *testing.T) {
 	})
 }
 
-// TestRepository_KeyIsolation tests that different keys store different data.
-func TestRepository_KeyIsolation(t *testing.T) {
+// TestService_KeyIsolation tests that different keys store different data.
+func TestService_KeyIsolation(t *testing.T) {
 	t.Run("different keys store different data", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Given: Two different sources with different messages
@@ -266,13 +266,13 @@ func TestRepository_KeyIsolation(t *testing.T) {
 		}
 
 		// When: Put to different keys
-		_, err = repo.PutHistory(t.Context(), "source1", messages1, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages1, 0)
 		require.NoError(t, err)
-		_, err = repo.PutHistory(t.Context(), "source2", messages2, 0)
+		_, err = svc.PutHistory(t.Context(), "source2", messages2, 0)
 		require.NoError(t, err)
 
 		// Then: Each key returns its own data
-		retrieved1, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved1, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 		require.Len(t, retrieved1, 1)
 		userMsg1, ok := retrieved1[0].(*history.UserMessage)
@@ -282,7 +282,7 @@ func TestRepository_KeyIsolation(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "Message for source1", textPart1.Text)
 
-		retrieved2, _, err := repo.GetHistory(t.Context(), "source2")
+		retrieved2, _, err := svc.GetHistory(t.Context(), "source2")
 		require.NoError(t, err)
 		require.Len(t, retrieved2, 1)
 		userMsg2, ok := retrieved2[0].(*history.UserMessage)
@@ -295,11 +295,11 @@ func TestRepository_KeyIsolation(t *testing.T) {
 
 	t.Run("non-existent key returns empty history", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// When: Get history for non-existent key
-		retrieved, generation, err := repo.GetHistory(t.Context(), "non-existent")
+		retrieved, generation, err := svc.GetHistory(t.Context(), "non-existent")
 
 		// Then: Should return empty slice, not error
 		require.NoError(t, err)
@@ -312,11 +312,11 @@ func TestRepository_KeyIsolation(t *testing.T) {
 // Optimistic Locking Tests
 // =============================================================================
 
-// TestRepository_OptimisticLocking tests generation-based concurrent modification detection.
-func TestRepository_OptimisticLocking(t *testing.T) {
+// TestService_OptimisticLocking tests generation-based concurrent modification detection.
+func TestService_OptimisticLocking(t *testing.T) {
 	t.Run("write with stale generation fails", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		messages := []history.Message{
@@ -328,19 +328,19 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 		}
 
 		// First write succeeds (generation 0 -> 1)
-		gen1, err := repo.PutHistory(t.Context(), "source1", messages, 0)
+		gen1, err := svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), gen1)
 
 		// Second write with stale generation (0) fails
-		_, err = repo.PutHistory(t.Context(), "source1", messages, 0)
+		_, err = svc.PutHistory(t.Context(), "source1", messages, 0)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "generation mismatch")
 	})
 
 	t.Run("write with correct generation succeeds", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		messages1 := []history.Message{
@@ -359,16 +359,16 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 		}
 
 		// First write (generation 0 -> 1)
-		gen1, err := repo.PutHistory(t.Context(), "source1", messages1, 0)
+		gen1, err := svc.PutHistory(t.Context(), "source1", messages1, 0)
 		require.NoError(t, err)
 
 		// Second write with correct generation succeeds (generation 1 -> 2)
-		gen2, err := repo.PutHistory(t.Context(), "source1", messages2, gen1)
+		gen2, err := svc.PutHistory(t.Context(), "source1", messages2, gen1)
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), gen2)
 
 		// Verify the latest data
-		retrieved, _, err := repo.GetHistory(t.Context(), "source1")
+		retrieved, _, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 		require.Len(t, retrieved, 1)
 		userMsg := retrieved[0].(*history.UserMessage)
@@ -378,7 +378,7 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 
 	t.Run("concurrent modification detected", func(t *testing.T) {
 		storage := newMockStorage()
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
 		// Initial state
@@ -389,13 +389,13 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 				Timestamp: testTime1,
 			},
 		}
-		gen, err := repo.PutHistory(t.Context(), "source1", initialMessages, 0)
+		gen, err := svc.PutHistory(t.Context(), "source1", initialMessages, 0)
 		require.NoError(t, err)
 
 		// Simulate two concurrent reads (both get same generation)
-		_, genA, err := repo.GetHistory(t.Context(), "source1")
+		_, genA, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
-		_, genB, err := repo.GetHistory(t.Context(), "source1")
+		_, genB, err := svc.GetHistory(t.Context(), "source1")
 		require.NoError(t, err)
 		assert.Equal(t, gen, genA)
 		assert.Equal(t, gen, genB)
@@ -408,7 +408,7 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 				Timestamp: testTime1,
 			},
 		}
-		_, err = repo.PutHistory(t.Context(), "source1", messagesA, genA)
+		_, err = svc.PutHistory(t.Context(), "source1", messagesA, genA)
 		require.NoError(t, err)
 
 		// Second concurrent write fails (stale generation)
@@ -419,7 +419,7 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 				Timestamp: testTime1,
 			},
 		}
-		_, err = repo.PutHistory(t.Context(), "source1", messagesB, genB)
+		_, err = svc.PutHistory(t.Context(), "source1", messagesB, genB)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "generation mismatch")
 	})
@@ -429,17 +429,17 @@ func TestRepository_OptimisticLocking(t *testing.T) {
 // JSONL Parsing Error Tests
 // =============================================================================
 
-// TestRepository_ParseErrors tests error handling for malformed JSONL data.
-func TestRepository_ParseErrors(t *testing.T) {
+// TestService_ParseErrors tests error handling for malformed JSONL data.
+func TestService_ParseErrors(t *testing.T) {
 	t.Run("invalid JSON returns error", func(t *testing.T) {
 		storage := newMockStorage()
 		storage.data["source1"] = []byte(`{invalid json}`)
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		_, _, err = repo.GetHistory(t.Context(), "source1")
+		_, _, err = svc.GetHistory(t.Context(), "source1")
 
 		require.Error(t, err)
 	})
@@ -449,10 +449,10 @@ func TestRepository_ParseErrors(t *testing.T) {
 		storage.data["source1"] = []byte(`{"role":"unknown","parts":[],"timestamp":"2025-01-01T00:00:00Z"}`)
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		_, _, err = repo.GetHistory(t.Context(), "source1")
+		_, _, err = svc.GetHistory(t.Context(), "source1")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown role")
@@ -463,10 +463,10 @@ func TestRepository_ParseErrors(t *testing.T) {
 		storage.data["source1"] = []byte(`{"role":"user","userId":"U123","parts":[{"type":"unknown"}],"timestamp":"2025-01-01T00:00:00Z"}`)
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		_, _, err = repo.GetHistory(t.Context(), "source1")
+		_, _, err = svc.GetHistory(t.Context(), "source1")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown user part type")
@@ -477,10 +477,10 @@ func TestRepository_ParseErrors(t *testing.T) {
 		storage.data["source1"] = []byte(`{"role":"assistant","modelName":"test","parts":[{"type":"unknown"}],"timestamp":"2025-01-01T00:00:00Z"}`)
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		_, _, err = repo.GetHistory(t.Context(), "source1")
+		_, _, err = svc.GetHistory(t.Context(), "source1")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown assistant part type")
@@ -491,10 +491,10 @@ func TestRepository_ParseErrors(t *testing.T) {
 		storage.data["source1"] = []byte("\n\n\n")
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		messages, _, err := repo.GetHistory(t.Context(), "source1")
+		messages, _, err := svc.GetHistory(t.Context(), "source1")
 
 		require.NoError(t, err)
 		assert.Empty(t, messages)
@@ -505,10 +505,10 @@ func TestRepository_ParseErrors(t *testing.T) {
 		storage.data["source1"] = []byte("   \n\t\n  \t  \n")
 		storage.generation["source1"] = 1
 
-		repo, err := history.NewRepository(storage)
+		svc, err := history.NewService(storage)
 		require.NoError(t, err)
 
-		messages, _, err := repo.GetHistory(t.Context(), "source1")
+		messages, _, err := svc.GetHistory(t.Context(), "source1")
 
 		require.NoError(t, err)
 		assert.Empty(t, messages)

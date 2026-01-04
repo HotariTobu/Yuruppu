@@ -29,21 +29,20 @@ var (
 func TestNewHandler(t *testing.T) {
 	t.Run("creates handler with dependencies", func(t *testing.T) {
 		mockAg := &mockAgent{}
-		mediaStor := &mockStorage{}
-		historyRepo, err := history.NewRepository(&mockStorage{})
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mediaStor, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 
 		require.NoError(t, err)
 		require.NotNil(t, h)
 	})
 
 	t.Run("returns error when lineClient is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(nil, &mockProfileService{}, historyRepo, &mockStorage{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(nil, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -51,37 +50,37 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("returns error when profileService is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, nil, historyRepo, &mockStorage{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, nil, historyRepo, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
 		assert.Contains(t, err.Error(), "profileService is required")
 	})
 
-	t.Run("returns error when historyRepo is nil", func(t *testing.T) {
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, nil, &mockStorage{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+	t.Run("returns error when historySvc is nil", func(t *testing.T) {
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, nil, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
-		assert.Contains(t, err.Error(), "historyRepo is required")
+		assert.Contains(t, err.Error(), "historySvc is required")
 	})
 
-	t.Run("returns error when mediaStorage is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
+	t.Run("returns error when mediaSvc is nil", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
 		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, nil, &mockAgent{}, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
-		assert.Contains(t, err.Error(), "mediaStorage is required")
+		assert.Contains(t, err.Error(), "mediaSvc is required")
 	})
 
 	t.Run("returns error when agent is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockStorage{}, nil, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, nil, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -89,9 +88,9 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("returns error when logger is nil", func(t *testing.T) {
-		historyRepo, err := history.NewRepository(&mockStorage{})
+		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockStorage{}, &mockAgent{}, nil)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -115,10 +114,10 @@ func TestHandler_HandleText(t *testing.T) {
 	t.Run("success - generates response", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -130,10 +129,10 @@ func TestHandler_HandleText(t *testing.T) {
 	t.Run("agent error - returns error", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -148,10 +147,10 @@ func TestHandler_HandleSticker(t *testing.T) {
 	t.Run("converts sticker to text placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice sticker!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -166,10 +165,10 @@ func TestHandler_HandleVideo(t *testing.T) {
 	t.Run("converts video to text placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I see a video!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -184,10 +183,10 @@ func TestHandler_HandleAudio(t *testing.T) {
 	t.Run("converts audio to text placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I hear audio!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -202,10 +201,10 @@ func TestHandler_HandleLocation(t *testing.T) {
 	t.Run("converts location to text placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Nice place!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -220,10 +219,10 @@ func TestHandler_HandleUnknown(t *testing.T) {
 	t.Run("converts unknown message to text placeholder", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "I got your message!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -249,10 +248,10 @@ func TestHandler_HandleFollow(t *testing.T) {
 			},
 		}
 		mockPS := &mockProfileService{}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, mockStore, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -267,10 +266,10 @@ func TestHandler_HandleFollow(t *testing.T) {
 
 	t.Run("returns error when userID not in context", func(t *testing.T) {
 		mockStore := newMockStorage()
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, &mockAgent{}, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
 		require.NoError(t, err)
 
 		ctx := t.Context() // No userID in context
@@ -285,10 +284,10 @@ func TestHandler_HandleFollow(t *testing.T) {
 		mockClient := &mockLineClient{
 			profileErr: errors.New("LINE API error"),
 		}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockStore, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -306,10 +305,10 @@ func TestHandler_HandleFollow(t *testing.T) {
 		mockPS := &mockProfileService{
 			setErr: errors.New("storage error"),
 		}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, mockStore, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -328,10 +327,10 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 	t.Run("saves user message to history", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -346,10 +345,10 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore := newMockStorage()
 		mockStore.readErr = errors.New("GCS read failed")
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -363,10 +362,10 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		mockStore := newMockStorage()
 		mockStore.writeResults = []writeResult{{gen: 0, err: errors.New("GCS failed")}}
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -379,10 +378,10 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 	t.Run("saves only user message when agent fails", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockAg := &mockAgent{err: errors.New("LLM failed")}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -403,10 +402,10 @@ func TestHandler_ErrorChain(t *testing.T) {
 		mockStore := newMockStorage()
 		agentErr := errors.New("LLM generation failed")
 		mockAg := &mockAgent{err: agentErr}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -424,10 +423,10 @@ func TestHandler_ErrorChain(t *testing.T) {
 		storageErr := errors.New("GCS bucket not found")
 		mockStore.readErr = storageErr
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -445,10 +444,10 @@ func TestHandler_ErrorChain(t *testing.T) {
 		storageErr := errors.New("GCS write quota exceeded")
 		mockStore.writeResults = []writeResult{{gen: 0, err: storageErr}}
 		mockAg := &mockAgent{response: "Hello!"}
-		historyRepo, err := history.NewRepository(mockStore)
+		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, mockStore, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -633,4 +632,30 @@ func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl 
 
 func (m *mockStorage) Close(ctx context.Context) error {
 	return nil
+}
+
+// mockMediaService implements bot.MediaService interface
+type mockMediaService struct {
+	storeErr     error
+	storeKey     string
+	lastSourceID string
+	lastData     []byte
+	lastMIMEType string
+}
+
+func (m *mockMediaService) Store(ctx context.Context, sourceID string, data []byte, mimeType string) (string, error) {
+	m.lastSourceID = sourceID
+	m.lastData = data
+	m.lastMIMEType = mimeType
+	if m.storeErr != nil {
+		return "", m.storeErr
+	}
+	if m.storeKey != "" {
+		return m.storeKey, nil
+	}
+	return sourceID + "/test-uuid", nil
+}
+
+func (m *mockMediaService) GetSignedURL(ctx context.Context, storageKey string, ttl time.Duration) (string, error) {
+	return "https://example.com/signed/" + storageKey, nil
 }

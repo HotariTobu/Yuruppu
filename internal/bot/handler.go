@@ -14,7 +14,6 @@ import (
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/profile"
-	"yuruppu/internal/storage"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -43,36 +42,42 @@ type ProfileService interface {
 	SetUserProfile(ctx context.Context, userID string, profile *profile.UserProfile) error
 }
 
-// HistoryRepository provides access to conversation history.
-type HistoryRepository interface {
+// HistoryService provides access to conversation history.
+type HistoryService interface {
 	GetHistory(ctx context.Context, sourceID string) ([]history.Message, int64, error)
 	PutHistory(ctx context.Context, sourceID string, messages []history.Message, expectedGeneration int64) (int64, error)
+}
+
+// MediaService provides media storage functionality.
+type MediaService interface {
+	Store(ctx context.Context, sourceID string, data []byte, mimeType string) (string, error)
+	GetSignedURL(ctx context.Context, storageKey string, ttl time.Duration) (string, error)
 }
 
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
 	lineClient     LineClient
 	profileService ProfileService
-	history        HistoryRepository
-	mediaStorage   storage.Storage
+	history        HistoryService
+	media          MediaService
 	agent          agent.Agent
 	logger         *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(lineClient LineClient, profileService ProfileService, historyRepo HistoryRepository, mediaStor storage.Storage, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
+func NewHandler(lineClient LineClient, profileService ProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
 	if lineClient == nil {
 		return nil, fmt.Errorf("lineClient is required")
 	}
 	if profileService == nil {
 		return nil, fmt.Errorf("profileService is required")
 	}
-	if historyRepo == nil {
-		return nil, fmt.Errorf("historyRepo is required")
+	if historySvc == nil {
+		return nil, fmt.Errorf("historySvc is required")
 	}
-	if mediaStor == nil {
-		return nil, fmt.Errorf("mediaStorage is required")
+	if mediaSvc == nil {
+		return nil, fmt.Errorf("mediaSvc is required")
 	}
 	if agent == nil {
 		return nil, fmt.Errorf("agent is required")
@@ -83,8 +88,8 @@ func NewHandler(lineClient LineClient, profileService ProfileService, historyRep
 	return &Handler{
 		lineClient:     lineClient,
 		profileService: profileService,
-		history:        historyRepo,
-		mediaStorage:   mediaStor,
+		history:        historySvc,
+		media:          mediaSvc,
 		agent:          agent,
 		logger:         logger,
 	}, nil
@@ -112,11 +117,17 @@ func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 	if !ok {
 		return fmt.Errorf("userID not found in context")
 	}
-	var parts []history.UserPart
 
-	storageKey, mimeType, err := h.uploadMedia(ctx, sourceID, messageID)
+	var parts []history.UserPart
+	data, mimeType, err := h.lineClient.GetMessageContent(messageID)
 	if err != nil {
-		h.logger.WarnContext(ctx, "failed to upload image, using placeholder",
+		h.logger.WarnContext(ctx, "failed to download image, using placeholder",
+			slog.String("messageID", messageID),
+			slog.Any("error", err),
+		)
+		parts = []history.UserPart{&history.UserTextPart{Text: "[User sent an image, but an error occurred while loading]"}}
+	} else if storageKey, err := h.media.Store(ctx, sourceID, data, mimeType); err != nil {
+		h.logger.WarnContext(ctx, "failed to store image, using placeholder",
 			slog.String("messageID", messageID),
 			slog.Any("error", err),
 		)
@@ -491,7 +502,7 @@ func (h *Handler) batchGetSignedURLs(ctx context.Context, pending map[string]age
 	for key := range pending {
 		k := key
 		g.Go(func() error {
-			url, err := h.mediaStorage.GetSignedURL(ctx, k, "GET", signedURLTTL)
+			url, err := h.media.GetSignedURL(ctx, k, signedURLTTL)
 			if err != nil {
 				return fmt.Errorf("failed to get signed URL for storage key %s: %w", k, err)
 			}

@@ -17,30 +17,30 @@ var parametersSchema []byte
 //go:embed response.json
 var responseSchema []byte
 
-// Sender sends a reply message.
-type Sender interface {
+// LineClient provides access to LINE API.
+type LineClient interface {
 	SendReply(replyToken string, text string) error
 }
 
-// HistoryRepository provides access to conversation history.
-type HistoryRepository interface {
+// HistoryService provides access to conversation history.
+type HistoryService interface {
 	GetHistory(ctx context.Context, sourceID string) ([]history.Message, int64, error)
 	PutHistory(ctx context.Context, sourceID string, messages []history.Message, expectedGeneration int64) (int64, error)
 }
 
 // Tool implements the reply tool for sending LINE messages.
 type Tool struct {
-	sender  Sender
-	history HistoryRepository
-	logger  *slog.Logger
+	lineClient LineClient
+	history    HistoryService
+	logger     *slog.Logger
 }
 
 // NewTool creates a new reply tool with the specified dependencies.
-func NewTool(sender Sender, historyRepo HistoryRepository, logger *slog.Logger) *Tool {
+func NewTool(lineClient LineClient, historySvc HistoryService, logger *slog.Logger) *Tool {
 	return &Tool{
-		sender:  sender,
-		history: historyRepo,
-		logger:  logger,
+		lineClient: lineClient,
+		history:    historySvc,
+		logger:     logger,
 	}
 }
 
@@ -101,7 +101,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}
 
 	// Send reply
-	if err := t.sender.SendReply(replyToken, message); err != nil {
+	if err := t.lineClient.SendReply(replyToken, message); err != nil {
 		t.logger.ErrorContext(ctx, "failed to send reply",
 			slog.String("sourceID", sourceID),
 			slog.Any("error", err),

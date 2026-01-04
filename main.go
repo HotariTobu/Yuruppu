@@ -16,6 +16,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	"yuruppu/internal/media"
 	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
 	"yuruppu/internal/toolset/reply"
@@ -221,14 +222,14 @@ func main() {
 		logger.Error("failed to create history storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	historyRepo, err := history.NewRepository(historyStorage)
+	historySvc, err := history.NewService(historyStorage)
 	if err != nil {
-		logger.Error("failed to create history repository", slog.Any("error", err))
+		logger.Error("failed to create history service", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// Create reply tool
-	replyTool := reply.NewTool(lineClient, historyRepo, logger)
+	replyTool := reply.NewTool(lineClient, historySvc, logger)
 
 	// Create skip tool
 	skipTool := skip.NewTool()
@@ -258,13 +259,16 @@ func main() {
 	}
 	profileService := profile.NewService(profileStorage, logger)
 
-	// Create message handler
+	// Create media service
 	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
 	if err != nil {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	messageHandler, err := bot.NewHandler(lineClient, profileService, historyRepo, mediaStorage, geminiAgent, logger)
+	mediaSvc := media.NewService(mediaStorage, logger)
+
+	// Create message handler
+	messageHandler, err := bot.NewHandler(lineClient, profileService, historySvc, mediaSvc, geminiAgent, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)
