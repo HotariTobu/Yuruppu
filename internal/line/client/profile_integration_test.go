@@ -1,12 +1,12 @@
 //go:build integration
 
-package line_test
+package client_test
 
 import (
 	"context"
 	"log/slog"
 	"testing"
-	"yuruppu/internal/line"
+	"yuruppu/internal/line/client"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +18,7 @@ import (
 func TestGetProfile_Integration(t *testing.T) {
 	_, channelAccessToken := requireLINECredentials(t)
 
-	client, err := line.NewClient(channelAccessToken, slog.New(slog.DiscardHandler))
+	c, err := client.NewClient(channelAccessToken, slog.New(slog.DiscardHandler))
 	require.NoError(t, err, "NewClient should succeed")
 
 	// Get bot info first to get a valid user ID (the bot itself)
@@ -28,7 +28,7 @@ func TestGetProfile_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use the bot's own user ID for testing
-	profile, err := client.GetProfile(context.Background(), botInfo.UserId)
+	profile, err := c.GetProfile(context.Background(), botInfo.UserId)
 
 	require.NoError(t, err, "GetProfile should succeed for bot's own user ID")
 	assert.NotNil(t, profile, "profile should not be nil")

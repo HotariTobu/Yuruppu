@@ -1,6 +1,6 @@
 //go:build integration
 
-package line_test
+package client_test
 
 import (
 	"log/slog"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"yuruppu/internal/line"
+	"yuruppu/internal/line/client"
 )
 
 // requireMediaTestCredentials fails the test if required credentials and test data are not available.
@@ -41,11 +41,11 @@ func TestGetMessageContent_Integration_ValidMediaMessage(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	client, err := line.NewClient(channelAccessToken, logger)
+	c, err := client.NewClient(channelAccessToken, logger)
 	require.NoError(t, err, "NewClient should succeed with valid token")
 
 	// When: Content is downloaded using the message ID
-	data, mimeType, err := client.GetMessageContent(testMessageID)
+	data, mimeType, err := c.GetMessageContent(testMessageID)
 
 	// Then: Binary data is obtained AND MIME type is obtained
 	require.NoError(t, err, "GetMessageContent should succeed with valid message ID")
@@ -76,13 +76,13 @@ func TestGetMessageContent_Integration_InvalidMessageID(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	client, err := line.NewClient(channelAccessToken, logger)
+	c, err := client.NewClient(channelAccessToken, logger)
 	require.NoError(t, err, "NewClient should succeed with valid token")
 
 	// Test with obviously invalid message ID
 	invalidMessageID := "invalid-message-id-12345"
 
-	data, mimeType, err := client.GetMessageContent(invalidMessageID)
+	data, mimeType, err := c.GetMessageContent(invalidMessageID)
 
 	// Should return error for invalid message ID
 	assert.Error(t, err, "GetMessageContent should fail with invalid message ID")
@@ -98,10 +98,10 @@ func TestGetMessageContent_Integration_EmptyMessageID(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	client, err := line.NewClient(channelAccessToken, logger)
+	c, err := client.NewClient(channelAccessToken, logger)
 	require.NoError(t, err, "NewClient should succeed with valid token")
 
-	data, mimeType, err := client.GetMessageContent("")
+	data, mimeType, err := c.GetMessageContent("")
 
 	// Should return error for empty message ID
 	assert.Error(t, err, "GetMessageContent should fail with empty message ID")

@@ -15,7 +15,7 @@ import (
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
-	"yuruppu/internal/line"
+	lineclient "yuruppu/internal/line/client"
 	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/media"
 	"yuruppu/internal/profile"
@@ -200,7 +200,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	lineClient, err := line.NewClient(config.ChannelAccessToken, logger)
+	lineClient, err := lineclient.NewClient(config.ChannelAccessToken, logger)
 	if err != nil {
 		logger.Error("failed to initialize client", slog.Any("error", err))
 		os.Exit(1)

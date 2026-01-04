@@ -7,14 +7,14 @@ import (
 	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/history"
-	"yuruppu/internal/line"
+	lineclient "yuruppu/internal/line/client"
 	"yuruppu/internal/profile"
 )
 
 // LineClient provides access to LINE API.
 type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
-	GetProfile(ctx context.Context, userID string) (*line.UserProfile, error)
+	GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
 }
 
 // ProfileService provides access to user profiles.

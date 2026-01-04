@@ -1,9 +1,9 @@
-package line_test
+package client_test
 
 import (
 	"log/slog"
 	"testing"
-	"yuruppu/internal/line"
+	"yuruppu/internal/line/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func TestNewClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c, err := line.NewClient(tt.channelToken, logger)
+			c, err := client.NewClient(tt.channelToken, logger)
 
 			if tt.wantErr {
 				require.Error(t, err)

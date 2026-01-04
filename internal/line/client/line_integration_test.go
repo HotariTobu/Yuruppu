@@ -1,6 +1,6 @@
 //go:build integration
 
-package line_test
+package client_test
 
 import (
 	"os"

@@ -10,6 +10,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	lineclient "yuruppu/internal/line/client"
 	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/profile"
 
@@ -242,7 +243,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 	t.Run("fetches profile from LINE and stores it", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockClient := &mockLineClient{
-			profile: &line.UserProfile{
+			profile: &lineclient.UserProfile{
 				DisplayName:   "Alice",
 				PictureURL:    "",
 				StatusMessage: "Hello!",
@@ -301,7 +302,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 	t.Run("returns error when SetUserProfile fails", func(t *testing.T) {
 		mockStore := newMockStorage()
 		mockClient := &mockLineClient{
-			profile: &line.UserProfile{DisplayName: "Alice"},
+			profile: &lineclient.UserProfile{DisplayName: "Alice"},
 		}
 		mockPS := &mockProfileService{
 			setErr: errors.New("storage error"),
@@ -499,7 +500,7 @@ type mockLineClient struct {
 	mimeType      string
 	err           error
 	lastMessageID string
-	profile       *line.UserProfile
+	profile       *lineclient.UserProfile
 	profileErr    error
 }
 
@@ -511,14 +512,14 @@ func (m *mockLineClient) GetMessageContent(messageID string) ([]byte, string, er
 	return m.data, m.mimeType, nil
 }
 
-func (m *mockLineClient) GetProfile(ctx context.Context, userID string) (*line.UserProfile, error) {
+func (m *mockLineClient) GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error) {
 	if m.profileErr != nil {
 		return nil, m.profileErr
 	}
 	if m.profile != nil {
 		return m.profile, nil
 	}
-	return &line.UserProfile{
+	return &lineclient.UserProfile{
 		DisplayName:   "Test User",
 		PictureURL:    "",
 		StatusMessage: "",
