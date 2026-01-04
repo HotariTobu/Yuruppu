@@ -16,6 +16,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/media"
 	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
@@ -193,7 +194,7 @@ func main() {
 
 	// Initialize components
 	llmTimeout := time.Duration(config.LLMTimeoutSeconds) * time.Second
-	lineServer, err := line.NewServer(config.ChannelSecret, llmTimeout, logger)
+	lineServer, err := lineserver.NewServer(config.ChannelSecret, llmTimeout, logger)
 	if err != nil {
 		logger.Error("failed to initialize server", slog.Any("error", err))
 		os.Exit(1)

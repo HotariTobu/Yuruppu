@@ -10,6 +10,7 @@ import (
 	"yuruppu/internal/bot"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
+	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/profile"
 
 	"github.com/stretchr/testify/assert"
@@ -18,8 +19,8 @@ import (
 
 // Compile-time interface satisfaction checks
 var (
-	_ agent.Agent  = (*mockAgent)(nil)
-	_ line.Handler = (*bot.Handler)(nil)
+	_ agent.Agent        = (*mockAgent)(nil)
+	_ lineserver.Handler = (*bot.Handler)(nil)
 )
 
 // =============================================================================

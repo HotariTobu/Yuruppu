@@ -1,4 +1,4 @@
-package line_test
+package server_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 	"yuruppu/internal/line"
+	"yuruppu/internal/line/server"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func computeSignature(body []byte, channelSecret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// mockHandler is a test implementation of line.Handler.
+// mockHandler is a test implementation of server.Handler.
 type mockHandler struct {
 	mu              sync.Mutex
 	textMessages    []textMessage
@@ -199,7 +200,7 @@ func TestNewServer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s, err := line.NewServer(tt.channelSecret, 30*time.Second, discardLogger())
+			s, err := server.NewServer(tt.channelSecret, 30*time.Second, discardLogger())
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -215,7 +216,7 @@ func TestNewServer(t *testing.T) {
 func TestNewServer_ZeroTimeout(t *testing.T) {
 	t.Parallel()
 
-	s, err := line.NewServer("test-secret", 0, discardLogger())
+	s, err := server.NewServer("test-secret", 0, discardLogger())
 
 	require.Error(t, err, "zero timeout should be rejected")
 	assert.Nil(t, s)
@@ -225,7 +226,7 @@ func TestNewServer_ZeroTimeout(t *testing.T) {
 func TestNewServer_NegativeTimeout(t *testing.T) {
 	t.Parallel()
 
-	s, err := line.NewServer("test-secret", -5*time.Second, discardLogger())
+	s, err := server.NewServer("test-secret", -5*time.Second, discardLogger())
 
 	require.Error(t, err, "negative timeout should be rejected")
 	assert.Nil(t, s)
@@ -239,7 +240,7 @@ func TestNewServer_NegativeTimeout(t *testing.T) {
 func TestServer_RegisterHandler(t *testing.T) {
 	t.Parallel()
 
-	s, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -258,7 +259,7 @@ func TestServer_RegisterHandler(t *testing.T) {
 func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 	t.Parallel()
 
-	s, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -274,7 +275,7 @@ func TestServer_HandleWebhook_InvalidSignature(t *testing.T) {
 func TestServer_HandleWebhook_MissingSignature(t *testing.T) {
 	t.Parallel()
 
-	s, err := line.NewServer("test-secret", 30*time.Second, discardLogger())
+	s, err := server.NewServer("test-secret", 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -290,7 +291,7 @@ func TestServer_HandleWebhook_ValidSignature_EmptyEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{"events":[]}`
@@ -313,7 +314,7 @@ func TestServer_HandleWebhook_TextMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -364,7 +365,7 @@ func TestServer_HandleWebhook_MultipleEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -429,7 +430,7 @@ func TestServer_HandleWebhook_NonMessageEvents(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -469,7 +470,7 @@ func TestServer_HandleWebhook_ImageMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -518,7 +519,7 @@ func TestServer_HandleWebhook_StickerMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -568,7 +569,7 @@ func TestServer_HandleWebhook_LocationMessage(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -618,7 +619,7 @@ func TestServer_HandleWebhook_NoHandler(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	body := `{
@@ -650,7 +651,7 @@ func TestServer_HandleWebhook_MultipleHandlers(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler1 := &mockHandler{}
@@ -718,7 +719,7 @@ func TestServer_HandleWebhook_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -766,7 +767,7 @@ func TestServer_HandleWebhook_ContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -813,7 +814,7 @@ func TestServer_CallbackTimeout_Enforcement(t *testing.T) {
 
 	channelSecret := "test-secret"
 	shortTimeout := 100 * time.Millisecond
-	s, err := line.NewServer(channelSecret, shortTimeout, discardLogger())
+	s, err := server.NewServer(channelSecret, shortTimeout, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -868,7 +869,7 @@ func TestServer_HandleWebhook_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -918,7 +919,7 @@ func TestServer_HandleWebhook_GroupSource(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -970,7 +971,7 @@ func TestServer_HandleWebhook_RoomSource(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -1022,7 +1023,7 @@ func TestServer_HandleWebhook_UserSource(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}
@@ -1074,7 +1075,7 @@ func TestServer_HandleWebhook_MissingSource(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
-	s, err := line.NewServer(channelSecret, 30*time.Second, discardLogger())
+	s, err := server.NewServer(channelSecret, 30*time.Second, discardLogger())
 	require.NoError(t, err)
 
 	handler := &mockHandler{}

@@ -1,4 +1,4 @@
-package line
+package server
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 // The error return is used for logging purposes only - the HTTP response
 // is already sent before handler execution.
 type Handler interface {
+	HandleFollow(ctx context.Context) error
 	HandleText(ctx context.Context, text string) error
 	HandleImage(ctx context.Context, messageID string) error
 	HandleSticker(ctx context.Context, packageID, stickerID string) error
@@ -24,7 +25,6 @@ type Handler interface {
 	HandleAudio(ctx context.Context, messageID string) error
 	HandleLocation(ctx context.Context, latitude, longitude float64) error
 	HandleUnknown(ctx context.Context) error
-	HandleFollow(ctx context.Context) error
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -86,114 +86,11 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Process each event asynchronously
 	for _, event := range cb.Events {
 		switch e := event.(type) {
-		case webhook.MessageEvent:
-			s.dispatchMessage(e)
 		case webhook.FollowEvent:
 			s.dispatchFollow(e)
+		case webhook.MessageEvent:
+			s.dispatchMessage(e)
 		}
-	}
-}
-
-// dispatchMessage dispatches the message event to all registered handlers.
-// Each handler runs asynchronously in its own goroutine with panic recovery.
-func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeHandler(handler, msgEvent)
-	}
-}
-
-// invokeHandler invokes a single handler with panic recovery.
-func (s *Server) invokeHandler(handler Handler, msgEvent webhook.MessageEvent) {
-	sourceID, userID := extractSourceIDs(msgEvent.Source)
-
-	defer func() {
-		if r := recover(); r != nil {
-			s.logger.Error("handler panicked",
-				slog.String("sourceID", sourceID),
-				slog.String("userID", userID),
-				slog.Any("panic", r),
-			)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
-	defer cancel()
-
-	// Set LINE-specific values in context
-	ctx = WithReplyToken(ctx, msgEvent.ReplyToken)
-	ctx = WithSourceID(ctx, sourceID)
-	ctx = WithUserID(ctx, userID)
-
-	var err error
-	switch msg := msgEvent.Message.(type) {
-	case webhook.TextMessageContent:
-		err = handler.HandleText(ctx, msg.Text)
-	case webhook.ImageMessageContent:
-		err = handler.HandleImage(ctx, msg.Id)
-	case webhook.StickerMessageContent:
-		err = handler.HandleSticker(ctx, msg.PackageId, msg.StickerId)
-	case webhook.VideoMessageContent:
-		err = handler.HandleVideo(ctx, msg.Id)
-	case webhook.AudioMessageContent:
-		err = handler.HandleAudio(ctx, msg.Id)
-	case webhook.LocationMessageContent:
-		err = handler.HandleLocation(ctx, msg.Latitude, msg.Longitude)
-	default:
-		err = handler.HandleUnknown(ctx)
-	}
-
-	if err != nil {
-		s.logger.Error("handler failed",
-			slog.String("sourceID", sourceID),
-			slog.String("userID", userID),
-			slog.Any("error", err),
-		)
-	}
-}
-
-// dispatchFollow dispatches the follow event to all registered handlers.
-func (s *Server) dispatchFollow(followEvent webhook.FollowEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeFollowHandler(handler, followEvent)
-	}
-}
-
-// invokeFollowHandler invokes a single handler for follow event with panic recovery.
-func (s *Server) invokeFollowHandler(handler Handler, followEvent webhook.FollowEvent) {
-	sourceID, userID := extractSourceIDs(followEvent.Source)
-
-	defer func() {
-		if r := recover(); r != nil {
-			s.logger.Error("follow handler panicked",
-				slog.String("sourceID", sourceID),
-				slog.String("userID", userID),
-				slog.Any("panic", r),
-			)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
-	defer cancel()
-
-	// Set LINE-specific values in context
-	ctx = WithSourceID(ctx, sourceID)
-	ctx = WithUserID(ctx, userID)
-
-	err := handler.HandleFollow(ctx)
-	if err != nil {
-		s.logger.Error("follow handler failed",
-			slog.String("sourceID", sourceID),
-			slog.String("userID", userID),
-			slog.Any("error", err),
-		)
 	}
 }
 
