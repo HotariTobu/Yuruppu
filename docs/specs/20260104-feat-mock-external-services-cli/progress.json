@@ -6,7 +6,7 @@
     { "id": "FR-002", "passes": false },
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
-    { "id": "FR-005", "passes": false },
+    { "id": "FR-005", "passes": true },
     { "id": "FR-006", "passes": true },
     { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": true },
@@ -21,5 +21,5 @@
     { "id": "TR-004", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 3: Implemented setup/setup.go with EnsureDataDir function for FR-009 (data directory creation prompt). Tests pass, all reviews pass, preflight passes. Next session: implement profile/profile.go for FR-005 (new user profile prompts with display name required, picture URL and status message optional)."
+  "notes": "Session 4: Implemented cmd/cli/profile/profile.go with PromptNewProfile function for FR-005. All reviews pass (8 reviewers). Improvements identified for future: HTTP client timeout, SSRF protection (low priority for local CLI), input length validation. Next session: implement repl/repl.go for FR-001 (REPL loop with Ctrl+C/quit handling)."
 }
