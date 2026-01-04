@@ -31,7 +31,7 @@ End the current coding session with progress update and structured commit.
    - If not found: Stop and show error with available specs
 
 1. **Load the specification**
-   - Read `spec.md` and `progress.json`
+   - Read `spec.md`, `progress.json`, and `design.md`
 
 2. **Review changes**
    ```bash
