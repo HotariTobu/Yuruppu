@@ -1,15 +1,15 @@
 {
   "phase": "in-progress",
-  "lastUpdated": "2026-01-04",
+  "lastUpdated": "2026-01-05",
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
-    { "id": "FR-003", "passes": false },
+    { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
     { "id": "FR-005", "passes": false },
-    { "id": "FR-006", "passes": false },
-    { "id": "FR-007", "passes": false },
-    { "id": "FR-008", "passes": false },
+    { "id": "FR-006", "passes": true },
+    { "id": "FR-007", "passes": true },
+    { "id": "FR-008", "passes": true },
     { "id": "FR-009", "passes": false },
     { "id": "FR-010", "passes": false },
     { "id": "FR-011", "passes": false },
@@ -18,8 +18,8 @@
     { "id": "TR-001", "passes": false },
     { "id": "TR-002", "passes": false },
     { "id": "TR-003", "passes": false },
-    { "id": "TR-004", "passes": false }
+    { "id": "TR-004", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 1: Implemented mock/storage.go (FileStorage) with comprehensive tests. Next session should implement mock/lineclient.go for LINE API mocking."
+  "notes": "Session 2: Implemented mock/lineclient.go with tests. FR-003 (LINE API mocked - SendReply prints to writer), FR-006/FR-007/FR-008 (FileStorage), TR-004 (bucket subdirs) are passing. All reviews passed (spec compliance, architecture, readability, testing, security, performance). Minor reviewer suggestions noted (context handling, thread safety) - low priority for CLI mock. Next session: implement setup/setup.go for FR-009 (data dir prompt) or profile/profile.go for FR-005 (profile prompts)."
 }
