@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -26,11 +27,17 @@ type Service struct {
 }
 
 // NewService creates a new profile service.
-func NewService(storage storage.Storage, logger *slog.Logger) *Service {
+func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) {
+	if storage == nil {
+		return nil, errors.New("storage cannot be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Service{
 		storage: storage,
 		logger:  logger,
-	}
+	}, nil
 }
 
 // GetUserProfile retrieves user profile from cache or storage.

@@ -214,7 +214,11 @@ func main() {
 	}
 
 	// Create tools
-	weatherTool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, logger)
+	weatherTool, err := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, logger)
+	if err != nil {
+		logger.Error("failed to create weather tool", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Create history repository (needed by reply tool and handler)
 	historyStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
@@ -229,7 +233,11 @@ func main() {
 	}
 
 	// Create reply tool
-	replyTool := reply.NewTool(lineClient, historySvc, logger)
+	replyTool, err := reply.NewTool(lineClient, historySvc, logger)
+	if err != nil {
+		logger.Error("failed to create reply tool", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Create skip tool
 	skipTool := skip.NewTool()
@@ -257,7 +265,11 @@ func main() {
 		logger.Error("failed to create profile storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	profileService := profile.NewService(profileStorage, logger)
+	profileService, err := profile.NewService(profileStorage, logger)
+	if err != nil {
+		logger.Error("failed to create profile service", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Create media service
 	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
@@ -265,7 +277,11 @@ func main() {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	mediaSvc := media.NewService(mediaStorage, logger)
+	mediaSvc, err := media.NewService(mediaStorage, logger)
+	if err != nil {
+		logger.Error("failed to create media service", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Create message handler
 	messageHandler, err := bot.NewHandler(lineClient, profileService, historySvc, mediaSvc, geminiAgent, logger)

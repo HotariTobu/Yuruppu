@@ -35,7 +35,7 @@ func TestNewTool(t *testing.T) {
 		historyRepo := &mockHistoryRepo{}
 		logger := slog.New(slog.DiscardHandler)
 
-		tool := reply.NewTool(sender, historyRepo, logger)
+		tool, _ := reply.NewTool(sender, historyRepo, logger)
 
 		require.NotNil(t, tool)
 		assert.Equal(t, "reply", tool.Name())
@@ -48,24 +48,24 @@ func TestNewTool(t *testing.T) {
 
 func TestTool_Metadata(t *testing.T) {
 	t.Run("Name returns reply", func(t *testing.T) {
-		tool := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
 		assert.Equal(t, "reply", tool.Name())
 	})
 
 	t.Run("Description is not empty", func(t *testing.T) {
-		tool := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
 		assert.NotEmpty(t, tool.Description())
 	})
 
 	t.Run("ParametersJsonSchema is valid JSON", func(t *testing.T) {
-		tool := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
 		schema := tool.ParametersJsonSchema()
 		assert.NotEmpty(t, schema)
 		assert.Contains(t, string(schema), "message")
 	})
 
 	t.Run("ResponseJsonSchema is valid JSON", func(t *testing.T) {
-		tool := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(&mockSender{}, &mockHistoryRepo{}, slog.New(slog.DiscardHandler))
 		schema := tool.ResponseJsonSchema()
 		assert.NotEmpty(t, schema)
 		assert.Contains(t, string(schema), "status")
@@ -80,7 +80,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("success - sends reply and saves history", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
@@ -97,7 +97,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("error - invalid message (missing)", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{})
@@ -111,7 +111,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("error - invalid message (empty string)", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
@@ -126,7 +126,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("error - reply token not in context", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		// Only set sourceID, not replyToken
 		ctx := line.WithSourceID(t.Context(), "source-123")
@@ -142,7 +142,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("error - source ID not in context", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		// Only set replyToken, not sourceID
 		ctx := line.WithReplyToken(t.Context(), "reply-token")
@@ -158,7 +158,7 @@ func TestTool_Callback(t *testing.T) {
 	t.Run("error - model name not in context", func(t *testing.T) {
 		sender := &mockSender{}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		// Set replyToken and sourceID, but not modelName
 		ctx := line.WithReplyToken(t.Context(), "reply-token")
@@ -177,7 +177,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{
 			getErr: errors.New("storage error"),
 		}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
@@ -195,7 +195,7 @@ func TestTool_Callback(t *testing.T) {
 			err: errors.New("LINE API error"),
 		}
 		historyRepo := &mockHistoryRepo{}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
@@ -213,7 +213,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{
 			putErr: errors.New("storage error"),
 		}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		result, err := tool.Callback(ctx, map[string]any{
@@ -238,7 +238,7 @@ func TestTool_Callback(t *testing.T) {
 		historyRepo := &mockHistoryRepo{
 			history: existingHistory,
 		}
-		tool := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
+		tool, _ := reply.NewTool(sender, historyRepo, slog.New(slog.DiscardHandler))
 
 		ctx := withToolContext(t.Context(), "reply-token", "source-123", "gemini-2.0-flash")
 		_, err := tool.Callback(ctx, map[string]any{

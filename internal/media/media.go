@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -23,11 +24,17 @@ type Service struct {
 }
 
 // NewService creates a new media service.
-func NewService(storage storage.Storage, logger *slog.Logger) *Service {
+func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) {
+	if storage == nil {
+		return nil, errors.New("storage cannot be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Service{
 		storage: storage,
 		logger:  logger,
-	}
+	}, nil
 }
 
 // Store saves media data to storage.

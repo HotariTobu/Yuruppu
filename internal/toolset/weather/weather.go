@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -34,11 +35,17 @@ type Tool struct {
 }
 
 // NewTool creates a new weather tool with the specified HTTP client and logger.
-func NewTool(httpClient HTTPClient, logger *slog.Logger) *Tool {
+func NewTool(httpClient HTTPClient, logger *slog.Logger) (*Tool, error) {
+	if httpClient == nil {
+		return nil, errors.New("httpClient cannot be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Tool{
 		httpClient: httpClient,
 		logger:     logger,
-	}
+	}, nil
 }
 
 // Name returns the tool name.

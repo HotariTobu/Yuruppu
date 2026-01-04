@@ -3,6 +3,7 @@ package reply
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -36,12 +37,21 @@ type Tool struct {
 }
 
 // NewTool creates a new reply tool with the specified dependencies.
-func NewTool(lineClient LineClient, historySvc HistoryService, logger *slog.Logger) *Tool {
+func NewTool(lineClient LineClient, historySvc HistoryService, logger *slog.Logger) (*Tool, error) {
+	if lineClient == nil {
+		return nil, errors.New("lineClient cannot be nil")
+	}
+	if historySvc == nil {
+		return nil, errors.New("historySvc cannot be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Tool{
 		lineClient: lineClient,
 		history:    historySvc,
 		logger:     logger,
-	}
+	}, nil
 }
 
 // Name returns the tool name.

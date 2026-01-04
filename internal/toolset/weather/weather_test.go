@@ -171,7 +171,7 @@ func TestCallback(t *testing.T) {
 				}
 			}
 
-			tool := weather.NewTool(client, slog.Default())
+			tool, _ := weather.NewTool(client, slog.Default())
 			result, err := tool.Callback(context.Background(), tt.args)
 
 			if tt.wantErr {

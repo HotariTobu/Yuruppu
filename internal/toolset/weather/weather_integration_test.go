@@ -16,7 +16,7 @@ import (
 )
 
 func TestTool_Integration_Callback_Tokyo(t *testing.T) {
-	tool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
+	tool, _ := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
 	ctx := context.Background()
 
 	result, err := tool.Callback(ctx, map[string]any{"location": "Tokyo"})
@@ -37,7 +37,7 @@ func TestTool_Integration_Callback_Tokyo(t *testing.T) {
 }
 
 func TestTool_Integration_Callback_MultipleDates(t *testing.T) {
-	tool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
+	tool, _ := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
 	ctx := context.Background()
 
 	result, err := tool.Callback(ctx, map[string]any{
@@ -56,7 +56,7 @@ func TestTool_Integration_Callback_MultipleDates(t *testing.T) {
 }
 
 func TestTool_Integration_Callback_DetailedWithHourly(t *testing.T) {
-	tool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
+	tool, _ := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
 	ctx := context.Background()
 
 	result, err := tool.Callback(ctx, map[string]any{
@@ -90,7 +90,7 @@ func TestTool_Integration_Callback_DetailedWithHourly(t *testing.T) {
 }
 
 func TestTool_Integration_Callback_LocationWithSpace(t *testing.T) {
-	tool := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
+	tool, _ := weather.NewTool(&http.Client{Timeout: 30 * time.Second}, slog.Default())
 	ctx := context.Background()
 
 	result, err := tool.Callback(ctx, map[string]any{"location": "New York"})
@@ -110,7 +110,7 @@ func TestTool_Integration_Callback_LocationWithSpace(t *testing.T) {
 }
 
 func TestTool_Integration_Callback_Timeout(t *testing.T) {
-	tool := weather.NewTool(&http.Client{Timeout: 1 * time.Nanosecond}, slog.Default())
+	tool, _ := weather.NewTool(&http.Client{Timeout: 1 * time.Nanosecond}, slog.Default())
 	ctx := context.Background()
 
 	_, err := tool.Callback(ctx, map[string]any{"location": "Tokyo"})

@@ -20,7 +20,7 @@ import (
 func TestService_GetUserProfile(t *testing.T) {
 	t.Run("returns profile from cache when available", func(t *testing.T) {
 		store := newMockStorage()
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		// Set profile first (populates cache)
 		p := &profile.UserProfile{DisplayName: "Alice"}
@@ -40,7 +40,7 @@ func TestService_GetUserProfile(t *testing.T) {
 
 	t.Run("returns profile from storage when not in cache", func(t *testing.T) {
 		store := newMockStorage()
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		// Pre-populate storage directly (bypassing cache)
 		p := &profile.UserProfile{DisplayName: "Bob", StatusMessage: "Hello"}
@@ -57,7 +57,7 @@ func TestService_GetUserProfile(t *testing.T) {
 
 	t.Run("caches profile after reading from storage", func(t *testing.T) {
 		store := newMockStorage()
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		// Pre-populate storage
 		p := &profile.UserProfile{DisplayName: "Charlie"}
@@ -78,7 +78,7 @@ func TestService_GetUserProfile(t *testing.T) {
 	t.Run("returns error when storage read fails", func(t *testing.T) {
 		store := newMockStorage()
 		store.readErr = errors.New("storage error")
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		got, err := svc.GetUserProfile(t.Context(), "user-123")
 
@@ -90,7 +90,7 @@ func TestService_GetUserProfile(t *testing.T) {
 	t.Run("returns error when JSON unmarshal fails", func(t *testing.T) {
 		store := newMockStorage()
 		store.data["user-123"] = []byte("invalid json")
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		got, err := svc.GetUserProfile(t.Context(), "user-123")
 
@@ -107,7 +107,7 @@ func TestService_GetUserProfile(t *testing.T) {
 func TestService_SetUserProfile(t *testing.T) {
 	t.Run("stores profile to cache and storage", func(t *testing.T) {
 		store := newMockStorage()
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		p := &profile.UserProfile{
 			DisplayName:   "Alice",
@@ -133,7 +133,7 @@ func TestService_SetUserProfile(t *testing.T) {
 	t.Run("returns error when storage write fails", func(t *testing.T) {
 		store := newMockStorage()
 		store.writeErr = errors.New("write failed")
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		p := &profile.UserProfile{DisplayName: "Alice"}
 		err := svc.SetUserProfile(t.Context(), "user-123", p)
@@ -145,7 +145,7 @@ func TestService_SetUserProfile(t *testing.T) {
 	t.Run("updates cache even when storage write fails", func(t *testing.T) {
 		store := newMockStorage()
 		store.writeErr = errors.New("write failed")
-		svc := profile.NewService(store, slog.New(slog.DiscardHandler))
+		svc, _ := profile.NewService(store, slog.New(slog.DiscardHandler))
 
 		p := &profile.UserProfile{DisplayName: "Alice"}
 		_ = svc.SetUserProfile(t.Context(), "user-123", p)
