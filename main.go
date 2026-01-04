@@ -240,7 +240,11 @@ func main() {
 	}
 
 	// Create skip tool
-	skipTool := skip.NewTool()
+	skipTool, err := skip.NewTool(logger)
+	if err != nil {
+		logger.Error("failed to create skip tool", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute

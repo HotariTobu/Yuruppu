@@ -3,6 +3,8 @@ package skip
 import (
 	"context"
 	_ "embed"
+	"errors"
+	"log/slog"
 )
 
 //go:embed parameters.json
@@ -12,11 +14,18 @@ var parametersSchema []byte
 var responseSchema []byte
 
 // Tool implements the skip tool for explicitly not replying.
-type Tool struct{}
+type Tool struct {
+	logger *slog.Logger
+}
 
 // NewTool creates a new skip tool.
-func NewTool() *Tool {
-	return &Tool{}
+func NewTool(logger *slog.Logger) (*Tool, error) {
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
+	return &Tool{
+		logger: logger,
+	}, nil
 }
 
 // Name returns the tool name.
@@ -41,6 +50,8 @@ func (t *Tool) ResponseJsonSchema() []byte {
 
 // Callback does nothing and returns success.
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
+	reason, _ := args["reason"].(string)
+	t.logger.DebugContext(ctx, "skip tool called", slog.String("reason", reason))
 	return map[string]any{
 		"status": "skipped",
 	}, nil
