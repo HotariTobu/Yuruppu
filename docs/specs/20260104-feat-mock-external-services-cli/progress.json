@@ -10,7 +10,7 @@
     { "id": "FR-006", "passes": true },
     { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": true },
-    { "id": "FR-009", "passes": false },
+    { "id": "FR-009", "passes": true },
     { "id": "FR-010", "passes": false },
     { "id": "FR-011", "passes": false },
     { "id": "NFR-001", "passes": false },
@@ -21,5 +21,5 @@
     { "id": "TR-004", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 2: Implemented mock/lineclient.go with tests. FR-003 (LINE API mocked - SendReply prints to writer), FR-006/FR-007/FR-008 (FileStorage), TR-004 (bucket subdirs) are passing. All reviews passed (spec compliance, architecture, readability, testing, security, performance). Minor reviewer suggestions noted (context handling, thread safety) - low priority for CLI mock. Next session: implement setup/setup.go for FR-009 (data dir prompt) or profile/profile.go for FR-005 (profile prompts)."
+  "notes": "Session 3: Implemented setup/setup.go with EnsureDataDir function for FR-009 (data directory creation prompt). Tests pass, all reviews pass, preflight passes. Next session: implement profile/profile.go for FR-005 (new user profile prompts with display name required, picture URL and status message optional)."
 }
