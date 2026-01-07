@@ -260,6 +260,8 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 		}
 		wg.Wait()
 
+		// Combine all function responses into a single Content
+		funcRespParts := make([]*genai.Part, len(funcResps))
 		for i, funcResp := range funcResps {
 			g.logger.Debug("tool executed",
 				slog.String("tool", funcResp.Name),
@@ -267,9 +269,9 @@ func (g *GeminiAgent) generateWithToolLoop(ctx context.Context, model string, in
 				slog.Any("response", funcResp.Response),
 				slog.Bool("final", finals[i]),
 			)
-			content := genai.NewContentFromFunctionResponse(funcResp.Name, funcResp.Response, genai.RoleUser)
-			addedContents = append(addedContents, content)
+			funcRespParts[i] = genai.NewPartFromFunctionResponse(funcResp.Name, funcResp.Response)
 		}
+		addedContents = append(addedContents, genai.NewContentFromParts(funcRespParts, genai.RoleUser))
 
 		if slices.Contains(finals, true) {
 			return addedContents, nil
