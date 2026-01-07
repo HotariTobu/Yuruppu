@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"time"
 	"yuruppu/cmd/cli/mock"
-	cliProfile "yuruppu/cmd/cli/profile"
+	cliprofile "yuruppu/cmd/cli/profile"
 	"yuruppu/cmd/cli/repl"
 	"yuruppu/cmd/cli/setup"
 	"yuruppu/internal/agent"
@@ -105,27 +105,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return fmt.Errorf("failed to create profile service: %w", err)
 	}
 
-	// Check if profile exists, if not prompt for new profile
 	ctx := context.Background()
-	_, err = profileService.GetUserProfile(ctx, *userID)
-	if err != nil {
-		// Profile not found, prompt for new profile
-		logger.Info("profile not found, prompting for new profile", slog.String("userID", *userID))
 
-		newProfile, err := cliProfile.PromptNewProfile(ctx, stdin, stderr)
-		if err != nil {
-			return fmt.Errorf("failed to prompt for profile: %w", err)
-		}
-
-		if err := profileService.SetUserProfile(ctx, *userID, newProfile); err != nil {
-			return fmt.Errorf("failed to save profile: %w", err)
-		}
-
-		logger.Info("profile created successfully", slog.String("userID", *userID))
-	}
-
-	// Create mock LINE client
+	// Create mock LINE client with profile prompter
 	lineClient := mock.NewLineClient(stdout)
+	lineClient.RegisterProfileFetcher(cliprofile.NewPrompter(stdin, stderr))
 
 	// Create history service
 	historyService, err := history.NewService(historyStorage)
@@ -176,6 +160,19 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	handler, err := bot.NewHandler(lineClient, profileService, historyService, mediaService, geminiAgent, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create handler: %w", err)
+	}
+
+	// Check if profile exists, if not call HandleFollow to create it
+	_, err = profileService.GetUserProfile(ctx, *userID)
+	if err != nil {
+		logger.Info("profile not found, prompting for new profile", slog.String("userID", *userID))
+
+		followCtx := line.WithUserID(ctx, *userID)
+		if err := handler.HandleFollow(followCtx); err != nil {
+			return fmt.Errorf("failed to create profile: %w", err)
+		}
+
+		logger.Info("profile created successfully", slog.String("userID", *userID))
 	}
 
 	// Single-turn mode or REPL mode
