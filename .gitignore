@@ -38,3 +38,6 @@ go.work.sum
 .tofu/
 terraform.tfvars
 *.auto.tfvars
+
+# CLI local data
+.yuruppu/
