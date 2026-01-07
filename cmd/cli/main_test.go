@@ -579,52 +579,33 @@ func TestRun_InvalidArgs(t *testing.T) {
 
 // TestRun_NilIO tests error handling for nil I/O
 func TestRun_NilIO(t *testing.T) {
-	tests := []struct {
-		name    string
-		stdin   *strings.Reader
-		stdout  *bytes.Buffer
-		stderr  *bytes.Buffer
-		wantErr bool
-	}{
-		{
-			name:    "nil stdin",
-			stdin:   nil,
-			stdout:  &bytes.Buffer{},
-			stderr:  &bytes.Buffer{},
-			wantErr: true,
-		},
-		{
-			name:    "nil stdout",
-			stdin:   strings.NewReader(""),
-			stdout:  nil,
-			stderr:  &bytes.Buffer{},
-			wantErr: true,
-		},
-		{
-			name:    "nil stderr",
-			stdin:   strings.NewReader(""),
-			stdout:  &bytes.Buffer{},
-			stderr:  nil,
-			wantErr: true,
-		},
-	}
+	t.Run("nil stdin", func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given
-			t.Setenv("GCP_PROJECT_ID", "test-project")
-			t.Setenv("GCP_REGION", "test-region")
-			t.Setenv("LLM_MODEL", "test-model")
+		args := []string{"yuruppu-cli", "--message", "test"}
+		err := run(args, nil, &bytes.Buffer{}, &bytes.Buffer{})
+		require.Error(t, err, "should return error for nil stdin")
+	})
 
-			args := []string{"yuruppu-cli", "--message", "test"}
+	t.Run("nil stdout", func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
 
-			// When
-			err := run(args, tt.stdin, tt.stdout, tt.stderr)
+		args := []string{"yuruppu-cli", "--message", "test"}
+		err := run(args, strings.NewReader(""), nil, &bytes.Buffer{})
+		require.Error(t, err, "should return error for nil stdout")
+	})
 
-			// Then
-			if tt.wantErr {
-				require.Error(t, err, "should return error for nil I/O")
-			}
-		})
-	}
+	t.Run("nil stderr", func(t *testing.T) {
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		args := []string{"yuruppu-cli", "--message", "test"}
+		err := run(args, strings.NewReader(""), &bytes.Buffer{}, nil)
+		require.Error(t, err, "should return error for nil stderr")
+	})
 }

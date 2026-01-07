@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 	"yuruppu/cmd/cli/mock"
@@ -39,14 +40,14 @@ func main() {
 
 // run implements the CLI logic with testable I/O.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	// Validate I/O (check for nil interfaces including typed nils)
-	if stdin == nil || (fmt.Sprintf("%v", stdin) == "<nil>") {
+	// Validate I/O
+	if stdin == nil {
 		return errors.New("stdin cannot be nil")
 	}
-	if stdout == nil || (fmt.Sprintf("%v", stdout) == "<nil>") {
+	if stdout == nil {
 		return errors.New("stdout cannot be nil")
 	}
-	if stderr == nil || (fmt.Sprintf("%v", stderr) == "<nil>") {
+	if stderr == nil {
 		return errors.New("stderr cannot be nil")
 	}
 
@@ -94,9 +95,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// Create FileStorage instances for each bucket
-	profileStorage := mock.NewFileStorage(*dataDir + "profiles/")
-	historyStorage := mock.NewFileStorage(*dataDir + "history/")
-	mediaStorage := mock.NewFileStorage(*dataDir + "media/")
+	profileStorage := mock.NewFileStorage(filepath.Join(*dataDir, "profiles"))
+	historyStorage := mock.NewFileStorage(filepath.Join(*dataDir, "history"))
+	mediaStorage := mock.NewFileStorage(filepath.Join(*dataDir, "media"))
 
 	// Create profile service
 	profileService, err := profile.NewService(profileStorage, logger)
@@ -122,22 +123,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 		logger.Info("profile created successfully", slog.String("userID", *userID))
 	}
-
-	// Create GeminiAgent
-	geminiAgent, err := agent.NewGeminiAgent(ctx, agent.GeminiConfig{
-		ProjectID:        gcpProjectID,
-		Region:           gcpRegion,
-		Model:            llmModel,
-		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            nil, // Tools will be set after creating them
-		FunctionCallOnly: true,
-		CacheDisplayName: "yuruppu-cli",
-		CacheTTL:         1 * time.Hour,
-	}, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create Gemini agent: %w", err)
-	}
-	defer func() { _ = geminiAgent.Close(ctx) }()
 
 	// Create mock LINE client
 	lineClient := mock.NewLineClient(stdout)
@@ -171,9 +156,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return fmt.Errorf("failed to create skip tool: %w", err)
 	}
 
-	// Recreate agent with tools
-	_ = geminiAgent.Close(ctx)
-	geminiAgent, err = agent.NewGeminiAgent(ctx, agent.GeminiConfig{
+	// Create GeminiAgent with tools
+	geminiAgent, err := agent.NewGeminiAgent(ctx, agent.GeminiConfig{
 		ProjectID:        gcpProjectID,
 		Region:           gcpRegion,
 		Model:            llmModel,
