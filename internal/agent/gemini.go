@@ -15,9 +15,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// disabledThinkingBudget disables the thinking feature in Gemini models.
-const disabledThinkingBudget = int32(0)
-
 // minCacheTokens is the minimum token count required for Gemini context caching.
 const minCacheTokens = 1024
 
@@ -118,11 +115,6 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 		slog.Int("minCacheTokens", minCacheTokens),
 	)
 
-	budget := disabledThinkingBudget
-	thinkingConfig := &genai.ThinkingConfig{
-		ThinkingBudget: &budget,
-	}
-
 	var genaiTools []*genai.Tool
 	var toolConfig *genai.ToolConfig
 	var toolMap map[string]tool
@@ -150,12 +142,9 @@ func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) 
 		model:  model,
 		// Do not duplicate fields already set in cachedContentConfig.
 		// Duplicating them will cause an error.
-		contentConfigWithCache: &genai.GenerateContentConfig{
-			ThinkingConfig: thinkingConfig,
-		},
+		contentConfigWithCache: &genai.GenerateContentConfig{},
 		contentConfigWithoutCache: &genai.GenerateContentConfig{
 			SystemInstruction: systemInstruction,
-			ThinkingConfig:    thinkingConfig,
 			Tools:             genaiTools,
 			ToolConfig:        toolConfig,
 		},

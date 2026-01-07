@@ -3,7 +3,7 @@
   "properties": {
     "reason": {
       "type": "string",
-      "description": "The reason for skipping",
+      "description": "Why no action is needed (for debug logging only, NOT shown to user)",
       "minLength": 1,
       "maxLength": 500
     }

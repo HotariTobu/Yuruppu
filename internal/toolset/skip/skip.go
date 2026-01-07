@@ -35,7 +35,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Call this tool when no action is needed."
+	return "Use this tool ONLY when you decide to do nothing for the user(s)."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.

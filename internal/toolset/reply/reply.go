@@ -61,7 +61,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Send a reply message to the user. Only call this tool if you want to send a message."
+	return "Use this tool to send a reply message to the user(s)."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.

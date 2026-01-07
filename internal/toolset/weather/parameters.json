@@ -6,7 +6,7 @@
       "minLength": 1,
       "maxLength": 100,
       "pattern": "^[^@:/]+$",
-      "description": "City name (e.g., Tokyo, 東京, Osaka)"
+      "description": "City name in English (e.g., Tokyo, Osaka, New York, Paris)"
     },
     "date": {
       "type": "array",
