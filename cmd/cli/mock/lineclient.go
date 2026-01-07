@@ -9,10 +9,17 @@ import (
 	lineclient "yuruppu/internal/line/client"
 )
 
+// ProfileFetcher defines the interface for fetching user profiles.
+// In CLI mode, this is implemented by a prompter that asks for user input.
+type ProfileFetcher interface {
+	FetchProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
+}
+
 // LineClient is a mock implementation of LINE client interfaces for CLI testing.
 // It implements both bot.LineClient and reply.LineClient interfaces.
 type LineClient struct {
-	writer io.Writer
+	writer         io.Writer
+	profileFetcher ProfileFetcher
 }
 
 // NewLineClient creates a new mock LINE client that writes output to the given writer.
@@ -26,16 +33,24 @@ func NewLineClient(w io.Writer) *LineClient {
 	}
 }
 
+// RegisterProfileFetcher registers a profile fetcher for GetProfile calls.
+func (c *LineClient) RegisterProfileFetcher(fetcher ProfileFetcher) {
+	c.profileFetcher = fetcher
+}
+
 // GetMessageContent returns an error indicating that media operations are not supported in mock mode.
 // This method implements the bot.LineClient interface.
 func (c *LineClient) GetMessageContent(messageID string) ([]byte, string, error) {
 	return nil, "", errors.New("media operations are not supported in CLI mode")
 }
 
-// GetProfile returns an error indicating that user profiles should be created via CLI prompts.
+// GetProfile delegates to the registered ProfileFetcher.
 // This method implements the bot.LineClient interface.
 func (c *LineClient) GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error) {
-	return nil, errors.New("user profile should be created via CLI prompts")
+	if c.profileFetcher == nil {
+		return nil, errors.New("profile fetcher not registered")
+	}
+	return c.profileFetcher.FetchProfile(ctx, userID)
 }
 
 // SendReply writes the message to the configured output writer.
