@@ -61,8 +61,9 @@ func (c *LineClient) SendReply(replyToken string, text string) error {
 	return err
 }
 
-// ShowLoadingAnimation is a no-op in CLI mode since there's no LINE chat to display the indicator.
+// ShowLoadingAnimation writes a loading animation message to the output.
 // This method implements the bot.LineClient interface.
 func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
-	return nil
+	_, err := fmt.Fprintf(c.writer, "[Loading animation: %s]\n", timeout)
+	return err
 }
