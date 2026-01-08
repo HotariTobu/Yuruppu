@@ -147,6 +147,24 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	if !ok {
 		return fmt.Errorf("sourceID not found in context")
 	}
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
+
+	// Show loading animation for 1:1 chats (sourceID == userID means UserSource)
+	if sourceID == userID {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					h.logger.WarnContext(ctx, "loading animation panicked", slog.Any("panic", r))
+				}
+			}()
+			if err := h.lineClient.ShowLoadingAnimation(context.Background(), userID, 20); err != nil {
+				h.logger.WarnContext(ctx, "failed to show loading animation", slog.Any("error", err))
+			}
+		}()
+	}
 
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, sourceID)
