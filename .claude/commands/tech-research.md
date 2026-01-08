@@ -3,7 +3,7 @@ description: Analyze codebase and create ADRs for a specification
 argument-hint: <spec-name>
 requires-phase: spec
 sets-phase: tech-researched
-allowed-tools: Bash(git *), Read, Write, Glob, Grep, TodoWrite, Task, Skill, AskUserQuestion
+allowed-tools: Bash(git:*), Read, Write, Glob, Grep, TodoWrite, Task, AskUserQuestion, Skill
 ---
 
 # Tech Research Phase

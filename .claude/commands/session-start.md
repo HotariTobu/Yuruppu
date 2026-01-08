@@ -3,7 +3,7 @@ description: Start a coding session with progress review and planning
 argument-hint: [spec-name]
 requires-phase: designed, in-progress
 sets-phase: in-progress
-allowed-tools: Bash(git *), Bash(make preflight), Read, Glob, TodoWrite, Task
+allowed-tools: Bash(git:*), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # Start Session
@@ -55,8 +55,11 @@ Start a coding session with progress review and planning.
    - If phase is `"designed"`, update progress.json to `"in-progress"`
 
 8. **TDD Implementation**
-   - Use `go-test-generator` agent to generate tests and verify red phase
-   - Use `go-implementer` agent to implement code and verify green phase
+
+   **IMPORTANT**: Do NOT implement code directly. You MUST delegate to agents.
+
+   - Red Phase: Launch `go-test-generator` agent via Task tool
+   - Green Phase: Launch `go-implementer` agent via Task tool
 
 ## Output Format
 

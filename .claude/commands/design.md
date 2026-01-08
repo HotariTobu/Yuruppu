@@ -3,7 +3,7 @@ description: Create detailed design collaboratively with user
 argument-hint: <spec-name>
 requires-phase: prototyped
 sets-phase: designed
-allowed-tools: Bash(git *), Read, Write, Edit, Glob, Grep, TodoWrite, AskUserQuestion
+allowed-tools: Bash(git:*), Read, Write, Edit, Glob, Grep, TodoWrite, AskUserQuestion
 ---
 
 # Design Phase

@@ -3,7 +3,7 @@ description: Create a prototype to validate technical decisions
 argument-hint: <spec-name>
 requires-phase: tech-researched
 sets-phase: prototyped
-allowed-tools: Bash(git *), Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash(git:*), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # Prototype Phase

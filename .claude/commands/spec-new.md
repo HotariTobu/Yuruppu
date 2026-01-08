@@ -2,7 +2,7 @@
 description: Create a new specification with progress.json
 argument-hint: <name>
 sets-phase: spec
-allowed-tools: Bash(git *), Read, Write, Glob, TodoWrite, AskUserQuestion, WebSearch, Task
+allowed-tools: Bash(git:*), Read, Write, Edit, Glob, TodoWrite, Task, AskUserQuestion, WebSearch
 ---
 
 # Create a New Specification
