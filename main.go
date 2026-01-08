@@ -30,19 +30,21 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	LogLevel           slog.Level // Log level (default: INFO)
-	Endpoint           string     // Webhook endpoint path (required)
-	Port               string     // Server port (default: 8080)
-	ChannelSecret      string
-	ChannelAccessToken string
-	GCPProjectID       string // Optional: auto-detected on Cloud Run
-	GCPRegion          string // Optional: auto-detected on Cloud Run
-	LLMModel           string // Required: LLM model name
-	LLMCacheTTLMinutes int    // LLM cache TTL in minutes (default: 60)
-	LLMTimeoutSeconds  int    // LLM API timeout in seconds (default: 30)
-	ProfileBucket      string // GCS bucket for user profiles
-	HistoryBucket      string // GCS bucket for chat history
-	MediaBucket        string // GCS bucket for media files
+	LogLevel                      slog.Level // Log level (default: INFO)
+	Endpoint                      string     // Webhook endpoint path (required)
+	Port                          string     // Server port (default: 8080)
+	ChannelSecret                 string
+	ChannelAccessToken            string
+	GCPProjectID                  string // Optional: auto-detected on Cloud Run
+	GCPRegion                     string // Optional: auto-detected on Cloud Run
+	LLMModel                      string // Required: LLM model name
+	LLMCacheTTLMinutes            int    // LLM cache TTL in minutes (default: 60)
+	LLMTimeoutSeconds             int    // LLM API timeout in seconds (default: 30)
+	ProfileBucket                 string // GCS bucket for user profiles
+	HistoryBucket                 string // GCS bucket for chat history
+	MediaBucket                   string // GCS bucket for media files
+	TypingIndicatorDelaySeconds   int    // Delay before showing typing indicator (default: 3)
+	TypingIndicatorTimeoutSeconds int    // Typing indicator display duration (default: 30, range: 5-60)
 }
 
 const (
@@ -54,6 +56,12 @@ const (
 
 	// defaultLLMTimeoutSeconds is the default LLM API timeout in seconds.
 	defaultLLMTimeoutSeconds = 30
+
+	// defaultTypingIndicatorDelaySeconds is the delay before showing typing indicator.
+	defaultTypingIndicatorDelaySeconds = 3
+
+	// defaultTypingIndicatorTimeoutSeconds is the typing indicator display duration.
+	defaultTypingIndicatorTimeoutSeconds = 30
 )
 
 // loadConfig loads configuration from environment variables.
@@ -150,20 +158,42 @@ func loadConfig() (*Config, error) {
 		return nil, errors.New("MEDIA_BUCKET is required")
 	}
 
+	// Parse typing indicator delay
+	typingIndicatorDelaySeconds := defaultTypingIndicatorDelaySeconds
+	if env := os.Getenv("TYPING_INDICATOR_DELAY_SECONDS"); env != "" {
+		parsed, err := strconv.Atoi(env)
+		if err != nil || parsed <= 0 {
+			return nil, fmt.Errorf("TYPING_INDICATOR_DELAY_SECONDS must be a positive integer: %s", env)
+		}
+		typingIndicatorDelaySeconds = parsed
+	}
+
+	// Parse typing indicator timeout (must be 5-60 seconds per LINE API)
+	typingIndicatorTimeoutSeconds := defaultTypingIndicatorTimeoutSeconds
+	if env := os.Getenv("TYPING_INDICATOR_TIMEOUT_SECONDS"); env != "" {
+		parsed, err := strconv.Atoi(env)
+		if err != nil || parsed < 5 || parsed > 60 {
+			return nil, fmt.Errorf("TYPING_INDICATOR_TIMEOUT_SECONDS must be between 5 and 60 seconds: %s", env)
+		}
+		typingIndicatorTimeoutSeconds = parsed
+	}
+
 	return &Config{
-		LogLevel:           logLevel,
-		Endpoint:           endpoint,
-		Port:               port,
-		ChannelSecret:      channelSecret,
-		ChannelAccessToken: channelAccessToken,
-		GCPProjectID:       gcpProjectID,
-		GCPRegion:          gcpRegion,
-		LLMModel:           llmModel,
-		LLMCacheTTLMinutes: llmCacheTTLMinutes,
-		LLMTimeoutSeconds:  llmTimeoutSeconds,
-		ProfileBucket:      profileBucket,
-		HistoryBucket:      historyBucket,
-		MediaBucket:        mediaBucket,
+		LogLevel:                      logLevel,
+		Endpoint:                      endpoint,
+		Port:                          port,
+		ChannelSecret:                 channelSecret,
+		ChannelAccessToken:            channelAccessToken,
+		GCPProjectID:                  gcpProjectID,
+		GCPRegion:                     gcpRegion,
+		LLMModel:                      llmModel,
+		LLMCacheTTLMinutes:            llmCacheTTLMinutes,
+		LLMTimeoutSeconds:             llmTimeoutSeconds,
+		ProfileBucket:                 profileBucket,
+		HistoryBucket:                 historyBucket,
+		MediaBucket:                   mediaBucket,
+		TypingIndicatorDelaySeconds:   typingIndicatorDelaySeconds,
+		TypingIndicatorTimeoutSeconds: typingIndicatorTimeoutSeconds,
 	}, nil
 }
 
@@ -289,7 +319,11 @@ func main() {
 	}
 
 	// Create message handler
-	messageHandler, err := bot.NewHandler(lineClient, profileService, historySvc, mediaSvc, geminiAgent, logger)
+	handlerConfig := bot.HandlerConfig{
+		TypingIndicatorDelay:   time.Duration(config.TypingIndicatorDelaySeconds) * time.Second,
+		TypingIndicatorTimeout: time.Duration(config.TypingIndicatorTimeoutSeconds) * time.Second,
+	}
+	messageHandler, err := bot.NewHandler(lineClient, profileService, historySvc, mediaSvc, geminiAgent, handlerConfig, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)

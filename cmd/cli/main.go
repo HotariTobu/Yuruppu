@@ -157,7 +157,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	defer func() { _ = geminiAgent.Close(ctx) }()
 
 	// Create bot handler
-	handler, err := bot.NewHandler(lineClient, profileService, historyService, mediaService, geminiAgent, logger)
+	handlerConfig := bot.HandlerConfig{
+		TypingIndicatorDelay:   3 * time.Second,
+		TypingIndicatorTimeout: 30 * time.Second,
+	}
+	handler, err := bot.NewHandler(lineClient, profileService, historyService, mediaService, geminiAgent, handlerConfig, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create handler: %w", err)
 	}
