@@ -52,3 +52,47 @@ variable "llm_model" {
   description = "LLM model name"
   type        = string
 }
+
+variable "llm_cache_ttl_minutes" {
+  description = "LLM cache TTL in minutes"
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.llm_cache_ttl_minutes > 0
+    error_message = "llm_cache_ttl_minutes must be a positive integer"
+  }
+}
+
+variable "llm_timeout_seconds" {
+  description = "LLM API timeout in seconds"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.llm_timeout_seconds > 0
+    error_message = "llm_timeout_seconds must be a positive integer"
+  }
+}
+
+variable "typing_indicator_delay_seconds" {
+  description = "Delay before showing typing indicator"
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.typing_indicator_delay_seconds > 0
+    error_message = "typing_indicator_delay_seconds must be a positive integer"
+  }
+}
+
+variable "typing_indicator_timeout_seconds" {
+  description = "Typing indicator display duration (LINE API requires 5-60 seconds)"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.typing_indicator_timeout_seconds >= 5 && var.typing_indicator_timeout_seconds <= 60
+    error_message = "typing_indicator_timeout_seconds must be between 5 and 60 seconds"
+  }
+}

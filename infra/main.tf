@@ -255,6 +255,16 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       }
 
       env {
+        name  = "LLM_CACHE_TTL_MINUTES"
+        value = var.llm_cache_ttl_minutes
+      }
+
+      env {
+        name  = "LLM_TIMEOUT_SECONDS"
+        value = var.llm_timeout_seconds
+      }
+
+      env {
         name  = "PROFILE_BUCKET"
         value = google_storage_bucket.profile.name
       }
@@ -267,6 +277,16 @@ resource "google_cloud_run_v2_service" "yuruppu" {
       env {
         name  = "MEDIA_BUCKET"
         value = google_storage_bucket.media.name
+      }
+
+      env {
+        name  = "TYPING_INDICATOR_DELAY_SECONDS"
+        value = var.typing_indicator_delay_seconds
+      }
+
+      env {
+        name  = "TYPING_INDICATOR_TIMEOUT_SECONDS"
+        value = var.typing_indicator_timeout_seconds
       }
 
       resources {

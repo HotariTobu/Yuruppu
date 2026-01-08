@@ -58,7 +58,7 @@ const (
 	defaultLLMTimeoutSeconds = 30
 
 	// defaultTypingIndicatorDelaySeconds is the delay before showing typing indicator.
-	defaultTypingIndicatorDelaySeconds = 3
+	defaultTypingIndicatorDelaySeconds = 5
 
 	// defaultTypingIndicatorTimeoutSeconds is the typing indicator display duration.
 	defaultTypingIndicatorTimeoutSeconds = 30
