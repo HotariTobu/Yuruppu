@@ -15,6 +15,13 @@ import (
 type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
 	GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
+	ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error
+}
+
+// HandlerConfig holds handler configuration.
+type HandlerConfig struct {
+	TypingIndicatorDelay   time.Duration // time to wait before showing indicator (default 3s)
+	TypingIndicatorTimeout time.Duration // indicator display duration (5-60s)
 }
 
 // ProfileService provides access to user profiles.
@@ -42,12 +49,13 @@ type Handler struct {
 	history        HistoryService
 	media          MediaService
 	agent          agent.Agent
+	config         HandlerConfig
 	logger         *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(lineClient LineClient, profileService ProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, logger *slog.Logger) (*Handler, error) {
+func NewHandler(lineClient LineClient, profileService ProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
 	if lineClient == nil {
 		return nil, fmt.Errorf("lineClient is required")
 	}
@@ -72,6 +80,7 @@ func NewHandler(lineClient LineClient, profileService ProfileService, historySvc
 		history:        historySvc,
 		media:          mediaSvc,
 		agent:          agent,
+		config:         config,
 		logger:         logger,
 	}, nil
 }

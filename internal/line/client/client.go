@@ -1,10 +1,12 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
@@ -43,4 +45,16 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 		blobAPI: blobAPI,
 		logger:  logger,
 	}, nil
+}
+
+// ShowLoadingAnimation displays a loading animation in a 1:1 chat.
+// timeout is converted to seconds (5-60) for LINE API.
+func (c *Client) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
+	loadingSeconds := int32(timeout.Seconds())
+	req := &messaging_api.ShowLoadingAnimationRequest{
+		ChatId:         chatID,
+		LoadingSeconds: loadingSeconds,
+	}
+	_, err := c.api.ShowLoadingAnimation(req)
+	return err
 }

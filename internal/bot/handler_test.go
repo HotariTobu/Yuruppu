@@ -35,16 +35,23 @@ func TestNewHandler(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 
 		require.NoError(t, err)
 		require.NotNil(t, h)
 	})
+}
+
+func TestNewHandler_NilDependencies(t *testing.T) {
+	validConfig := bot.HandlerConfig{
+		TypingIndicatorDelay:   3 * time.Second,
+		TypingIndicatorTimeout: 30 * time.Second,
+	}
 
 	t.Run("returns error when lineClient is nil", func(t *testing.T) {
 		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(nil, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(nil, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, validConfig, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -54,7 +61,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when profileService is nil", func(t *testing.T) {
 		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, nil, historyRepo, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, nil, historyRepo, &mockMediaService{}, &mockAgent{}, validConfig, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -62,7 +69,7 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("returns error when historySvc is nil", func(t *testing.T) {
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, nil, &mockMediaService{}, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, nil, &mockMediaService{}, &mockAgent{}, validConfig, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -72,7 +79,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when mediaSvc is nil", func(t *testing.T) {
 		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, nil, &mockAgent{}, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, nil, &mockAgent{}, validConfig, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -82,7 +89,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when agent is nil", func(t *testing.T) {
 		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, nil, slog.New(slog.DiscardHandler))
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, nil, validConfig, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -92,7 +99,7 @@ func TestNewHandler(t *testing.T) {
 	t.Run("returns error when logger is nil", func(t *testing.T) {
 		historyRepo, err := history.NewService(&mockStorage{})
 		require.NoError(t, err)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, nil)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, validConfig, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, h)
@@ -112,6 +119,14 @@ func withLineContext(ctx context.Context, replyToken, sourceID, userID string) c
 	return ctx
 }
 
+// validHandlerConfig returns a valid HandlerConfig for tests
+func validHandlerConfig() bot.HandlerConfig {
+	return bot.HandlerConfig{
+		TypingIndicatorDelay:   3 * time.Second,
+		TypingIndicatorTimeout: 30 * time.Second,
+	}
+}
+
 func TestHandler_HandleText(t *testing.T) {
 	t.Run("success - generates response", func(t *testing.T) {
 		mockStore := newMockStorage()
@@ -119,7 +134,7 @@ func TestHandler_HandleText(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -134,7 +149,7 @@ func TestHandler_HandleText(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -152,7 +167,7 @@ func TestHandler_HandleSticker(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -170,7 +185,7 @@ func TestHandler_HandleVideo(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -188,7 +203,7 @@ func TestHandler_HandleAudio(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -206,7 +221,7 @@ func TestHandler_HandleLocation(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -224,7 +239,7 @@ func TestHandler_HandleUnknown(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -253,7 +268,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -271,7 +286,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := t.Context() // No userID in context
@@ -289,7 +304,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -310,7 +325,7 @@ func TestHandler_HandleFollow(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, logger)
+		h, err := bot.NewHandler(mockClient, mockPS, historyRepo, &mockMediaService{}, &mockAgent{}, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "", "", "user-123")
@@ -332,7 +347,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -350,7 +365,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -367,7 +382,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -383,7 +398,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -407,7 +422,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -428,7 +443,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -449,7 +464,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
-		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, logger)
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -524,6 +539,10 @@ func (m *mockLineClient) GetProfile(ctx context.Context, userID string) (*linecl
 		PictureURL:    "",
 		StatusMessage: "",
 	}, nil
+}
+
+func (m *mockLineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
+	return nil
 }
 
 type mockProfileService struct {

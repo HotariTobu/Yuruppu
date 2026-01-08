@@ -28,7 +28,7 @@ func TestHandleImage(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -53,7 +53,7 @@ func TestHandleImage(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
@@ -74,7 +74,7 @@ func TestHandleImage(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
@@ -96,7 +96,7 @@ func TestHandleImage(t *testing.T) {
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
 
-		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, logger)
+		h, err := bot.NewHandler(mockClient, &mockProfileService{}, historyRepo, mockMedia, mockAg, validHandlerConfig(), logger)
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")

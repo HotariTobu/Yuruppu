@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	lineclient "yuruppu/internal/line/client"
 )
@@ -58,4 +59,10 @@ func (c *LineClient) GetProfile(ctx context.Context, userID string) (*lineclient
 func (c *LineClient) SendReply(replyToken string, text string) error {
 	_, err := fmt.Fprintf(c.writer, "%s\n", text)
 	return err
+}
+
+// ShowLoadingAnimation is a no-op in CLI mode since there's no LINE chat to display the indicator.
+// This method implements the bot.LineClient interface.
+func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
+	return nil
 }
