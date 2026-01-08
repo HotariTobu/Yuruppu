@@ -7,9 +7,10 @@
     { "id": "FR-003", "passes": false },
     { "id": "FR-004", "passes": false },
     { "id": "FR-005", "passes": false },
+    { "id": "FR-006", "passes": false },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "Prototype validated: SDK has ShowLoadingAnimation, sourceID==userID detects 1:1 chat, goroutine pattern works."
+  "notes": "Spec v2.1: Delayed loading indicator approach - show only if processing takes longer than delay time (default 3s)."
 }
