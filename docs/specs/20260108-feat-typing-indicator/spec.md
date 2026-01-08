@@ -19,15 +19,22 @@
 - ローディング時間のカスタマイズ設定（管理画面等での設定変更）
 - 複数回のローディングインジケーター更新（LINEの仕様により、進行中のインジケーターに対する追加リクエストは時間を上書きするのみ）
 
+## Definitions
+
+- **遅延時間（delay）**: メッセージ受信からローディングインジケーター表示までの待機時間。デフォルト3秒
+- **表示時間（loadingSeconds）**: ローディングインジケーターの表示継続時間。5〜60秒の範囲（LINE API制限）
+- **処理完了**: メッセージハンドラーの処理が終了した状態（reply tool呼び出し、skip tool呼び出し、またはエラー発生のいずれか）
+
 ## Requirements
 
 ### Functional Requirements
 
-- [ ] FR-001: メッセージ受信後、応答生成処理の開始前にLINEのローディングインジケーターAPIを呼び出す
+- [ ] FR-001: メッセージ受信後、遅延時間が経過しても処理完了していない場合に、ローディングインジケーターAPIを呼び出す
 - [ ] FR-002: ローディングインジケーターは1:1チャット（UserSource）でのみ呼び出す。グループチャット（GroupSource）やルームチャット（RoomSource）では呼び出さない
 - [ ] FR-003: ボットからの応答メッセージ送信時に、ローディングインジケーターは自動的に消える（LINE APIの仕様）
 - [ ] FR-004: ローディングインジケーターAPI呼び出しが失敗しても、メッセージ処理は継続する
-- [ ] FR-005: ローディングインジケーターの表示時間（loadingSeconds）はLLMタイムアウト設定値を使用する（5〜60秒の範囲内にクランプ）
+- [ ] FR-005: 表示時間（loadingSeconds）は設定可能とする。5〜60秒の範囲外の場合はアプリケーション起動時にエラーとする
+- [ ] FR-006: 遅延時間内に処理完了した場合は、ローディングインジケーターを表示しない
 
 ### Non-Functional Requirements
 
@@ -36,14 +43,13 @@
 
 ## Acceptance Criteria
 
-### AC-001: 1:1チャットでローディングインジケーターが表示される [FR-001, FR-002, FR-005]
+### AC-001: 遅延後にローディングインジケーターが表示される [FR-001, FR-002, FR-005]
 
 - **Given**: ユーザーがボットと1:1チャットをしている
-- **When**: ユーザーがテキストメッセージを送信する
+- **When**: ユーザーがメッセージを送信し、遅延時間が経過してもまだ処理中
 - **Then**:
   - LINE上でローディングアニメーションが表示される
   - ボットが応答を返すまでアニメーションが継続する
-  - ローディング時間はLLMタイムアウト設定値に基づく
 
 ### AC-002: 応答送信でローディングインジケーターが消える [FR-003]
 
@@ -76,8 +82,24 @@
 - **Given**: ユーザーがメッセージを送信する
 - **When**: ローディングインジケーターAPIが呼び出される
 - **Then**:
-  - メッセージ処理の開始がAPI呼び出しの完了を待たない
+  - メッセージ処理がAPI呼び出しの完了を待たない
   - ローディングインジケーターAPIのレスポンスが遅延しても、メッセージ処理は正常に完了する
+
+### AC-006: 高速処理時はローディングインジケーターを表示しない [FR-006]
+
+- **Given**: ユーザーがボットと1:1チャットをしている
+- **When**: ユーザーがメッセージを送信し、遅延時間内に処理完了する（skip tool使用を含む）
+- **Then**:
+  - ローディングインジケーターAPIは呼び出されない
+  - 応答またはskipが正常に処理される
+
+### AC-007: 設定値が範囲外の場合は起動エラー [FR-005]
+
+- **Given**: 表示時間（loadingSeconds）が5秒未満または60秒超に設定されている
+- **When**: アプリケーションを起動する
+- **Then**:
+  - アプリケーションがエラーで起動に失敗する
+  - エラーメッセージに設定値の有効範囲が含まれる
 
 ## Change History
 
@@ -86,3 +108,5 @@
 | 2026-01-08 | 1.0 | Initial version | - |
 | 2026-01-08 | 1.1 | Address spec-reviewer feedback: add loadingSeconds parameter (FR-005), clarify source type definitions, make acceptance criteria testable | - |
 | 2026-01-08 | 1.2 | Remove implementation details (specific function/layer names) per spec guidelines - leave to /design phase | - |
+| 2026-01-08 | 2.0 | Major revision: delayed loading indicator approach - show indicator only if processing takes longer than delay time; separate env var for timeout; error on invalid range instead of clamping; add FR-006, AC-006, AC-007 | - |
+| 2026-01-08 | 2.1 | Add Definitions section (delay, loadingSeconds, processing complete); clarify AC-006 skip tool reference | - |
