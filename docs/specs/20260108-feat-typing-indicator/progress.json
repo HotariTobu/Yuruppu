@@ -1,5 +1,5 @@
 {
-  "phase": "prototyped",
+  "phase": "designed",
   "lastUpdated": "2026-01-08",
   "requirements": [
     { "id": "FR-001", "passes": false },
@@ -12,5 +12,5 @@
     { "id": "NFR-002", "passes": false }
   ],
   "blockers": [],
-  "notes": "Spec v2.1: Delayed loading indicator approach - show only if processing takes longer than delay time (default 3s)."
+  "notes": "Design complete. Delayed loading indicator with done channel pattern."
 }
