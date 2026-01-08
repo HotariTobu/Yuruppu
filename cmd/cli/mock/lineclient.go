@@ -59,10 +59,3 @@ func (c *LineClient) SendReply(replyToken string, text string) error {
 	_, err := fmt.Fprintf(c.writer, "%s\n", text)
 	return err
 }
-
-// ShowLoadingAnimation is a no-op in CLI mode.
-// This method implements the bot.LineClient interface.
-func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, loadingSeconds int) error {
-	// No-op in CLI mode - loading animation is only meaningful in LINE app
-	return nil
-}
