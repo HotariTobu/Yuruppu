@@ -1,0 +1,15 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2026-01-08",
+  "requirements": [
+    { "id": "FR-001", "passes": false },
+    { "id": "FR-002", "passes": false },
+    { "id": "FR-003", "passes": false },
+    { "id": "FR-004", "passes": false },
+    { "id": "FR-005", "passes": false },
+    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-002", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
