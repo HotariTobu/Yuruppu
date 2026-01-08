@@ -108,6 +108,109 @@ func TestNewHandler_NilDependencies(t *testing.T) {
 }
 
 // =============================================================================
+// HandlerConfig Validation Tests (AC-007, FR-005)
+// =============================================================================
+
+func TestNewHandler_ConfigValidation(t *testing.T) {
+	// AC-007: Application should error on startup if timeout is outside valid range (5-60s)
+
+	t.Run("returns error when TypingIndicatorTimeout is below minimum (FR-005)", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   3 * time.Second,
+			TypingIndicatorTimeout: 4 * time.Second, // Below minimum of 5s
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "TypingIndicatorTimeout must be between 5s and 60s")
+	})
+
+	t.Run("returns error when TypingIndicatorTimeout is above maximum (FR-005)", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   3 * time.Second,
+			TypingIndicatorTimeout: 61 * time.Second, // Above maximum of 60s
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "TypingIndicatorTimeout must be between 5s and 60s")
+	})
+
+	t.Run("returns error when TypingIndicatorTimeout is zero", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   3 * time.Second,
+			TypingIndicatorTimeout: 0, // Zero is below minimum
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "TypingIndicatorTimeout must be between 5s and 60s")
+	})
+
+	t.Run("returns error when TypingIndicatorDelay is negative", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   -1 * time.Second, // Negative delay
+			TypingIndicatorTimeout: 30 * time.Second,
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.Error(t, err)
+		assert.Nil(t, h)
+		assert.Contains(t, err.Error(), "TypingIndicatorDelay must be non-negative")
+	})
+
+	t.Run("accepts minimum valid timeout (5s)", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   3 * time.Second,
+			TypingIndicatorTimeout: 5 * time.Second, // Exact minimum
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.NoError(t, err)
+		assert.NotNil(t, h)
+	})
+
+	t.Run("accepts maximum valid timeout (60s)", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   3 * time.Second,
+			TypingIndicatorTimeout: 60 * time.Second, // Exact maximum
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.NoError(t, err)
+		assert.NotNil(t, h)
+	})
+
+	t.Run("accepts zero delay (immediate indicator)", func(t *testing.T) {
+		historyRepo, err := history.NewService(&mockStorage{})
+		require.NoError(t, err)
+		config := bot.HandlerConfig{
+			TypingIndicatorDelay:   0, // Zero delay is valid
+			TypingIndicatorTimeout: 30 * time.Second,
+		}
+		h, err := bot.NewHandler(&mockLineClient{}, &mockProfileService{}, historyRepo, &mockMediaService{}, &mockAgent{}, config, slog.New(slog.DiscardHandler))
+
+		require.NoError(t, err)
+		assert.NotNil(t, h)
+	})
+}
+
+// =============================================================================
 // Handle* Method Tests
 // =============================================================================
 
@@ -486,6 +589,7 @@ type mockAgent struct {
 	response            string
 	err                 error
 	lastUserMessageText string
+	processDelay        time.Duration // Delay to simulate slow processing
 }
 
 func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message) (*agent.AssistantMessage, error) {
@@ -496,6 +600,14 @@ func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message) (*agent.
 			if textPart, ok := userMsg.Parts[1].(*agent.UserTextPart); ok {
 				m.lastUserMessageText = textPart.Text
 			}
+		}
+	}
+	// Simulate processing delay for testing delayed loading indicator
+	if m.processDelay > 0 {
+		select {
+		case <-time.After(m.processDelay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 	if m.err != nil {
@@ -517,6 +629,12 @@ type mockLineClient struct {
 	lastMessageID string
 	profile       *lineclient.UserProfile
 	profileErr    error
+	// ShowLoadingAnimation tracking
+	showLoadingCalled  bool
+	showLoadingChatID  string
+	showLoadingTimeout time.Duration
+	showLoadingDelay   time.Duration // Delay to simulate slow API call
+	showLoadingErr     error
 }
 
 func (m *mockLineClient) GetMessageContent(messageID string) ([]byte, string, error) {
@@ -542,7 +660,20 @@ func (m *mockLineClient) GetProfile(ctx context.Context, userID string) (*linecl
 }
 
 func (m *mockLineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
-	return nil
+	m.showLoadingCalled = true
+	m.showLoadingChatID = chatID
+	m.showLoadingTimeout = timeout
+
+	// Simulate API delay if configured
+	if m.showLoadingDelay > 0 {
+		select {
+		case <-time.After(m.showLoadingDelay):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return m.showLoadingErr
 }
 
 type mockProfileService struct {

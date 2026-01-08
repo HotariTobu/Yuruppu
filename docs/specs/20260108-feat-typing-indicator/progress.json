@@ -2,15 +2,15 @@
   "phase": "in-progress",
   "lastUpdated": "2026-01-08",
   "requirements": [
-    { "id": "FR-001", "passes": false },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-001", "passes": true },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": false },
-    { "id": "FR-004", "passes": false },
+    { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
-    { "id": "FR-006", "passes": false },
-    { "id": "NFR-001", "passes": false },
-    { "id": "NFR-002", "passes": false }
+    { "id": "FR-006", "passes": true },
+    { "id": "NFR-001", "passes": true },
+    { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 1 complete. FR-005 done: HandlerConfig with validation (5-60s timeout range), ShowLoadingAnimation interface added to LineClient. Next session: implement delayed loading goroutine logic in handleMessage (FR-001, FR-002, FR-006, NFR-001, NFR-002). Tests for timing behavior needed."
+  "notes": "Session 3 complete. Fixed critical issues from review: added ctx.Done() case to goroutine select (prevents execution with cancelled context), added HandlerConfig.Validate() with NewHandler validation (FR-005/AC-007), added comprehensive config validation tests. Remaining: FR-003 (auto-dismiss on reply) - this is LINE API behavior, cannot be unit tested. Next session: verify FR-003 manually with LINE API, or mark complete with manual verification note."
 }

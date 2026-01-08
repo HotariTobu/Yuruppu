@@ -24,6 +24,18 @@ type HandlerConfig struct {
 	TypingIndicatorTimeout time.Duration // indicator display duration (5-60s)
 }
 
+// Validate validates the HandlerConfig fields.
+// Returns error if TypingIndicatorTimeout is outside the valid range (5-60 seconds).
+func (c HandlerConfig) Validate() error {
+	if c.TypingIndicatorTimeout < 5*time.Second || c.TypingIndicatorTimeout > 60*time.Second {
+		return fmt.Errorf("TypingIndicatorTimeout must be between 5s and 60s, got %v", c.TypingIndicatorTimeout)
+	}
+	if c.TypingIndicatorDelay < 0 {
+		return fmt.Errorf("TypingIndicatorDelay must be non-negative, got %v", c.TypingIndicatorDelay)
+	}
+	return nil
+}
+
 // ProfileService provides access to user profiles.
 type ProfileService interface {
 	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
@@ -73,6 +85,9 @@ func NewHandler(lineClient LineClient, profileService ProfileService, historySvc
 	}
 	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
+	}
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	return &Handler{
 		lineClient:     lineClient,

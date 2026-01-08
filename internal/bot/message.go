@@ -147,6 +147,37 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	if !ok {
 		return fmt.Errorf("sourceID not found in context")
 	}
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("userID not found in context")
+	}
+
+	// Delayed loading indicator (FR-001, FR-002, FR-006, NFR-001, NFR-002)
+	done := make(chan struct{})
+	defer close(done)
+
+	if sourceID == userID { // 1:1 chat only (FR-002)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					h.logger.WarnContext(ctx, "loading indicator goroutine panicked", slog.Any("panic", r))
+				}
+			}()
+			select {
+			case <-time.After(h.config.TypingIndicatorDelay):
+				// Still processing → show indicator (FR-001)
+				if err := h.lineClient.ShowLoadingAnimation(ctx, sourceID, h.config.TypingIndicatorTimeout); err != nil {
+					h.logger.WarnContext(ctx, "failed to show loading animation", slog.Any("error", err))
+				}
+			case <-done:
+				// Completed → do nothing (FR-006)
+				return
+			case <-ctx.Done():
+				// Context cancelled → exit cleanly
+				return
+			}
+		}()
+	}
 
 	// Step 1: Load history
 	hist, gen, err := h.history.GetHistory(ctx, sourceID)
