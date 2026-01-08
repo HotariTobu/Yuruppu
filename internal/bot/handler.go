@@ -15,7 +15,6 @@ import (
 type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
 	GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
-	ShowLoadingAnimation(ctx context.Context, chatID string, loadingSeconds int) error
 }
 
 // ProfileService provides access to user profiles.
