@@ -65,10 +65,7 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, newContent, data)
 
-	// Cleanup (use separate client for deletion)
-	client, err := storage.NewClient(ctx)
-	require.NoError(t, err)
-	defer client.Close()
+	// Cleanup
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
@@ -94,10 +91,7 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	_, err = s.Write(ctx, key, "text/plain", []byte("should fail"), 99999)
 	require.Error(t, err)
 
-	// Cleanup (use separate client for deletion)
-	client, err := storage.NewClient(ctx)
-	require.NoError(t, err)
-	defer client.Close()
+	// Cleanup
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
@@ -133,9 +127,6 @@ func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
 	assert.Contains(t, url, key)
 
 	// Cleanup
-	client, err := storage.NewClient(ctx)
-	require.NoError(t, err)
-	defer client.Close()
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
@@ -184,9 +175,6 @@ func TestGCSStorage_Integration_ConcurrentWrites(t *testing.T) {
 	require.Error(t, err2) // Precondition failed
 
 	// Cleanup
-	client, err := storage.NewClient(ctx)
-	require.NoError(t, err)
-	defer client.Close()
 	err = client.Bucket(bucket).Object(key).Delete(ctx)
 	require.NoError(t, err)
 }
