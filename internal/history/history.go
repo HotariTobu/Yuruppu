@@ -75,11 +75,6 @@ func (s *Service) PutHistory(ctx context.Context, sourceID string, messages []Me
 	return newGen, nil
 }
 
-// Close releases service resources.
-func (s *Service) Close(ctx context.Context) error {
-	return s.storage.Close(ctx)
-}
-
 // validateSourceID checks if sourceID is valid.
 // Rejects empty strings and path traversal attempts.
 func validateSourceID(sourceID string) error {

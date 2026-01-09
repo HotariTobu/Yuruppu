@@ -679,10 +679,6 @@ func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl 
 	return "https://example.com/signed/" + key, nil
 }
 
-func (m *mockStorage) Close(ctx context.Context) error {
-	return nil
-}
-
 // mockMediaService implements bot.MediaService interface
 type mockMediaService struct {
 	storeErr     error

@@ -223,7 +223,3 @@ func (m *mockStorage) GetSignedURL(ctx context.Context, key, method string, ttl 
 	}
 	return m.signedURL, nil
 }
-
-func (m *mockStorage) Close(ctx context.Context) error {
-	return nil
-}
