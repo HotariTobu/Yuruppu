@@ -335,38 +335,6 @@ func TestFileStorage_GetSignedURL(t *testing.T) {
 	})
 }
 
-func TestFileStorage_Close(t *testing.T) {
-	t.Run("should return nil without error (no-op)", func(t *testing.T) {
-		// Given
-		dataDir := t.TempDir()
-		storage := mock.NewFileStorage(dataDir)
-		ctx := context.Background()
-
-		// When
-		err := storage.Close(ctx)
-
-		// Then
-		require.NoError(t, err)
-	})
-
-	t.Run("should be safe to call multiple times", func(t *testing.T) {
-		// Given
-		dataDir := t.TempDir()
-		storage := mock.NewFileStorage(dataDir)
-		ctx := context.Background()
-
-		// When
-		err1 := storage.Close(ctx)
-		err2 := storage.Close(ctx)
-		err3 := storage.Close(ctx)
-
-		// Then
-		require.NoError(t, err1)
-		require.NoError(t, err2)
-		require.NoError(t, err3)
-	})
-}
-
 func TestFileStorage_IntegrationScenario(t *testing.T) {
 	t.Run("should support read-modify-write cycle with generation checking", func(t *testing.T) {
 		// Given

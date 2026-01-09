@@ -12,18 +12,15 @@ import (
 
 // GCSStorage implements Storage interface using Google Cloud Storage.
 type GCSStorage struct {
-	client *storage.Client
 	bucket *storage.BucketHandle
 }
 
-// NewGCSStorage creates a new GCS storage backend.
-func NewGCSStorage(ctx context.Context, bucketName string) (*GCSStorage, error) {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+// NewGCSStorage creates a new GCS storage backend using a shared client.
+func NewGCSStorage(client *storage.Client, bucketName string) (*GCSStorage, error) {
+	if client == nil {
+		return nil, errors.New("storage: client is nil")
 	}
 	return &GCSStorage{
-		client: client,
 		bucket: client.Bucket(bucketName),
 	}, nil
 }
@@ -96,9 +93,4 @@ func (s *GCSStorage) GetSignedURL(_ context.Context, key, method string, ttl tim
 		return "", fmt.Errorf("failed to generate signed URL for %s: %w", key, err)
 	}
 	return url, nil
-}
-
-// Close releases storage resources.
-func (s *GCSStorage) Close(_ context.Context) error {
-	return s.client.Close()
 }

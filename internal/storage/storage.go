@@ -20,7 +20,4 @@ type Storage interface {
 	// method is the HTTP method (GET, PUT, etc.).
 	// ttl is how long the URL should be valid.
 	GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error)
-
-	// Close releases storage resources.
-	Close(ctx context.Context) error
 }

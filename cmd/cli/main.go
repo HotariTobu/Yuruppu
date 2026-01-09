@@ -116,7 +116,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("failed to create history service: %w", err)
 	}
-	defer func() { _ = historyService.Close(ctx) }()
 
 	// Create media service
 	mediaService, err := media.NewService(mediaStorage, logger)
