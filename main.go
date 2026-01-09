@@ -26,6 +26,7 @@ import (
 	"yuruppu/internal/yuruppu"
 
 	"cloud.google.com/go/compute/metadata"
+	gcsstorage "cloud.google.com/go/storage"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -251,8 +252,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create shared GCS client
+	gcsClient, err := gcsstorage.NewClient(context.Background())
+	if err != nil {
+		logger.Error("failed to create GCS client", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	// Create history repository (needed by reply tool and handler)
-	historyStorage, err := storage.NewGCSStorage(context.Background(), config.HistoryBucket)
+	historyStorage, err := storage.NewGCSStorage(gcsClient, config.HistoryBucket)
 	if err != nil {
 		logger.Error("failed to create history storage", slog.Any("error", err))
 		os.Exit(1)
@@ -295,7 +303,7 @@ func main() {
 	}
 
 	// Create profile service
-	profileStorage, err := storage.NewGCSStorage(context.Background(), config.ProfileBucket)
+	profileStorage, err := storage.NewGCSStorage(gcsClient, config.ProfileBucket)
 	if err != nil {
 		logger.Error("failed to create profile storage", slog.Any("error", err))
 		os.Exit(1)
@@ -307,7 +315,7 @@ func main() {
 	}
 
 	// Create media service
-	mediaStorage, err := storage.NewGCSStorage(context.Background(), config.MediaBucket)
+	mediaStorage, err := storage.NewGCSStorage(gcsClient, config.MediaBucket)
 	if err != nil {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)
@@ -375,15 +383,9 @@ func main() {
 		logger.Error("failed to close Gemini agent", slog.Any("error", err))
 	}
 
-	// Close GCS storage
-	if err := profileStorage.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close profile storage", slog.Any("error", err))
-	}
-	if err := historyStorage.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close history storage", slog.Any("error", err))
-	}
-	if err := mediaStorage.Close(shutdownCtx); err != nil {
-		logger.Error("failed to close media storage", slog.Any("error", err))
+	// Close GCS client
+	if err := gcsClient.Close(); err != nil {
+		logger.Error("failed to close GCS client", slog.Any("error", err))
 	}
 
 	logger.Info("graceful shutdown completed")

@@ -101,8 +101,3 @@ func (fs *FileStorage) GetSignedURL(_ context.Context, key, _ string, _ time.Dur
 	filePath := filepath.Join(fs.dataDir, key)
 	return "file://" + filePath, nil
 }
-
-// Close releases storage resources. This is a no-op for FileStorage.
-func (fs *FileStorage) Close(_ context.Context) error {
-	return nil
-}

@@ -29,9 +29,12 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	key := "test-integration-" + time.Now().Format("20060102-150405") + ".txt"
 
@@ -74,9 +77,12 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	key := "test-precondition-" + time.Now().Format("20060102-150405") + ".txt"
 
@@ -105,9 +111,12 @@ func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	key := "test-signedurl-" + time.Now().Format("20060102-150405") + ".txt"
 
@@ -135,9 +144,12 @@ func TestGCSStorage_Integration_NegativeGeneration(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	// Write with negative generation should fail
 	_, err = s.Write(ctx, "test-key", "text/plain", []byte("data"), -1)
@@ -149,9 +161,12 @@ func TestGCSStorage_Integration_ConcurrentWrites(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	key := "test-concurrent-" + time.Now().Format("20060102-150405") + ".txt"
 
@@ -180,9 +195,12 @@ func TestGCSStorage_Integration_EmptyKey(t *testing.T) {
 	bucket := requireGCSCredentials(t)
 	ctx := context.Background()
 
-	s, err := yuruppu_storage.NewGCSStorage(ctx, bucket)
+	client, err := storage.NewClient(ctx)
 	require.NoError(t, err)
-	defer func() { _ = s.Close(ctx) }()
+	defer client.Close()
+
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	require.NoError(t, err)
 
 	// Write with empty key should fail (GCS rejects it)
 	_, err = s.Write(ctx, "", "text/plain", []byte("data"), 0)
