@@ -12,23 +12,21 @@ import (
 // FileStorage implements storage.Storage interface using local filesystem.
 // It uses file modification time (UnixNano) as the generation number.
 type FileStorage struct {
-	dataDir   string
-	keyPrefix string
+	dataDir string
 }
 
 // NewFileStorage creates a new FileStorage instance with the given data directory.
-// The keyPrefix is prepended to all key operations (simple string concatenation).
-func NewFileStorage(dataDir, keyPrefix string) *FileStorage {
+// The keyPrefix is joined with baseDataDir using filepath.Join at construction time.
+func NewFileStorage(baseDataDir, keyPrefix string) *FileStorage {
 	return &FileStorage{
-		dataDir:   dataDir,
-		keyPrefix: keyPrefix,
+		dataDir: filepath.Join(baseDataDir, keyPrefix),
 	}
 }
 
 // Read retrieves data for a key from the filesystem.
 // Returns nil, 0, nil if the key doesn't exist.
 func (fs *FileStorage) Read(_ context.Context, key string) ([]byte, int64, error) {
-	filePath := filepath.Join(fs.dataDir, fs.keyPrefix+key)
+	filePath := filepath.Join(fs.dataDir, key)
 
 	// Check if file exists
 	info, err := os.Stat(filePath)
@@ -55,7 +53,7 @@ func (fs *FileStorage) Read(_ context.Context, key string) ([]byte, int64, error
 // If expectedGeneration > 0, updates only if generation matches (fails if mismatch).
 // Returns the new generation number of the written object.
 func (fs *FileStorage) Write(_ context.Context, key, _ string, data []byte, expectedGeneration int64) (int64, error) {
-	filePath := filepath.Join(fs.dataDir, fs.keyPrefix+key)
+	filePath := filepath.Join(fs.dataDir, key)
 
 	// Check if file exists
 	info, statErr := os.Stat(filePath)
@@ -101,6 +99,6 @@ func (fs *FileStorage) Write(_ context.Context, key, _ string, data []byte, expe
 // GetSignedURL generates a file:// URL for accessing the object.
 // The method and ttl parameters are ignored for local filesystem.
 func (fs *FileStorage) GetSignedURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
-	filePath := filepath.Join(fs.dataDir, fs.keyPrefix+key)
+	filePath := filepath.Join(fs.dataDir, key)
 	return "file://" + filePath, nil
 }
