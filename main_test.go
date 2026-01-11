@@ -15,9 +15,7 @@ func setRequiredEnvVars(t *testing.T) {
 	t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 	t.Setenv("LLM_MODEL", "test-model")
-	t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-	t.Setenv("HISTORY_BUCKET", "test-bucket")
-	t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+	t.Setenv("BUCKET_NAME", "test-bucket")
 }
 
 // =============================================================================
@@ -251,9 +249,7 @@ func TestLoadConfig_ValidCredentials(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -319,9 +315,7 @@ func TestLoadConfig_MissingChannelSecret(t *testing.T) {
 			}
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -385,9 +379,7 @@ func TestLoadConfig_MissingChannelAccessToken(t *testing.T) {
 			}
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -425,9 +417,7 @@ func TestLoadConfig_BothMissing(t *testing.T) {
 			os.Unsetenv("LINE_CHANNEL_ACCESS_TOKEN")
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -494,9 +484,7 @@ func TestLoadConfig_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", tt.channelAccessToken)
 			t.Setenv("GCP_PROJECT_ID", tt.gcpProjectID)
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -529,8 +517,7 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 				t.Setenv("ENDPOINT", "/webhook")
 				t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
 				t.Setenv("LLM_MODEL", "test-model")
-				t.Setenv("HISTORY_BUCKET", "test-bucket")
-				t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+				t.Setenv("BUCKET_NAME", "test-bucket")
 				// LINE_CHANNEL_SECRET is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_SECRET", "required"},
@@ -541,8 +528,7 @@ func TestLoadConfig_ErrorMessages(t *testing.T) {
 				t.Setenv("ENDPOINT", "/webhook")
 				t.Setenv("LINE_CHANNEL_SECRET", "secret")
 				t.Setenv("LLM_MODEL", "test-model")
-				t.Setenv("HISTORY_BUCKET", "test-bucket")
-				t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+				t.Setenv("BUCKET_NAME", "test-bucket")
 				// LINE_CHANNEL_ACCESS_TOKEN is not set
 			},
 			wantErrContains: []string{"LINE_CHANNEL_ACCESS_TOKEN", "required"},
@@ -581,9 +567,7 @@ func TestLoadConfig_GCPConfigOptional(t *testing.T) {
 	t.Setenv("LINE_CHANNEL_SECRET", "test-valid-secret")
 	t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-valid-token")
 	t.Setenv("LLM_MODEL", "test-model")
-	t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-	t.Setenv("HISTORY_BUCKET", "test-bucket")
-	t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+	t.Setenv("BUCKET_NAME", "test-bucket")
 	os.Unsetenv("GCP_PROJECT_ID")
 	os.Unsetenv("GCP_REGION")
 
@@ -847,9 +831,7 @@ func TestLoadConfig_LLMModel_Valid(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -889,13 +871,11 @@ func TestLoadConfig_LLMModel_Missing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials and HISTORY_BUCKET
+			// Given: Set LINE credentials and BUCKET_NAME
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// Given: Handle LLM_MODEL based on test case
 			os.Unsetenv("LLM_MODEL")
@@ -946,13 +926,11 @@ func TestLoadConfig_LLMModel_WhitespaceOnly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Set LINE credentials and HISTORY_BUCKET
+			// Given: Set LINE credentials and BUCKET_NAME
 			t.Setenv("ENDPOINT", "/webhook")
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 			t.Setenv("LLM_MODEL", tt.llmModel)
 
 			// When: Load configuration
@@ -1002,9 +980,7 @@ func TestLoadConfig_LLMModel_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", tt.llmModel)
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", "test-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", "test-bucket")
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -1234,28 +1210,28 @@ func TestLoadConfig_LLMCacheTTL_InvalidValue(t *testing.T) {
 }
 
 // =============================================================================
-// HISTORY_BUCKET Configuration Tests
+// BUCKET_NAME Configuration Tests
 // =============================================================================
 
-// TestLoadConfig_HistoryBucket_Missing tests error when HISTORY_BUCKET is missing.
-func TestLoadConfig_HistoryBucket_Missing(t *testing.T) {
+// TestLoadConfig_BucketName_Missing tests error when BUCKET_NAME is missing.
+func TestLoadConfig_BucketName_Missing(t *testing.T) {
 	tests := []struct {
-		name          string
-		historyBucket string
-		setEnv        bool
-		wantErrMsg    string
+		name       string
+		bucketName string
+		setEnv     bool
+		wantErrMsg string
 	}{
 		{
-			name:          "unset HISTORY_BUCKET returns error",
-			historyBucket: "",
-			setEnv:        false,
-			wantErrMsg:    "HISTORY_BUCKET is required",
+			name:       "unset BUCKET_NAME returns error",
+			bucketName: "",
+			setEnv:     false,
+			wantErrMsg: "BUCKET_NAME is required",
 		},
 		{
-			name:          "empty HISTORY_BUCKET returns error",
-			historyBucket: "",
-			setEnv:        true,
-			wantErrMsg:    "HISTORY_BUCKET is required",
+			name:       "empty BUCKET_NAME returns error",
+			bucketName: "",
+			setEnv:     true,
+			wantErrMsg: "BUCKET_NAME is required",
 		},
 	}
 
@@ -1266,52 +1242,50 @@ func TestLoadConfig_HistoryBucket_Missing(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
 
-			// Given: Handle HISTORY_BUCKET based on test case
-			os.Unsetenv("HISTORY_BUCKET")
+			// Given: Handle BUCKET_NAME based on test case
+			os.Unsetenv("BUCKET_NAME")
 			if tt.setEnv {
-				t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+				t.Setenv("BUCKET_NAME", tt.bucketName)
 			}
 
 			// When: Load configuration
 			config, err := loadConfig()
 
 			// Then: Should return error
-			require.Error(t, err, "loadConfig should return error when HISTORY_BUCKET is missing")
+			require.Error(t, err, "loadConfig should return error when BUCKET_NAME is missing")
 
 			// Then: Config should be nil
 			assert.Nil(t, config, "config should be nil on error")
 
-			// Then: Error message should indicate HISTORY_BUCKET is required
+			// Then: Error message should indicate BUCKET_NAME is required
 			assert.Contains(t, err.Error(), tt.wantErrMsg,
-				"error message should indicate HISTORY_BUCKET is required")
+				"error message should indicate BUCKET_NAME is required")
 		})
 	}
 }
 
-// TestLoadConfig_HistoryBucket_WhitespaceOnly tests error when HISTORY_BUCKET is whitespace-only.
-func TestLoadConfig_HistoryBucket_WhitespaceOnly(t *testing.T) {
+// TestLoadConfig_BucketName_WhitespaceOnly tests error when BUCKET_NAME is whitespace-only.
+func TestLoadConfig_BucketName_WhitespaceOnly(t *testing.T) {
 	tests := []struct {
-		name          string
-		historyBucket string
-		wantErrMsg    string
+		name       string
+		bucketName string
+		wantErrMsg string
 	}{
 		{
-			name:          "whitespace-only HISTORY_BUCKET returns error",
-			historyBucket: "   ",
-			wantErrMsg:    "HISTORY_BUCKET is required",
+			name:       "whitespace-only BUCKET_NAME returns error",
+			bucketName: "   ",
+			wantErrMsg: "BUCKET_NAME is required",
 		},
 		{
-			name:          "tabs-only HISTORY_BUCKET returns error",
-			historyBucket: "\t\t",
-			wantErrMsg:    "HISTORY_BUCKET is required",
+			name:       "tabs-only BUCKET_NAME returns error",
+			bucketName: "\t\t",
+			wantErrMsg: "BUCKET_NAME is required",
 		},
 		{
-			name:          "mixed whitespace HISTORY_BUCKET returns error",
-			historyBucket: " \t \n ",
-			wantErrMsg:    "HISTORY_BUCKET is required",
+			name:       "mixed whitespace BUCKET_NAME returns error",
+			bucketName: " \t \n ",
+			wantErrMsg: "BUCKET_NAME is required",
 		},
 	}
 
@@ -1322,46 +1296,44 @@ func TestLoadConfig_HistoryBucket_WhitespaceOnly(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
-			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
+			t.Setenv("BUCKET_NAME", tt.bucketName)
 
 			// When: Load configuration
 			config, err := loadConfig()
 
 			// Then: Should return error
-			require.Error(t, err, "loadConfig should return error when HISTORY_BUCKET is whitespace-only")
+			require.Error(t, err, "loadConfig should return error when BUCKET_NAME is whitespace-only")
 
 			// Then: Config should be nil
 			assert.Nil(t, config, "config should be nil on error")
 
-			// Then: Error message should indicate HISTORY_BUCKET is required
+			// Then: Error message should indicate BUCKET_NAME is required
 			assert.Contains(t, err.Error(), tt.wantErrMsg,
-				"error message should indicate HISTORY_BUCKET is required")
+				"error message should indicate BUCKET_NAME is required")
 		})
 	}
 }
 
-// TestLoadConfig_HistoryBucket_TrimsWhitespace tests that HISTORY_BUCKET value is trimmed.
-func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
+// TestLoadConfig_BucketName_TrimsWhitespace tests that BUCKET_NAME value is trimmed.
+func TestLoadConfig_BucketName_TrimsWhitespace(t *testing.T) {
 	tests := []struct {
 		name           string
-		historyBucket  string
+		bucketName     string
 		expectedBucket string
 	}{
 		{
 			name:           "leading whitespace is trimmed",
-			historyBucket:  "  test-bucket",
+			bucketName:     "  test-bucket",
 			expectedBucket: "test-bucket",
 		},
 		{
 			name:           "trailing whitespace is trimmed",
-			historyBucket:  "test-bucket  ",
+			bucketName:     "test-bucket  ",
 			expectedBucket: "test-bucket",
 		},
 		{
 			name:           "leading and trailing whitespace is trimmed",
-			historyBucket:  "  test-bucket  ",
+			bucketName:     "  test-bucket  ",
 			expectedBucket: "test-bucket",
 		},
 	}
@@ -1373,9 +1345,7 @@ func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
 			t.Setenv("LINE_CHANNEL_SECRET", "test-secret")
 			t.Setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
 			t.Setenv("LLM_MODEL", "test-model")
-			t.Setenv("PROFILE_BUCKET", "test-profile-bucket")
-			t.Setenv("HISTORY_BUCKET", tt.historyBucket)
-			t.Setenv("MEDIA_BUCKET", "test-media-bucket")
+			t.Setenv("BUCKET_NAME", tt.bucketName)
 
 			// When: Load configuration
 			config, err := loadConfig()
@@ -1383,9 +1353,9 @@ func TestLoadConfig_HistoryBucket_TrimsWhitespace(t *testing.T) {
 			// Then: Should succeed without error
 			require.NoError(t, err, "loadConfig should not return error")
 
-			// Then: HistoryBucket should have whitespace trimmed
-			assert.Equal(t, tt.expectedBucket, config.HistoryBucket,
-				"HistoryBucket should have whitespace trimmed")
+			// Then: BucketName should have whitespace trimmed
+			assert.Equal(t, tt.expectedBucket, config.BucketName,
+				"BucketName should have whitespace trimmed")
 		})
 	}
 }
