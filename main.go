@@ -41,9 +41,7 @@ type Config struct {
 	LLMModel                      string // Required: LLM model name
 	LLMCacheTTLMinutes            int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds             int    // LLM API timeout in seconds (default: 30)
-	ProfileBucket                 string // GCS bucket for user profiles
-	HistoryBucket                 string // GCS bucket for chat history
-	MediaBucket                   string // GCS bucket for media files
+	BucketName                    string // GCS bucket for all storage (profiles, history, media)
 	TypingIndicatorDelaySeconds   int    // Delay before showing typing indicator (default: 3)
 	TypingIndicatorTimeoutSeconds int    // Typing indicator display duration (default: 30, range: 5-60)
 }
@@ -66,8 +64,8 @@ const (
 )
 
 // loadConfig loads configuration from environment variables.
-// It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, PROFILE_BUCKET, HISTORY_BUCKET, and MEDIA_BUCKET from environment.
-// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, PROFILE_BUCKET, HISTORY_BUCKET, MEDIA_BUCKET) are missing or empty after trimming whitespace.
+// It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and BUCKET_NAME from environment.
+// Returns error if required environment variables (ENDPOINT, LINE credentials, LLM_MODEL, BUCKET_NAME) are missing or empty after trimming whitespace.
 // GCP_PROJECT_ID and GCP_REGION are optional (auto-detected on Cloud Run).
 // LOG_LEVEL is optional (default: INFO, valid values: DEBUG, INFO, WARN, ERROR).
 // Returns error if timeout/TTL values are invalid (non-positive or non-integer).
@@ -141,22 +139,10 @@ func loadConfig() (*Config, error) {
 		llmTimeoutSeconds = parsed
 	}
 
-	// Load and validate PROFILE_BUCKET (required)
-	profileBucket := strings.TrimSpace(os.Getenv("PROFILE_BUCKET"))
-	if profileBucket == "" {
-		return nil, errors.New("PROFILE_BUCKET is required")
-	}
-
-	// Load and validate HISTORY_BUCKET (required)
-	historyBucket := strings.TrimSpace(os.Getenv("HISTORY_BUCKET"))
-	if historyBucket == "" {
-		return nil, errors.New("HISTORY_BUCKET is required")
-	}
-
-	// Load and validate MEDIA_BUCKET (required)
-	mediaBucket := strings.TrimSpace(os.Getenv("MEDIA_BUCKET"))
-	if mediaBucket == "" {
-		return nil, errors.New("MEDIA_BUCKET is required")
+	// Load and validate BUCKET_NAME (required)
+	bucketName := strings.TrimSpace(os.Getenv("BUCKET_NAME"))
+	if bucketName == "" {
+		return nil, errors.New("BUCKET_NAME is required")
 	}
 
 	// Parse typing indicator delay
@@ -190,9 +176,7 @@ func loadConfig() (*Config, error) {
 		LLMModel:                      llmModel,
 		LLMCacheTTLMinutes:            llmCacheTTLMinutes,
 		LLMTimeoutSeconds:             llmTimeoutSeconds,
-		ProfileBucket:                 profileBucket,
-		HistoryBucket:                 historyBucket,
-		MediaBucket:                   mediaBucket,
+		BucketName:                    bucketName,
 		TypingIndicatorDelaySeconds:   typingIndicatorDelaySeconds,
 		TypingIndicatorTimeoutSeconds: typingIndicatorTimeoutSeconds,
 	}, nil
@@ -260,7 +244,7 @@ func main() {
 	}
 
 	// Create history repository (needed by reply tool and handler)
-	historyStorage, err := storage.NewGCSStorage(gcsClient, config.HistoryBucket)
+	historyStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "history/")
 	if err != nil {
 		logger.Error("failed to create history storage", slog.Any("error", err))
 		os.Exit(1)
@@ -303,7 +287,7 @@ func main() {
 	}
 
 	// Create profile service
-	profileStorage, err := storage.NewGCSStorage(gcsClient, config.ProfileBucket)
+	profileStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "profile/")
 	if err != nil {
 		logger.Error("failed to create profile storage", slog.Any("error", err))
 		os.Exit(1)
@@ -315,7 +299,7 @@ func main() {
 	}
 
 	// Create media service
-	mediaStorage, err := storage.NewGCSStorage(gcsClient, config.MediaBucket)
+	mediaStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "media/")
 	if err != nil {
 		logger.Error("failed to create media storage", slog.Any("error", err))
 		os.Exit(1)

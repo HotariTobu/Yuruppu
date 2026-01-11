@@ -12,22 +12,25 @@ import (
 
 // GCSStorage implements Storage interface using Google Cloud Storage.
 type GCSStorage struct {
-	bucket *storage.BucketHandle
+	bucket    *storage.BucketHandle
+	keyPrefix string
 }
 
 // NewGCSStorage creates a new GCS storage backend using a shared client.
-func NewGCSStorage(client *storage.Client, bucketName string) (*GCSStorage, error) {
+// The keyPrefix is prepended to all key operations (simple string concatenation).
+func NewGCSStorage(client *storage.Client, bucketName, keyPrefix string) (*GCSStorage, error) {
 	if client == nil {
 		return nil, errors.New("storage: client is nil")
 	}
 	return &GCSStorage{
-		bucket: client.Bucket(bucketName),
+		bucket:    client.Bucket(bucketName),
+		keyPrefix: keyPrefix,
 	}, nil
 }
 
 // Read retrieves data for a key. Returns nil, 0 if key doesn't exist.
 func (s *GCSStorage) Read(ctx context.Context, key string) ([]byte, int64, error) {
-	obj := s.bucket.Object(key)
+	obj := s.bucket.Object(s.keyPrefix + key)
 
 	reader, err := obj.NewReader(ctx)
 	if err != nil {
@@ -52,7 +55,7 @@ func (s *GCSStorage) Read(ctx context.Context, key string) ([]byte, int64, error
 // Returns ErrPreconditionFailed if generation doesn't match (412).
 // Returns the new generation number of the written object.
 func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (int64, error) {
-	obj := s.bucket.Object(key)
+	obj := s.bucket.Object(s.keyPrefix + key)
 
 	var writer *storage.Writer
 	switch {
@@ -84,7 +87,7 @@ func (s *GCSStorage) Write(ctx context.Context, key, mimetype string, data []byt
 
 // GetSignedURL generates a signed URL for accessing the object.
 func (s *GCSStorage) GetSignedURL(_ context.Context, key, method string, ttl time.Duration) (string, error) {
-	url, err := s.bucket.SignedURL(key, &storage.SignedURLOptions{
+	url, err := s.bucket.SignedURL(s.keyPrefix+key, &storage.SignedURLOptions{
 		Scheme:  storage.SigningSchemeV4,
 		Method:  method,
 		Expires: time.Now().Add(ttl),
