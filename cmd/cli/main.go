@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"time"
 	"yuruppu/cmd/cli/mock"
@@ -94,10 +93,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	// Create FileStorage instances for each bucket
-	profileStorage := mock.NewFileStorage(filepath.Join(*dataDir, "profiles"))
-	historyStorage := mock.NewFileStorage(filepath.Join(*dataDir, "history"))
-	mediaStorage := mock.NewFileStorage(filepath.Join(*dataDir, "media"))
+	// Create FileStorage instances with key prefixes
+	profileStorage := mock.NewFileStorage(*dataDir, "profile/")
+	historyStorage := mock.NewFileStorage(*dataDir, "history/")
+	mediaStorage := mock.NewFileStorage(*dataDir, "media/")
 
 	// Create profile service
 	profileService, err := profile.NewService(profileStorage, logger)
