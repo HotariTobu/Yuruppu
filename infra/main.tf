@@ -37,8 +37,7 @@ resource "google_project_service" "apis" {
   disable_on_destroy = false
 }
 
-# GCS bucket for all storage (profiles, history, media)
-# Key prefixes: profile/, history/, media/
+# GCS bucket for storage
 resource "google_storage_bucket" "yuruppu" {
   name                        = "yuruppu-storage"
   location                    = var.region

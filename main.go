@@ -41,7 +41,7 @@ type Config struct {
 	LLMModel                      string // Required: LLM model name
 	LLMCacheTTLMinutes            int    // LLM cache TTL in minutes (default: 60)
 	LLMTimeoutSeconds             int    // LLM API timeout in seconds (default: 30)
-	BucketName                    string // GCS bucket for all storage (profiles, history, media)
+	BucketName                    string // GCS bucket for storage
 	TypingIndicatorDelaySeconds   int    // Delay before showing typing indicator (default: 3)
 	TypingIndicatorTimeoutSeconds int    // Typing indicator display duration (default: 30, range: 5-60)
 }
