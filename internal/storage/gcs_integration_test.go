@@ -18,9 +18,9 @@ import (
 // requireGCSCredentials fails the test if required GCS credentials are not available.
 func requireGCSCredentials(t *testing.T) string {
 	t.Helper()
-	bucket := os.Getenv("HISTORY_BUCKET")
+	bucket := os.Getenv("BUCKET_NAME")
 	if bucket == "" {
-		t.Fatal("HISTORY_BUCKET environment variable is not set")
+		t.Fatal("BUCKET_NAME environment variable is not set")
 	}
 	return bucket
 }
@@ -33,7 +33,7 @@ func TestGCSStorage_Integration_ReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	key := "test-integration-" + time.Now().Format("20060102-150405") + ".txt"
@@ -78,7 +78,7 @@ func TestGCSStorage_Integration_PreconditionFailed(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	key := "test-precondition-" + time.Now().Format("20060102-150405") + ".txt"
@@ -109,7 +109,7 @@ func TestGCSStorage_Integration_GetSignedURL(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	key := "test-signedurl-" + time.Now().Format("20060102-150405") + ".txt"
@@ -139,7 +139,7 @@ func TestGCSStorage_Integration_NegativeGeneration(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	// Write with negative generation should fail
@@ -156,7 +156,7 @@ func TestGCSStorage_Integration_ConcurrentWrites(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	key := "test-concurrent-" + time.Now().Format("20060102-150405") + ".txt"
@@ -187,7 +187,7 @@ func TestGCSStorage_Integration_EmptyKey(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	s, err := yuruppu_storage.NewGCSStorage(client, bucket)
+	s, err := yuruppu_storage.NewGCSStorage(client, bucket, "")
 	require.NoError(t, err)
 
 	// Write with empty key should fail (GCS rejects it)
