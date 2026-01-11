@@ -1,0 +1,15 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2026-01-11",
+  "requirements": [
+    { "id": "AC-001", "passes": false },
+    { "id": "AC-002", "passes": false },
+    { "id": "AC-003", "passes": false },
+    { "id": "AC-004", "passes": false },
+    { "id": "AC-005", "passes": false },
+    { "id": "AC-006", "passes": false },
+    { "id": "AC-007", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
