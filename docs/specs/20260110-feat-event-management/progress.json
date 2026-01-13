@@ -1,5 +1,5 @@
 {
-  "phase": "designed",
+  "phase": "in-progress",
   "lastUpdated": "2026-01-14",
   "requirements": [
     { "id": "FR-001", "passes": false },
@@ -22,5 +22,5 @@
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": ""
+  "notes": "Event Service layer (internal/event/) completed with JSONL storage, optimistic locking, and comprehensive tests. Next session: implement tools (create_event, get_event, list_events) in internal/toolset/event/."
 }
