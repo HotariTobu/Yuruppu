@@ -1,6 +1,6 @@
 {
-  "phase": "prototyped",
-  "lastUpdated": "2026-01-12",
+  "phase": "designed",
+  "lastUpdated": "2026-01-14",
   "requirements": [
     { "id": "FR-001", "passes": false },
     { "id": "FR-002", "passes": false },
@@ -15,6 +15,8 @@
     { "id": "FR-012", "passes": false },
     { "id": "FR-013", "passes": false },
     { "id": "FR-014", "passes": false },
+    { "id": "FR-015", "passes": false },
+    { "id": "FR-016", "passes": false },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": false },
     { "id": "NFR-003", "passes": false }
