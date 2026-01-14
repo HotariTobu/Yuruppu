@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "chat_room_id": {
+      "type": "string",
+      "description": "The chat room ID to retrieve event details for. If not specified, uses the current chat room."
+    }
+  },
+  "additionalProperties": false
+}
