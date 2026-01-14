@@ -1,14 +1,14 @@
 {
-  "phase": "in-progress",
+  "phase": "completed",
   "lastUpdated": "2026-01-14",
   "requirements": [
-    { "id": "FR-001", "passes": false },
-    { "id": "FR-002", "passes": false },
-    { "id": "FR-003", "passes": false },
-    { "id": "FR-004", "passes": false },
-    { "id": "FR-005", "passes": false },
-    { "id": "FR-006", "passes": false },
-    { "id": "FR-008", "passes": false },
+    { "id": "FR-001", "passes": true },
+    { "id": "FR-002", "passes": true },
+    { "id": "FR-003", "passes": true },
+    { "id": "FR-004", "passes": true },
+    { "id": "FR-005", "passes": true },
+    { "id": "FR-006", "passes": true },
+    { "id": "FR-008", "passes": true },
     { "id": "FR-009", "passes": true },
     { "id": "FR-010", "passes": true },
     { "id": "FR-011", "passes": true },
@@ -17,10 +17,10 @@
     { "id": "FR-014", "passes": true },
     { "id": "FR-015", "passes": true },
     { "id": "FR-016", "passes": true },
-    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-001", "passes": true },
     { "id": "NFR-002", "passes": true },
-    { "id": "NFR-003", "passes": false }
+    { "id": "NFR-003", "passes": true }
   ],
   "blockers": [],
-  "notes": "list_events tool completed (internal/toolset/event/list/) with FR-010-FR-016 passing. All 6 reviewer agents passed with no critical issues. Supports created_by_me filter, period filters (start/end with 'today' or RFC3339), combined filters. Sorting delegated to service per design. Limit enforcement (5 when partial range, 0 when both specified). Response limited to FR-016 fields with JST RFC3339 times. Tests cover AC-006-AC-011. Architecture review identified minor issues (duplicate interfaces, duplicate constants) that are non-blocking. Next session: create event.go factory and integrate event tools with main.go, then verify remaining requirements (FR-001-FR-008, NFR-001, NFR-003)."
+  "notes": "All requirements pass. Implementation complete: event factory (internal/toolset/event/event.go), main.go integration with config (EventListMaxPeriodDays, EventListLimit), profile service GetDisplayName method. All preflight checks pass. Reviewers identified pre-existing issues (infra config, performance optimizations) that are not blockers for this feature. Consider follow-up work: add EVENT_* env vars to Terraform, add caching to event service, add tests for profile.GetDisplayName."
 }
