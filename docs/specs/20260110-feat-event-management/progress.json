@@ -10,17 +10,17 @@
     { "id": "FR-006", "passes": false },
     { "id": "FR-008", "passes": false },
     { "id": "FR-009", "passes": true },
-    { "id": "FR-010", "passes": false },
-    { "id": "FR-011", "passes": false },
-    { "id": "FR-012", "passes": false },
-    { "id": "FR-013", "passes": false },
-    { "id": "FR-014", "passes": false },
-    { "id": "FR-015", "passes": false },
-    { "id": "FR-016", "passes": false },
+    { "id": "FR-010", "passes": true },
+    { "id": "FR-011", "passes": true },
+    { "id": "FR-012", "passes": true },
+    { "id": "FR-013", "passes": true },
+    { "id": "FR-014", "passes": true },
+    { "id": "FR-015", "passes": true },
+    { "id": "FR-016", "passes": true },
     { "id": "NFR-001", "passes": false },
     { "id": "NFR-002", "passes": true },
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "get_event tool implemented (internal/toolset/event/get/) with FR-009 and NFR-002 passing. Supports explicit chat_room_id or implicit sourceID from context. Creator visibility respected - shows creator name only when showCreator=true. Times formatted in JST RFC3339. Comprehensive tests with AC-004, AC-005, AC-012, AC-013 coverage. Next session: implement list_events tool (FR-010-FR-016), then create event.go factory and integrate with main.go."
+  "notes": "list_events tool completed (internal/toolset/event/list/) with FR-010-FR-016 passing. All 6 reviewer agents passed with no critical issues. Supports created_by_me filter, period filters (start/end with 'today' or RFC3339), combined filters. Sorting delegated to service per design. Limit enforcement (5 when partial range, 0 when both specified). Response limited to FR-016 fields with JST RFC3339 times. Tests cover AC-006-AC-011. Architecture review identified minor issues (duplicate interfaces, duplicate constants) that are non-blocking. Next session: create event.go factory and integrate event tools with main.go, then verify remaining requirements (FR-001-FR-008, NFR-001, NFR-003)."
 }

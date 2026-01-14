@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "created_by_me": {
+      "type": "boolean",
+      "description": "Filter to show only events created by the current user. If not specified, shows all events."
+    },
+    "start": {
+      "type": "string",
+      "description": "Filter events with start time on or after this date. Use RFC3339 format or 'today'. If only 'start' is specified, returns future events in ascending order (limited to 5 items)."
+    },
+    "end": {
+      "type": "string",
+      "description": "Filter events with start time on or before this date. Use RFC3339 format or 'today'. If only 'end' is specified, returns past events in descending order (limited to 5 items)."
+    }
+  },
+  "additionalProperties": false
+}
