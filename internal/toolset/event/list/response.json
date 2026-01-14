@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Whether the events were retrieved successfully"
+    },
+    "events": {
+      "type": "array",
+      "description": "List of events matching the filters",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chat_room_id": {
+            "type": "string",
+            "description": "Chat room ID where the event is scheduled"
+          },
+          "title": {
+            "type": "string",
+            "description": "Event title"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Event start time in JST RFC3339 format"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "Event end time in JST RFC3339 format"
+          },
+          "fee": {
+            "type": "string",
+            "description": "Event fee information"
+          }
+        },
+        "required": ["chat_room_id", "title", "start_time", "end_time", "fee"],
+        "additionalProperties": false
+      }
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if retrieval failed"
+    }
+  },
+  "required": ["success"],
+  "additionalProperties": false
+}
