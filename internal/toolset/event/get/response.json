@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Whether the event was retrieved successfully"
+    },
+    "creator_name": {
+      "type": "string",
+      "description": "Display name of the event creator (only present when show_creator=true)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Event title"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Event start time in JST RFC3339 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "Event end time in JST RFC3339 format"
+    },
+    "fee": {
+      "type": "string",
+      "description": "Event fee information"
+    },
+    "capacity": {
+      "type": "integer",
+      "description": "Maximum number of participants"
+    },
+    "description": {
+      "type": "string",
+      "description": "Event description"
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if retrieval failed"
+    }
+  },
+  "required": ["success"],
+  "additionalProperties": false
+}
