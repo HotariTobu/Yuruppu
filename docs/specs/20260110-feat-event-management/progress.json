@@ -22,5 +22,5 @@
     { "id": "NFR-003", "passes": false }
   ],
   "blockers": [],
-  "notes": "Event Service layer (internal/event/) completed with JSONL storage, optimistic locking, and comprehensive tests. Next session: implement tools (create_event, get_event, list_events) in internal/toolset/event/."
+  "notes": "create_event tool implemented (internal/toolset/event/create/) with parameters/response schemas and comprehensive tests. Next session: implement get_event and list_events tools, then create event.go factory and integrate with main.go to register tools with agent."
 }
