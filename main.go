@@ -20,10 +20,13 @@ import (
 	"yuruppu/internal/media"
 	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
+	"yuruppu/internal/toolset/event"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
+
+	eventdomain "yuruppu/internal/event"
 
 	"cloud.google.com/go/compute/metadata"
 	gcsstorage "cloud.google.com/go/storage"
@@ -44,6 +47,8 @@ type Config struct {
 	BucketName                    string // GCS bucket for storage
 	TypingIndicatorDelaySeconds   int    // Delay before showing typing indicator (default: 3)
 	TypingIndicatorTimeoutSeconds int    // Typing indicator display duration (default: 30, range: 5-60)
+	EventListMaxPeriodDays        int    // Max period in days for list_events (default: 365)
+	EventListLimit                int    // Max items for list_events (default: 5)
 }
 
 const (
@@ -61,7 +66,28 @@ const (
 
 	// defaultTypingIndicatorTimeoutSeconds is the typing indicator display duration.
 	defaultTypingIndicatorTimeoutSeconds = 30
+
+	// defaultEventListMaxPeriodDays is the max period in days for list_events.
+	defaultEventListMaxPeriodDays = 365
+
+	// defaultEventListLimit is the max items for list_events.
+	defaultEventListLimit = 5
 )
+
+// parsePositiveInt parses an environment variable as a positive integer.
+// Returns the default value if the environment variable is not set.
+// Returns an error if the value is invalid or not positive.
+func parsePositiveInt(envName string, defaultValue int) (int, error) {
+	env := os.Getenv(envName)
+	if env == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.Atoi(env)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer: %s", envName, env)
+	}
+	return parsed, nil
+}
 
 // loadConfig loads configuration from environment variables.
 // It reads LOG_LEVEL, ENDPOINT, PORT, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GCP_PROJECT_ID, GCP_REGION, LLM_MODEL, LLM_CACHE_TTL_MINUTES, LLM_TIMEOUT_SECONDS, and BUCKET_NAME from environment.
@@ -120,23 +146,15 @@ func loadConfig() (*Config, error) {
 	}
 
 	// Parse LLM cache TTL
-	llmCacheTTLMinutes := defaultLLMCacheTTLMinutes
-	if env := os.Getenv("LLM_CACHE_TTL_MINUTES"); env != "" {
-		parsed, err := strconv.Atoi(env)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("LLM_CACHE_TTL_MINUTES must be a positive integer: %s", env)
-		}
-		llmCacheTTLMinutes = parsed
+	llmCacheTTLMinutes, err := parsePositiveInt("LLM_CACHE_TTL_MINUTES", defaultLLMCacheTTLMinutes)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse LLM timeout
-	llmTimeoutSeconds := defaultLLMTimeoutSeconds
-	if env := os.Getenv("LLM_TIMEOUT_SECONDS"); env != "" {
-		parsed, err := strconv.Atoi(env)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("LLM_TIMEOUT_SECONDS must be a positive integer: %s", env)
-		}
-		llmTimeoutSeconds = parsed
+	llmTimeoutSeconds, err := parsePositiveInt("LLM_TIMEOUT_SECONDS", defaultLLMTimeoutSeconds)
+	if err != nil {
+		return nil, err
 	}
 
 	// Load and validate BUCKET_NAME (required)
@@ -146,13 +164,9 @@ func loadConfig() (*Config, error) {
 	}
 
 	// Parse typing indicator delay
-	typingIndicatorDelaySeconds := defaultTypingIndicatorDelaySeconds
-	if env := os.Getenv("TYPING_INDICATOR_DELAY_SECONDS"); env != "" {
-		parsed, err := strconv.Atoi(env)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("TYPING_INDICATOR_DELAY_SECONDS must be a positive integer: %s", env)
-		}
-		typingIndicatorDelaySeconds = parsed
+	typingIndicatorDelaySeconds, err := parsePositiveInt("TYPING_INDICATOR_DELAY_SECONDS", defaultTypingIndicatorDelaySeconds)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse typing indicator timeout (must be 5-60 seconds per LINE API)
@@ -163,6 +177,18 @@ func loadConfig() (*Config, error) {
 			return nil, fmt.Errorf("TYPING_INDICATOR_TIMEOUT_SECONDS must be between 5 and 60 seconds: %s", env)
 		}
 		typingIndicatorTimeoutSeconds = parsed
+	}
+
+	// Parse event list max period days
+	eventListMaxPeriodDays, err := parsePositiveInt("EVENT_LIST_MAX_PERIOD_DAYS", defaultEventListMaxPeriodDays)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse event list limit
+	eventListLimit, err := parsePositiveInt("EVENT_LIST_LIMIT", defaultEventListLimit)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Config{
@@ -179,6 +205,8 @@ func loadConfig() (*Config, error) {
 		BucketName:                    bucketName,
 		TypingIndicatorDelaySeconds:   typingIndicatorDelaySeconds,
 		TypingIndicatorTimeoutSeconds: typingIndicatorTimeoutSeconds,
+		EventListMaxPeriodDays:        eventListMaxPeriodDays,
+		EventListLimit:                eventListLimit,
 	}, nil
 }
 
@@ -269,24 +297,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create Gemini agent with Yuruppu system prompt
-	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
-	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
-		ProjectID:        projectID,
-		Region:           region,
-		Model:            config.LLMModel,
-		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            []agent.Tool{weatherTool, replyTool, skipTool},
-		FunctionCallOnly: true,
-		CacheDisplayName: "yuruppu-system-prompt",
-		CacheTTL:         llmCacheTTL,
-	}, logger)
-	if err != nil {
-		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
-		os.Exit(1)
-	}
-
-	// Create profile service
+	// Create profile service (needed by event tools and handler)
 	profileStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "profile/")
 	if err != nil {
 		logger.Error("failed to create profile storage", slog.Any("error", err))
@@ -295,6 +306,44 @@ func main() {
 	profileService, err := profile.NewService(profileStorage, logger)
 	if err != nil {
 		logger.Error("failed to create profile service", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Create event service and tools
+	eventStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "event/")
+	if err != nil {
+		logger.Error("failed to create event storage", slog.Any("error", err))
+		os.Exit(1)
+	}
+	eventService, err := eventdomain.NewService(eventStorage)
+	if err != nil {
+		logger.Error("failed to create event service", slog.Any("error", err))
+		os.Exit(1)
+	}
+	eventTools, err := event.NewTools(eventService, profileService, config.EventListMaxPeriodDays, config.EventListLimit)
+	if err != nil {
+		logger.Error("failed to create event tools", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Collect all tools
+	allTools := []agent.Tool{weatherTool, replyTool, skipTool}
+	allTools = append(allTools, eventTools...)
+
+	// Create Gemini agent with Yuruppu system prompt
+	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
+	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
+		ProjectID:        projectID,
+		Region:           region,
+		Model:            config.LLMModel,
+		SystemPrompt:     yuruppu.SystemPrompt,
+		Tools:            allTools,
+		FunctionCallOnly: true,
+		CacheDisplayName: "yuruppu-system-prompt",
+		CacheTTL:         llmCacheTTL,
+	}, logger)
+	if err != nil {
+		logger.Error("failed to initialize Gemini agent", slog.Any("error", err))
 		os.Exit(1)
 	}
 
