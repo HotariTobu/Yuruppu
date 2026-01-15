@@ -83,10 +83,9 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if createdByMeArg, ok := args["created_by_me"]; ok {
 		createdByMe, ok := createdByMeArg.(bool)
 		if !ok {
-			return nil, errors.New("created_by_me must be a boolean")
+			return nil, errors.New("invalid created_by_me")
 		}
 		if createdByMe {
-			// Get userID from context
 			userID, ok := line.UserIDFromContext(ctx)
 			if !ok {
 				t.logger.ErrorContext(ctx, "user ID not found in context")
@@ -101,12 +100,12 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if startArg, ok := args["start"]; ok {
 		startStr, ok := startArg.(string)
 		if !ok {
-			return nil, errors.New("start must be a string")
+			return nil, errors.New("invalid start")
 		}
 		parsedStart, err := parseTimeParameter(startStr)
 		if err != nil {
 			t.logger.ErrorContext(ctx, "invalid start time", slog.Any("error", err))
-			return nil, errors.New("invalid start time")
+			return nil, errors.New("invalid start")
 		}
 		start = &parsedStart
 		opts.Start = start
@@ -117,12 +116,12 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if endArg, ok := args["end"]; ok {
 		endStr, ok := endArg.(string)
 		if !ok {
-			return nil, errors.New("end must be a string")
+			return nil, errors.New("invalid end")
 		}
 		parsedEnd, err := parseTimeParameter(endStr)
 		if err != nil {
 			t.logger.ErrorContext(ctx, "invalid end time", slog.Any("error", err))
-			return nil, errors.New("invalid end time")
+			return nil, errors.New("invalid end")
 		}
 		end = &parsedEnd
 		opts.End = end
