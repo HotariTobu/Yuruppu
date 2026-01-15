@@ -87,7 +87,7 @@ type EventService interface {
     Get(ctx context.Context, chatRoomID string) (*event.Event, error)
 }
 type ProfileService interface {
-    GetDisplayName(ctx context.Context, userID string) (string, error)
+    GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
 }
 func New(eventService EventService, profileService ProfileService) (*Tool, error)
 

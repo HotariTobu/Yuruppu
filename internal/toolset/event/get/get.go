@@ -7,6 +7,7 @@ import (
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 )
 
 //go:embed parameters.json
@@ -33,7 +34,7 @@ type EventService interface {
 
 // ProfileService provides access to user profile operations.
 type ProfileService interface {
-	GetDisplayName(ctx context.Context, userID string) (string, error)
+	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
 }
 
 // Tool implements the get_event tool for retrieving event details.
@@ -118,11 +119,11 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 
 	// Resolve creator name if showCreator is true
 	if ev.ShowCreator {
-		displayName, err := t.profileService.GetDisplayName(ctx, ev.CreatorID)
+		userProfile, err := t.profileService.GetUserProfile(ctx, ev.CreatorID)
 		if err != nil {
 			return errorResponse(err.Error())
 		}
-		response["creator_name"] = displayName
+		response["creator_name"] = userProfile.DisplayName
 	}
 
 	return response, nil

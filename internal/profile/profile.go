@@ -81,12 +81,3 @@ func (s *Service) SetUserProfile(ctx context.Context, userID string, profile *Us
 
 	return nil
 }
-
-// GetDisplayName retrieves the display name for a user.
-func (s *Service) GetDisplayName(ctx context.Context, userID string) (string, error) {
-	profile, err := s.GetUserProfile(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	return profile.DisplayName, nil
-}
