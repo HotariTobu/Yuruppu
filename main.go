@@ -327,8 +327,8 @@ func main() {
 	}
 
 	// Collect all tools
-	allTools := []agent.Tool{weatherTool, replyTool, skipTool}
-	allTools = append(allTools, eventTools...)
+	toolset := []agent.Tool{weatherTool, replyTool, skipTool}
+	toolset = append(toolset, eventTools...)
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
@@ -337,7 +337,7 @@ func main() {
 		Region:           region,
 		Model:            config.LLMModel,
 		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            allTools,
+		Tools:            toolset,
 		FunctionCallOnly: true,
 		CacheDisplayName: "yuruppu-system-prompt",
 		CacheTTL:         llmCacheTTL,
