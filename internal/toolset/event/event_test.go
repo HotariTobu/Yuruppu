@@ -48,7 +48,7 @@ func TestNewTools(t *testing.T) {
 		// Given: Valid service and configuration
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
-		listMaxPeriodDays := 365
+		listMaxPeriodDays := 366
 		listLimit := 5
 
 		// When: NewTools is called
@@ -79,7 +79,7 @@ func TestNewTools(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools, err := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Each tool should have valid metadata
 		require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			name:              "returns error when eventService is nil",
 			eventService:      nil,
 			profileService:    &mockProfileService{},
-			listMaxPeriodDays: 365,
+			listMaxPeriodDays: 366,
 			listLimit:         5,
 			expectError:       "eventService",
 		},
@@ -117,7 +117,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			name:              "returns error when profileService is nil",
 			eventService:      &mockEventService{},
 			profileService:    nil,
-			listMaxPeriodDays: 365,
+			listMaxPeriodDays: 366,
 			listLimit:         5,
 			expectError:       "profileService",
 		},
@@ -141,7 +141,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			name:              "returns error when listLimit is zero",
 			eventService:      &mockEventService{},
 			profileService:    &mockProfileService{},
-			listMaxPeriodDays: 365,
+			listMaxPeriodDays: 366,
 			listLimit:         0,
 			expectError:       "listLimit",
 		},
@@ -149,7 +149,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			name:              "returns error when listLimit is negative",
 			eventService:      &mockEventService{},
 			profileService:    &mockProfileService{},
-			listMaxPeriodDays: 365,
+			listMaxPeriodDays: 366,
 			listLimit:         -1,
 			expectError:       "listLimit",
 		},
@@ -171,7 +171,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
 
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, nil)
+		tools, err := eventtoolset.NewTools(eventService, profileService, 366, 5, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, tools)
@@ -226,7 +226,7 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools, err := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 
 		// Then: All tools should implement the agent.Tool interface
 		require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools, err := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Event tools should NOT implement the agent.FinalAction interface
 		// because they require a follow-up reply tool call
@@ -266,10 +266,10 @@ func TestNewTools_ReturnOrder(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called multiple times
-		tools1, err1 := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools1, err1 := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 		require.NoError(t, err1)
 
-		tools2, err2 := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools2, err2 := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 		require.NoError(t, err2)
 
 		// Then: Tools should be returned in the same order
@@ -287,7 +287,7 @@ func TestNewTools_ReturnOrder(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
+		tools, err := eventtoolset.NewTools(eventService, profileService, 366, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Tools should follow the expected order
 		require.NoError(t, err)

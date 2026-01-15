@@ -47,7 +47,7 @@ type Config struct {
 	BucketName                    string // GCS bucket for storage
 	TypingIndicatorDelaySeconds   int    // Delay before showing typing indicator (default: 3)
 	TypingIndicatorTimeoutSeconds int    // Typing indicator display duration (default: 30, range: 5-60)
-	EventListMaxPeriodDays        int    // Max period in days for list_events (default: 365)
+	EventListMaxPeriodDays        int    // Max period in days for list_events
 	EventListLimit                int    // Max items for list_events (default: 5)
 }
 
@@ -68,7 +68,7 @@ const (
 	defaultTypingIndicatorTimeoutSeconds = 30
 
 	// defaultEventListMaxPeriodDays is the max period in days for list_events.
-	defaultEventListMaxPeriodDays = 365
+	defaultEventListMaxPeriodDays = 366
 
 	// defaultEventListLimit is the max items for list_events.
 	defaultEventListLimit = 5

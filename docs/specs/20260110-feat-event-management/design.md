@@ -8,7 +8,7 @@ Add event management tools (create, get, list) to the bot. All events are stored
 
 | Name | Description | Default |
 |------|-------------|---------|
-| `EVENT_LIST_MAX_PERIOD_DAYS` | Max period in days for list_events when both start and end specified | `365` |
+| `EVENT_LIST_MAX_PERIOD_DAYS` | Max period in days for list_events when both start and end specified | `366` |
 | `EVENT_LIST_LIMIT` | Max items for list_events when period not fully specified | `5` |
 
 ## File Structure
