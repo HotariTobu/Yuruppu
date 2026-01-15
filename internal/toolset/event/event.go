@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
 	"yuruppu/internal/profile"
@@ -25,7 +26,7 @@ type ProfileService interface {
 
 // NewTools creates all event management tools (create, get, list).
 // Returns error if any service is nil or configuration values are invalid.
-func NewTools(eventService EventService, profileService ProfileService, listMaxPeriodDays, listLimit int) ([]agent.Tool, error) {
+func NewTools(eventService EventService, profileService ProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
@@ -38,21 +39,24 @@ func NewTools(eventService EventService, profileService ProfileService, listMaxP
 	if listLimit <= 0 {
 		return nil, errors.New("listLimit must be positive")
 	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 
 	// Create create_event tool
-	createTool, err := create.New(eventService)
+	createTool, err := create.New(eventService, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create get_event tool
-	getTool, err := get.New(eventService, profileService)
+	getTool, err := get.New(eventService, profileService, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create list_events tool
-	listTool, err := list.New(eventService, listMaxPeriodDays, listLimit)
+	listTool, err := list.New(eventService, listMaxPeriodDays, listLimit, logger)
 	if err != nil {
 		return nil, err
 	}

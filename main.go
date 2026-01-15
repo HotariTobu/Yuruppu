@@ -320,7 +320,7 @@ func main() {
 		logger.Error("failed to create event service", slog.Any("error", err))
 		os.Exit(1)
 	}
-	eventTools, err := event.NewTools(eventService, profileService, config.EventListMaxPeriodDays, config.EventListLimit)
+	eventTools, err := event.NewTools(eventService, profileService, config.EventListMaxPeriodDays, config.EventListLimit, logger)
 	if err != nil {
 		logger.Error("failed to create event tools", slog.Any("error", err))
 		os.Exit(1)

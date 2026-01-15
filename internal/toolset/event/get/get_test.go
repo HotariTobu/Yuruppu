@@ -3,6 +3,7 @@ package get_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 	"yuruppu/internal/event"
@@ -53,7 +54,7 @@ func TestNew(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
 
-		tool, err := get.New(eventService, profileService)
+		tool, err := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		require.NoError(t, err)
 		require.NotNil(t, tool)
@@ -63,7 +64,7 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when eventService is nil", func(t *testing.T) {
 		profileService := &mockProfileService{}
 
-		tool, err := get.New(nil, profileService)
+		tool, err := get.New(nil, profileService, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
@@ -73,11 +74,22 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when profileService is nil", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := get.New(eventService, nil)
+		tool, err := get.New(eventService, nil, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
 		assert.Contains(t, err.Error(), "profileService cannot be nil")
+	})
+
+	t.Run("returns error when logger is nil", func(t *testing.T) {
+		eventService := &mockEventService{}
+		profileService := &mockProfileService{}
+
+		tool, err := get.New(eventService, profileService, nil)
+
+		require.Error(t, err)
+		assert.Nil(t, tool)
+		assert.Contains(t, err.Error(), "logger cannot be nil")
 	})
 }
 
@@ -88,7 +100,7 @@ func TestNew(t *testing.T) {
 func TestTool_Metadata(t *testing.T) {
 	eventService := &mockEventService{}
 	profileService := &mockProfileService{}
-	tool, _ := get.New(eventService, profileService)
+	tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 	t.Run("Name returns get_event", func(t *testing.T) {
 		assert.Equal(t, "get_event", tool.Name())
@@ -132,7 +144,7 @@ func TestTool_Callback_Success(t *testing.T) {
 		profileService := &mockProfileService{
 			displayName: "Alice",
 		}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-789")
 		args := map[string]any{
@@ -164,7 +176,7 @@ func TestTool_Callback_Success(t *testing.T) {
 		profileService := &mockProfileService{
 			displayName: "Bob",
 		}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -186,7 +198,7 @@ func TestTool_Callback_Success(t *testing.T) {
 		profileService := &mockProfileService{
 			displayName: "Charlie",
 		}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -208,7 +220,7 @@ func TestTool_Callback_Success(t *testing.T) {
 		profileService := &mockProfileService{
 			displayName: "Should Not Appear",
 		}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -233,7 +245,7 @@ func TestTool_Callback_Success(t *testing.T) {
 			getEvent: ev,
 		}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -269,7 +281,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 			getErr: errors.New("event not found: group-404"),
 		}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-404", "user-789")
 		args := map[string]any{}
@@ -286,7 +298,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 			getErr: errors.New("storage error"),
 		}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -307,7 +319,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 		profileService := &mockProfileService{
 			getErr: errors.New("profile not found"),
 		}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
@@ -322,7 +334,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 	t.Run("returns error when sourceID not in context and chat_room_id not provided", func(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := line.WithUserID(context.Background(), "user-123")
 		args := map[string]any{}
@@ -343,7 +355,7 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 	t.Run("returns error when chat_room_id is empty string", func(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-456")
 		args := map[string]any{
@@ -359,7 +371,7 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 	t.Run("returns error when chat_room_id is not a string", func(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService)
+		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-456")
 		args := map[string]any{

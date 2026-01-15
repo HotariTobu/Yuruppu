@@ -3,6 +3,7 @@ package list_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 	"yuruppu/internal/event"
@@ -63,7 +64,7 @@ func TestNew(t *testing.T) {
 	t.Run("creates tool with valid parameters", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := list.New(eventService, 365, 5)
+		tool, err := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		require.NoError(t, err)
 		require.NotNil(t, tool)
@@ -71,7 +72,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("returns error when eventService is nil", func(t *testing.T) {
-		tool, err := list.New(nil, 365, 5)
+		tool, err := list.New(nil, 365, 5, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
@@ -81,7 +82,7 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when maxPeriodDays is zero", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := list.New(eventService, 0, 5)
+		tool, err := list.New(eventService, 0, 5, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
@@ -91,7 +92,7 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when maxPeriodDays is negative", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := list.New(eventService, -1, 5)
+		tool, err := list.New(eventService, -1, 5, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
@@ -101,7 +102,7 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when limit is zero", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := list.New(eventService, 365, 0)
+		tool, err := list.New(eventService, 365, 0, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
@@ -111,11 +112,21 @@ func TestNew(t *testing.T) {
 	t.Run("returns error when limit is negative", func(t *testing.T) {
 		eventService := &mockEventService{}
 
-		tool, err := list.New(eventService, 365, -1)
+		tool, err := list.New(eventService, 365, -1, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
 		assert.Contains(t, err.Error(), "limit must be positive")
+	})
+
+	t.Run("returns error when logger is nil", func(t *testing.T) {
+		eventService := &mockEventService{}
+
+		tool, err := list.New(eventService, 365, 5, nil)
+
+		require.Error(t, err)
+		assert.Nil(t, tool)
+		assert.Contains(t, err.Error(), "logger cannot be nil")
 	})
 }
 
@@ -125,7 +136,7 @@ func TestNew(t *testing.T) {
 
 func TestTool_Metadata(t *testing.T) {
 	eventService := &mockEventService{}
-	tool, _ := list.New(eventService, 365, 5)
+	tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 	t.Run("Name returns list_events", func(t *testing.T) {
 		assert.Equal(t, "list_events", tool.Name())
@@ -174,7 +185,7 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{eventC, eventA, eventB}, // Service returns sorted
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -207,7 +218,7 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{event1},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -237,7 +248,7 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -266,7 +277,7 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{event1, event3}, // Service already filtered
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -291,7 +302,7 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -308,7 +319,7 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 
 	t.Run("returns error when created_by_me is not boolean", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -325,7 +336,7 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 
 	t.Run("returns error when userID not in context and created_by_me is true", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := line.WithSourceID(context.Background(), "group-123")
 		args := map[string]any{
@@ -351,7 +362,7 @@ func TestTool_Callback_PeriodFilter_Before(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -378,7 +389,7 @@ func TestTool_Callback_PeriodFilter_Before(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		startTime := "2026-03-01T00:00:00+09:00"
@@ -402,7 +413,7 @@ func TestTool_Callback_PeriodFilter_After(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -429,7 +440,7 @@ func TestTool_Callback_PeriodFilter_After(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		endTime := "2026-02-01T00:00:00+09:00"
@@ -457,7 +468,7 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		startTime := "2026-03-01T00:00:00+09:00"
@@ -482,7 +493,7 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 	// FR-012: Period validation (max 1 year when both specified)
 	t.Run("returns error when range exceeds maxPeriodDays", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -502,7 +513,7 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -518,7 +529,7 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 
 	t.Run("returns error when end is before start", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -545,7 +556,7 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -569,7 +580,7 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -592,7 +603,7 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -622,7 +633,7 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -642,7 +653,7 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -663,7 +674,7 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -690,7 +701,7 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -707,7 +718,7 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -724,7 +735,7 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -742,7 +753,7 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -769,7 +780,7 @@ func TestTool_Callback_TimeFormat(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{event1},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -812,7 +823,7 @@ func TestTool_Callback_TodayResolution(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -837,7 +848,7 @@ func TestTool_Callback_TodayResolution(t *testing.T) {
 		eventService := &mockEventService{
 			listEvents: []*event.Event{},
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -868,7 +879,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 		eventService := &mockEventService{
 			listErr: errors.New("storage error"),
 		}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
@@ -881,7 +892,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 
 	t.Run("returns error when start is invalid RFC3339", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -898,7 +909,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 
 	t.Run("returns error when end is invalid RFC3339", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -915,7 +926,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 
 	t.Run("returns error when start is not a string", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{
@@ -932,7 +943,7 @@ func TestTool_Callback_Errors(t *testing.T) {
 
 	t.Run("returns error when end is not a string", func(t *testing.T) {
 		eventService := &mockEventService{}
-		tool, _ := list.New(eventService, 365, 5)
+		tool, _ := list.New(eventService, 365, 5, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{

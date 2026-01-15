@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
+	"log/slog"
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
@@ -29,10 +29,11 @@ type Tool struct {
 	eventService  EventService
 	maxPeriodDays int
 	limit         int
+	logger        *slog.Logger
 }
 
 // New creates a new list_events tool with the specified service and configuration.
-func New(eventService EventService, maxPeriodDays, limit int) (*Tool, error) {
+func New(eventService EventService, maxPeriodDays, limit int, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
@@ -42,10 +43,14 @@ func New(eventService EventService, maxPeriodDays, limit int) (*Tool, error) {
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Tool{
 		eventService:  eventService,
 		maxPeriodDays: maxPeriodDays,
 		limit:         limit,
+		logger:        logger,
 	}, nil
 }
 
@@ -84,7 +89,8 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			// Get userID from context
 			userID, ok := line.UserIDFromContext(ctx)
 			if !ok {
-				return nil, errors.New("user ID not found")
+				t.logger.ErrorContext(ctx, "user ID not found in context")
+				return nil, errors.New("internal error")
 			}
 			opts.CreatorID = &userID
 		}
@@ -99,7 +105,8 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		}
 		parsedStart, err := parseTimeParameter(startStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid start time: %w", err)
+			t.logger.ErrorContext(ctx, "invalid start time", slog.Any("error", err))
+			return nil, errors.New("invalid start time")
 		}
 		start = &parsedStart
 		opts.Start = start
@@ -114,7 +121,8 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		}
 		parsedEnd, err := parseTimeParameter(endStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid end time: %w", err)
+			t.logger.ErrorContext(ctx, "invalid end time", slog.Any("error", err))
+			return nil, errors.New("invalid end time")
 		}
 		end = &parsedEnd
 		opts.End = end
@@ -130,7 +138,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		duration := end.Sub(*start)
 		maxDuration := time.Duration(t.maxPeriodDays) * 24 * time.Hour
 		if duration > maxDuration {
-			return nil, fmt.Errorf("period cannot exceed %d days", t.maxPeriodDays)
+			return nil, errors.New("period is too long")
 		}
 		// No limit when both start and end specified
 		opts.Limit = 0
@@ -142,6 +150,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Retrieve events from service
 	events, err := t.eventService.List(ctx, opts)
 	if err != nil {
+		t.logger.ErrorContext(ctx, "failed to list events", slog.Any("error", err))
 		return nil, errors.New("failed to list events")
 	}
 

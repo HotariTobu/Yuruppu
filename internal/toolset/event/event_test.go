@@ -2,6 +2,7 @@ package event_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
@@ -51,7 +52,7 @@ func TestNewTools(t *testing.T) {
 		listLimit := 5
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit)
+		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit, slog.New(slog.DiscardHandler))
 
 		// Then: Should return 3 tools without error
 		require.NoError(t, err)
@@ -78,7 +79,7 @@ func TestNewTools(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Each tool should have valid metadata
 		require.NoError(t, err)
@@ -157,7 +158,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// When: NewTools is called with invalid parameters
-			tools, err := eventtoolset.NewTools(tt.eventService, tt.profileService, tt.listMaxPeriodDays, tt.listLimit)
+			tools, err := eventtoolset.NewTools(tt.eventService, tt.profileService, tt.listMaxPeriodDays, tt.listLimit, slog.New(slog.DiscardHandler))
 
 			// Then: Should return error and nil tools
 			require.Error(t, err)
@@ -165,6 +166,17 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectError)
 		})
 	}
+
+	t.Run("returns error when logger is nil", func(t *testing.T) {
+		eventService := &mockEventService{}
+		profileService := &mockProfileService{}
+
+		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, nil)
+
+		require.Error(t, err)
+		assert.Nil(t, tools)
+		assert.Contains(t, err.Error(), "logger")
+	})
 }
 
 // =============================================================================
@@ -180,7 +192,7 @@ func TestNewTools_EdgeCases(t *testing.T) {
 		listLimit := 1
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit)
+		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit, slog.New(slog.DiscardHandler))
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -195,7 +207,7 @@ func TestNewTools_EdgeCases(t *testing.T) {
 		listLimit := 1000
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit)
+		tools, err := eventtoolset.NewTools(eventService, profileService, listMaxPeriodDays, listLimit, slog.New(slog.DiscardHandler))
 
 		// Then: Should succeed
 		require.NoError(t, err)
@@ -214,7 +226,7 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 
 		// Then: All tools should implement the agent.Tool interface
 		require.NoError(t, err)
@@ -230,7 +242,7 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Event tools should NOT implement the agent.FinalAction interface
 		// because they require a follow-up reply tool call
@@ -254,10 +266,10 @@ func TestNewTools_ReturnOrder(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called multiple times
-		tools1, err1 := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools1, err1 := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 		require.NoError(t, err1)
 
-		tools2, err2 := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools2, err2 := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 		require.NoError(t, err2)
 
 		// Then: Tools should be returned in the same order
@@ -275,7 +287,7 @@ func TestNewTools_ReturnOrder(t *testing.T) {
 		profileService := &mockProfileService{}
 
 		// When: NewTools is called
-		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5)
+		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5, slog.New(slog.DiscardHandler))
 
 		// Then: Tools should follow the expected order
 		require.NoError(t, err)
