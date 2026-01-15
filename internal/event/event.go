@@ -13,7 +13,7 @@ import (
 	"yuruppu/internal/storage"
 )
 
-const storageKey = "events.jsonl"
+const storageKey = "all"
 
 // Event represents an event in a chat room.
 type Event struct {

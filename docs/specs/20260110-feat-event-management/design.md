@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add event management tools (create, get, list) to the bot. All events are stored in a single JSONL file (`events.jsonl`) in GCS. Optimistic locking via `expectedGeneration` ensures safe concurrent updates.
+Add event management tools (create, get, list) to the bot. All events are stored in a single JSONL file (`event/all`) in GCS. Optimistic locking via `expectedGeneration` ensures safe concurrent updates.
 
 ## Environment Variables
 
@@ -143,7 +143,7 @@ type ListEventResponse struct {
    CreatorID = userID
 
 5. service.Create(ctx, event)
-   - Read events.jsonl → get all events + generation
+   - Read JSONL file → get all events + generation
    - Check if ChatRoomID already exists → error if exists (FR-004)
    - Append new event line
    - Write with expectedGeneration (optimistic lock)
@@ -161,7 +161,7 @@ type ListEventResponse struct {
 2. If chat_room_id not specified → use sourceID from context
 
 3. service.Get(ctx, chatRoomID)
-   - Read events.jsonl
+   - Read JSONL file
    - Find event by ChatRoomID
 
 4. Resolve CreatorName
@@ -195,7 +195,7 @@ type ListEventResponse struct {
    Limit: start+end → 0, otherwise → limit (from constructor)
 
 6. service.List(ctx, opts)
-   - Read events.jsonl
+   - Read JSONL file
    - Filter, sort, limit per List behavior
 
 7. Build response
