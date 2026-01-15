@@ -98,8 +98,8 @@ func TestService_Create(t *testing.T) {
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existing)
-		store.data["events.jsonl"] = existingJSON
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -196,8 +196,8 @@ func TestService_Create_DuplicateChatRoom(t *testing.T) {
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existing)
-		store.data["events.jsonl"] = existingJSON
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -347,8 +347,8 @@ func TestService_Get(t *testing.T) {
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existingEvent)
-		store.data["events.jsonl"] = existingJSON
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -400,8 +400,8 @@ func TestService_Get(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -450,8 +450,8 @@ func TestService_Get_NotFound(t *testing.T) {
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existingEvent)
-		store.data["events.jsonl"] = existingJSON
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -547,8 +547,8 @@ func TestService_List_NoFilters(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -627,8 +627,8 @@ func TestService_List_FilterByCreator(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -663,8 +663,8 @@ func TestService_List_FilterByCreator(t *testing.T) {
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existingEvent)
-		store.data["events.jsonl"] = existingJSON
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -726,8 +726,8 @@ func TestService_List_FilterByStartOnly(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -794,8 +794,8 @@ func TestService_List_FilterByEndOnly(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -873,8 +873,8 @@ func TestService_List_FilterByStartAndEnd(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -943,8 +943,8 @@ func TestService_List_CombinedFilters(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -984,8 +984,8 @@ func TestService_List_WithLimit(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -1019,8 +1019,8 @@ func TestService_List_WithLimit(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
@@ -1054,8 +1054,8 @@ func TestService_List_WithLimit(t *testing.T) {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
 		}
-		store.data["events.jsonl"] = []byte(strings.Join(lines, "\n"))
-		store.generation["events.jsonl"] = 1
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
 
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
