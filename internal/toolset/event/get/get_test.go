@@ -352,22 +352,6 @@ func TestTool_Callback_Errors(t *testing.T) {
 // =============================================================================
 
 func TestTool_Callback_ValidationErrors(t *testing.T) {
-	t.Run("returns error when chat_room_id is empty string", func(t *testing.T) {
-		eventService := &mockEventService{}
-		profileService := &mockProfileService{}
-		tool, _ := get.New(eventService, profileService, slog.New(slog.DiscardHandler))
-
-		ctx := withEventContext(context.Background(), "group-123", "user-456")
-		args := map[string]any{
-			"chat_room_id": "",
-		}
-
-		_, err := tool.Callback(ctx, args)
-
-		require.Error(t, err)
-		assert.Equal(t, 0, eventService.getCount)
-	})
-
 	t.Run("returns error when chat_room_id is not a string", func(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}

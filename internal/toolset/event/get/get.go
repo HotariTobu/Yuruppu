@@ -80,17 +80,11 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Determine chat_room_id (explicit or from context)
 	var chatRoomID string
 	if chatRoomIDArg, ok := args["chat_room_id"]; ok {
-		// Explicit chat_room_id provided
-		chatRoomIDStr, ok := chatRoomIDArg.(string)
+		chatRoomID, ok = chatRoomIDArg.(string)
 		if !ok {
-			return nil, errors.New("chat_room_id must be a string")
+			return nil, errors.New("invalid chat_room_id")
 		}
-		if chatRoomIDStr == "" {
-			return nil, errors.New("chat_room_id cannot be empty")
-		}
-		chatRoomID = chatRoomIDStr
 	} else {
-		// Use sourceID from context
 		sourceID, ok := line.SourceIDFromContext(ctx)
 		if !ok {
 			t.logger.ErrorContext(ctx, "source ID not found in context")

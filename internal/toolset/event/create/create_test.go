@@ -35,7 +35,7 @@ func validEventArgs() map[string]any {
 		"start_time":   now.Add(24 * time.Hour).Format(time.RFC3339),
 		"end_time":     now.Add(26 * time.Hour).Format(time.RFC3339),
 		"fee":          "Free",
-		"capacity":     10,
+		"capacity":     float64(10),
 		"description":  "Monthly team sync",
 		"show_creator": true,
 	}
@@ -154,7 +154,7 @@ func TestTool_Callback_Success(t *testing.T) {
 			"start_time":   startTime.Format(time.RFC3339),
 			"end_time":     endTime.Format(time.RFC3339),
 			"fee":          "5000 yen",
-			"capacity":     100,
+			"capacity":     float64(100),
 			"description":  "Annual tech conference",
 			"show_creator": false,
 		}
@@ -228,34 +228,12 @@ func TestTool_Callback_ContextErrors(t *testing.T) {
 // =============================================================================
 
 func TestTool_Callback_ValidationErrors(t *testing.T) {
+	// Note: Schema validates required fields, types, minLength, and minimum values.
+	// These tests cover business logic validations not handled by schema.
 	tests := []struct {
 		name       string
 		modifyArgs func(map[string]any)
 	}{
-		{
-			name: "missing title",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "title")
-			},
-		},
-		{
-			name: "missing start_time",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "start_time")
-			},
-		},
-		{
-			name: "missing end_time",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "end_time")
-			},
-		},
-		{
-			name: "empty title",
-			modifyArgs: func(args map[string]any) {
-				args["title"] = ""
-			},
-		},
 		{
 			name: "start_time in past",
 			modifyArgs: func(args map[string]any) {
@@ -289,54 +267,6 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 			name: "invalid end_time format",
 			modifyArgs: func(args map[string]any) {
 				args["end_time"] = "not-a-date"
-			},
-		},
-		{
-			name: "negative capacity",
-			modifyArgs: func(args map[string]any) {
-				args["capacity"] = -1
-			},
-		},
-		{
-			name: "zero capacity",
-			modifyArgs: func(args map[string]any) {
-				args["capacity"] = 0
-			},
-		},
-		{
-			name: "missing fee",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "fee")
-			},
-		},
-		{
-			name: "empty fee",
-			modifyArgs: func(args map[string]any) {
-				args["fee"] = ""
-			},
-		},
-		{
-			name: "missing description",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "description")
-			},
-		},
-		{
-			name: "empty description",
-			modifyArgs: func(args map[string]any) {
-				args["description"] = ""
-			},
-		},
-		{
-			name: "missing show_creator",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "show_creator")
-			},
-		},
-		{
-			name: "missing capacity",
-			modifyArgs: func(args map[string]any) {
-				delete(args, "capacity")
 			},
 		},
 	}

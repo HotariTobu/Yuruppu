@@ -82,20 +82,41 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		return nil, errors.New("events can only be created in group chats")
 	}
 
-	// Validate and extract arguments
+	// Extract arguments (validated by schema)
 	title, ok := args["title"].(string)
-	if !ok || title == "" {
-		return nil, errors.New("title is required")
+	if !ok {
+		return nil, errors.New("invalid title")
 	}
 
 	startTimeStr, ok := args["start_time"].(string)
-	if !ok || startTimeStr == "" {
-		return nil, errors.New("start_time is required")
+	if !ok {
+		return nil, errors.New("invalid start_time")
 	}
 
 	endTimeStr, ok := args["end_time"].(string)
-	if !ok || endTimeStr == "" {
-		return nil, errors.New("end_time is required")
+	if !ok {
+		return nil, errors.New("invalid end_time")
+	}
+
+	fee, ok := args["fee"].(string)
+	if !ok {
+		return nil, errors.New("invalid fee")
+	}
+
+	capacityFloat, ok := args["capacity"].(float64)
+	if !ok {
+		return nil, errors.New("invalid capacity")
+	}
+	capacity := int(capacityFloat)
+
+	description, ok := args["description"].(string)
+	if !ok {
+		return nil, errors.New("invalid description")
+	}
+
+	showCreator, ok := args["show_creator"].(bool)
+	if !ok {
+		return nil, errors.New("invalid show_creator")
 	}
 
 	// Parse times
@@ -120,39 +141,6 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// FR-008: endTime must be after startTime
 	if !endTime.After(startTime) {
 		return nil, errors.New("end_time must be after start_time")
-	}
-
-	// Extract fee
-	fee, ok := args["fee"].(string)
-	if !ok || fee == "" {
-		return nil, errors.New("fee is required")
-	}
-
-	// Validate capacity
-	capacity, ok := args["capacity"].(int)
-	if !ok {
-		// Try to convert from float64 (JSON number default)
-		if capacityFloat, ok := args["capacity"].(float64); ok {
-			capacity = int(capacityFloat)
-		} else {
-			return nil, errors.New("capacity is required")
-		}
-	}
-
-	if capacity <= 0 {
-		return nil, errors.New("capacity must be greater than 0")
-	}
-
-	// Extract description
-	description, ok := args["description"].(string)
-	if !ok || description == "" {
-		return nil, errors.New("description is required")
-	}
-
-	// Extract show_creator
-	showCreator, ok := args["show_creator"].(bool)
-	if !ok {
-		return nil, errors.New("show_creator is required")
 	}
 
 	// Create event struct
