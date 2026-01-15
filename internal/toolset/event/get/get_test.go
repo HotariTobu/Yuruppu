@@ -7,6 +7,7 @@ import (
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/get"
 
 	"github.com/stretchr/testify/assert"
@@ -491,8 +492,11 @@ type mockProfileService struct {
 	lastUserID  string
 }
 
-func (m *mockProfileService) GetDisplayName(ctx context.Context, userID string) (string, error) {
+func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error) {
 	m.getCount++
 	m.lastUserID = userID
-	return m.displayName, m.getErr
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	return &profile.UserProfile{DisplayName: m.displayName}, nil
 }

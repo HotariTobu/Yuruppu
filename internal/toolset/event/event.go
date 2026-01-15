@@ -5,6 +5,7 @@ import (
 	"errors"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
+	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/create"
 	"yuruppu/internal/toolset/event/get"
 	"yuruppu/internal/toolset/event/list"
@@ -19,7 +20,7 @@ type EventService interface {
 
 // ProfileService provides access to user profile operations.
 type ProfileService interface {
-	GetDisplayName(ctx context.Context, userID string) (string, error)
+	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
 }
 
 // NewTools creates all event management tools (create, get, list).

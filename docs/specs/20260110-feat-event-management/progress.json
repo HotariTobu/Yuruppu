@@ -22,5 +22,5 @@
     { "id": "NFR-003", "passes": true }
   ],
   "blockers": [],
-  "notes": "All requirements pass. Implementation complete: event factory (internal/toolset/event/event.go), main.go integration with config (EventListMaxPeriodDays, EventListLimit), profile service GetDisplayName method. All preflight checks pass. Reviewers identified pre-existing issues (infra config, performance optimizations) that are not blockers for this feature. Consider follow-up work: add EVENT_* env vars to Terraform, add caching to event service, add tests for profile.GetDisplayName."
+  "notes": "All requirements pass. Implementation complete: event factory (internal/toolset/event/event.go), main.go integration with config (EventListMaxPeriodDays, EventListLimit). All preflight checks pass. Reviewers identified pre-existing issues (infra config, performance optimizations) that are not blockers for this feature. Consider follow-up work: add EVENT_* env vars to Terraform, add caching to event service."
 }

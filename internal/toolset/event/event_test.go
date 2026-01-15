@@ -5,6 +5,7 @@ import (
 	"testing"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
+	"yuruppu/internal/profile"
 	eventtoolset "yuruppu/internal/toolset/event"
 
 	"github.com/stretchr/testify/assert"
@@ -33,8 +34,8 @@ func (m *mockEventService) List(ctx context.Context, opts event.ListOptions) ([]
 // mockProfileService is a test double for ProfileService interface.
 type mockProfileService struct{}
 
-func (m *mockProfileService) GetDisplayName(ctx context.Context, userID string) (string, error) {
-	return "Test User", nil
+func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error) {
+	return &profile.UserProfile{DisplayName: "Test User"}, nil
 }
 
 // =============================================================================
