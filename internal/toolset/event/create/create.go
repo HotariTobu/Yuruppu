@@ -16,14 +16,6 @@ var parametersSchema []byte
 //go:embed response.json
 var responseSchema []byte
 
-// errorResponse creates an error response map.
-func errorResponse(msg string) (map[string]any, error) {
-	return map[string]any{
-		"success": false,
-		"error":   msg,
-	}, nil
-}
-
 // EventService provides access to event operations.
 type EventService interface {
 	Create(ctx context.Context, ev *event.Event) error
@@ -69,56 +61,62 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Get sourceID and userID from context
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return errorResponse("internal error: source ID not found")
+		return nil, errors.New("source ID not found")
 	}
 
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return errorResponse("internal error: user ID not found")
+		return nil, errors.New("user ID not found")
 	}
 
 	// FR-003: Users can only create events from group chats
 	// In 1:1 chats, sourceID == userID
 	if sourceID == userID {
-		return errorResponse("events can only be created in group chats")
+		return nil, errors.New("events can only be created in group chats")
 	}
 
 	// Validate and extract arguments
 	title, ok := args["title"].(string)
 	if !ok || title == "" {
-		return errorResponse("title is required and must be a non-empty string")
+		return nil, errors.New("title is required")
 	}
 
 	startTimeStr, ok := args["start_time"].(string)
 	if !ok || startTimeStr == "" {
-		return errorResponse("start_time is required")
+		return nil, errors.New("start_time is required")
 	}
 
 	endTimeStr, ok := args["end_time"].(string)
 	if !ok || endTimeStr == "" {
-		return errorResponse("end_time is required")
+		return nil, errors.New("end_time is required")
 	}
 
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, startTimeStr)
 	if err != nil {
-		return errorResponse(fmt.Sprintf("invalid start_time format: %v", err))
+		return nil, fmt.Errorf("invalid start_time format: %w", err)
 	}
 
 	endTime, err := time.Parse(time.RFC3339, endTimeStr)
 	if err != nil {
-		return errorResponse(fmt.Sprintf("invalid end_time format: %v", err))
+		return nil, fmt.Errorf("invalid end_time format: %w", err)
 	}
 
 	// FR-008: startTime must be in the future
 	now := time.Now()
 	if !startTime.After(now) {
-		return errorResponse("start_time must be in the future, not in the past")
+		return nil, errors.New("start_time must be in the future")
 	}
 
 	// FR-008: endTime must be after startTime
 	if !endTime.After(startTime) {
-		return errorResponse("end_time must be after start_time")
+		return nil, errors.New("end_time must be after start_time")
+	}
+
+	// Extract fee
+	fee, ok := args["fee"].(string)
+	if !ok || fee == "" {
+		return nil, errors.New("fee is required")
 	}
 
 	// Validate capacity
@@ -128,30 +126,24 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		if capacityFloat, ok := args["capacity"].(float64); ok {
 			capacity = int(capacityFloat)
 		} else {
-			return errorResponse("capacity is required and must be an integer")
+			return nil, errors.New("capacity is required")
 		}
 	}
 
 	if capacity <= 0 {
-		return errorResponse("capacity must be greater than 0")
-	}
-
-	// Extract fee
-	fee, ok := args["fee"].(string)
-	if !ok || fee == "" {
-		return errorResponse("fee is required and must be a non-empty string")
+		return nil, errors.New("capacity must be greater than 0")
 	}
 
 	// Extract description
 	description, ok := args["description"].(string)
 	if !ok || description == "" {
-		return errorResponse("description is required and must be a non-empty string")
+		return nil, errors.New("description is required")
 	}
 
 	// Extract show_creator
 	showCreator, ok := args["show_creator"].(bool)
 	if !ok {
-		return errorResponse("show_creator is required and must be a boolean")
+		return nil, errors.New("show_creator is required")
 	}
 
 	// Create event struct
@@ -161,25 +153,18 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		Title:       title,
 		StartTime:   startTime,
 		EndTime:     endTime,
-		Capacity:    capacity,
 		Fee:         fee,
+		Capacity:    capacity,
 		Description: description,
 		ShowCreator: showCreator,
 	}
 
 	// Call service to create event
 	if err := t.eventService.Create(ctx, ev); err != nil {
-		return errorResponse(err.Error())
+		return nil, errors.New("failed to create event")
 	}
 
 	return map[string]any{
-		"success":      true,
 		"chat_room_id": sourceID,
 	}, nil
-}
-
-// IsFinal returns true if the event was created successfully.
-func (t *Tool) IsFinal(validatedResult map[string]any) bool {
-	success, ok := validatedResult["success"].(bool)
-	return ok && success
 }

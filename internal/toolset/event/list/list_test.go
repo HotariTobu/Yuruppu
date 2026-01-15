@@ -149,14 +149,12 @@ func TestTool_Metadata(t *testing.T) {
 	t.Run("ResponseJsonSchema is valid JSON", func(t *testing.T) {
 		schema := tool.ResponseJsonSchema()
 		assert.NotEmpty(t, schema)
-		assert.Contains(t, string(schema), "success")
 		assert.Contains(t, string(schema), "events")
 		assert.Contains(t, string(schema), "chat_room_id")
 		assert.Contains(t, string(schema), "title")
 		assert.Contains(t, string(schema), "start_time")
 		assert.Contains(t, string(schema), "end_time")
 		assert.Contains(t, string(schema), "fee")
-		assert.Contains(t, string(schema), "error")
 	})
 }
 
@@ -184,7 +182,6 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		events, ok := result["events"].([]map[string]any)
 		require.True(t, ok)
@@ -248,7 +245,6 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		events, ok := result["events"].([]map[string]any)
 		require.True(t, ok)
@@ -280,7 +276,6 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		events, ok := result["events"].([]map[string]any)
 		require.True(t, ok)
@@ -303,10 +298,9 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 			"created_by_me": false,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called without CreatorID filter
 		assert.Nil(t, eventService.lastOpts.CreatorID)
@@ -321,11 +315,9 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 			"created_by_me": "yes",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "created_by_me")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -340,11 +332,9 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 			"created_by_me": true,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "internal error")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -368,10 +358,9 @@ func TestTool_Callback_PeriodFilter_Before(t *testing.T) {
 			"start": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called with Start set to today 00:00:00 JST
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -397,10 +386,9 @@ func TestTool_Callback_PeriodFilter_Before(t *testing.T) {
 			"start": startTime,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called with parsed start time
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -421,10 +409,9 @@ func TestTool_Callback_PeriodFilter_After(t *testing.T) {
 			"end": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called with End set to today 00:00:00 JST
 		assert.Nil(t, eventService.lastOpts.Start)
@@ -450,10 +437,9 @@ func TestTool_Callback_PeriodFilter_After(t *testing.T) {
 			"end": endTime,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called with parsed end time
 		require.NotNil(t, eventService.lastOpts.End)
@@ -481,10 +467,9 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 			"end":   endTime,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify service was called with both Start and End
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -505,12 +490,9 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 			"end":   "2027-01-02T00:00:00+09:00", // 367 days > 365
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "period")
-		assert.Contains(t, result["error"], "365")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -528,10 +510,9 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 			"end":   "2027-01-01T00:00:00+09:00", // Exactly 365 days
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, 1, eventService.listCount)
 	})
 
@@ -545,12 +526,9 @@ func TestTool_Callback_PeriodFilter_Range(t *testing.T) {
 			"end":   "2026-02-01T00:00:00+09:00",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "end")
-		assert.Contains(t, result["error"], "start")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -576,10 +554,9 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 			"end":           "2026-03-31T23:59:59+09:00",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify both filters applied
 		require.NotNil(t, eventService.lastOpts.CreatorID)
@@ -600,10 +577,9 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 			"start":         "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify creator filter and start filter
 		require.NotNil(t, eventService.lastOpts.CreatorID)
@@ -624,10 +600,9 @@ func TestTool_Callback_CombinedFilters(t *testing.T) {
 			"end":           "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify creator filter and end filter
 		require.NotNil(t, eventService.lastOpts.CreatorID)
@@ -654,10 +629,9 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 			"start": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Service handles sorting, just verify options passed correctly
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -676,10 +650,9 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 			"end":   "2026-03-31T23:59:59+09:00",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Service handles sorting, just verify options passed correctly
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -697,10 +670,9 @@ func TestTool_Callback_SortOrder(t *testing.T) {
 			"end": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Service handles sorting, just verify options passed correctly
 		assert.Nil(t, eventService.lastOpts.Start)
@@ -725,10 +697,9 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 			"start": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, 5, eventService.lastOpts.Limit)
 	})
 
@@ -743,10 +714,9 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 			"end": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, 5, eventService.lastOpts.Limit)
 	})
 
@@ -762,10 +732,9 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 			"end":   "2026-03-31T23:59:59+09:00",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, 0, eventService.lastOpts.Limit) // No limit
 	})
 
@@ -778,10 +747,9 @@ func TestTool_Callback_LimitEnforcement(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, 5, eventService.lastOpts.Limit)
 	})
 }
@@ -809,7 +777,6 @@ func TestTool_Callback_TimeFormat(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		events, ok := result["events"].([]map[string]any)
 		require.True(t, ok)
@@ -852,10 +819,9 @@ func TestTool_Callback_TodayResolution(t *testing.T) {
 			"start": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify "today" was resolved to 00:00:00 JST
 		require.NotNil(t, eventService.lastOpts.Start)
@@ -878,10 +844,9 @@ func TestTool_Callback_TodayResolution(t *testing.T) {
 			"end": "today",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
 		// Verify "today" was resolved to 00:00:00 JST
 		require.NotNil(t, eventService.lastOpts.End)
@@ -908,13 +873,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-999", "user-1")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "storage error")
-		assert.NotContains(t, result, "events")
-
+		require.Error(t, err)
 		assert.Equal(t, 1, eventService.listCount)
 	})
 
@@ -927,11 +888,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 			"start": "not-a-date",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "start")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -946,11 +905,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 			"end": "2026-13-40T25:61:61+09:00",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "end")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -965,11 +922,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 			"start": 123,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "start")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
@@ -984,53 +939,12 @@ func TestTool_Callback_Errors(t *testing.T) {
 			"end": true,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "end")
+		require.Error(t, err)
 
 		// Service should not be called
 		assert.Equal(t, 0, eventService.listCount)
-	})
-}
-
-// =============================================================================
-// IsFinal Tests
-// =============================================================================
-
-func TestTool_IsFinal(t *testing.T) {
-	eventService := &mockEventService{}
-	tool, _ := list.New(eventService, 365, 5)
-
-	t.Run("returns true when success is true", func(t *testing.T) {
-		result := map[string]any{
-			"success": true,
-			"events":  []map[string]any{},
-		}
-		assert.True(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is false", func(t *testing.T) {
-		result := map[string]any{
-			"success": false,
-			"error":   "some error",
-		}
-		assert.False(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is missing", func(t *testing.T) {
-		result := map[string]any{
-			"events": []map[string]any{},
-		}
-		assert.False(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is not boolean", func(t *testing.T) {
-		result := map[string]any{
-			"success": "true",
-		}
-		assert.False(t, tool.IsFinal(result))
 	})
 }
 

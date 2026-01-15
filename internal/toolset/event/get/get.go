@@ -19,14 +19,6 @@ var responseSchema []byte
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
 
-// errorResponse creates an error response map.
-func errorResponse(msg string) (map[string]any, error) {
-	return map[string]any{
-		"success": false,
-		"error":   msg,
-	}, nil
-}
-
 // EventService provides access to event operations.
 type EventService interface {
 	Get(ctx context.Context, chatRoomID string) (*event.Event, error)
@@ -85,17 +77,17 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		// Explicit chat_room_id provided
 		chatRoomIDStr, ok := chatRoomIDArg.(string)
 		if !ok {
-			return errorResponse("chat_room_id must be a string")
+			return nil, errors.New("chat_room_id must be a string")
 		}
 		if chatRoomIDStr == "" {
-			return errorResponse("chat_room_id cannot be empty")
+			return nil, errors.New("chat_room_id cannot be empty")
 		}
 		chatRoomID = chatRoomIDStr
 	} else {
 		// Use sourceID from context
 		sourceID, ok := line.SourceIDFromContext(ctx)
 		if !ok {
-			return errorResponse("internal error: source ID not found")
+			return nil, errors.New("source ID not found")
 		}
 		chatRoomID = sourceID
 	}
@@ -103,12 +95,11 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Retrieve event from service
 	ev, err := t.eventService.Get(ctx, chatRoomID)
 	if err != nil {
-		return errorResponse(err.Error())
+		return nil, errors.New("event not found")
 	}
 
 	// Build response
 	response := map[string]any{
-		"success":     true,
 		"title":       ev.Title,
 		"start_time":  ev.StartTime.In(JST).Format(time.RFC3339),
 		"end_time":    ev.EndTime.In(JST).Format(time.RFC3339),
@@ -121,16 +112,10 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if ev.ShowCreator {
 		userProfile, err := t.profileService.GetUserProfile(ctx, ev.CreatorID)
 		if err != nil {
-			return errorResponse(err.Error())
+			return nil, errors.New("failed to get creator profile")
 		}
 		response["creator_name"] = userProfile.DisplayName
 	}
 
 	return response, nil
-}
-
-// IsFinal returns true if the event was retrieved successfully.
-func (t *Tool) IsFinal(validatedResult map[string]any) bool {
-	success, ok := validatedResult["success"].(bool)
-	return ok && success
 }

@@ -37,8 +37,8 @@ func validEvent() *event.Event {
 		Title:       "Team Meeting",
 		StartTime:   now.Add(24 * time.Hour),
 		EndTime:     now.Add(26 * time.Hour),
-		Capacity:    10,
 		Fee:         "Free",
+		Capacity:    10,
 		Description: "Monthly team sync",
 		ShowCreator: true,
 	}
@@ -49,7 +49,6 @@ func validEvent() *event.Event {
 // =============================================================================
 
 func TestNew(t *testing.T) {
-	// AC-XXX: Tool constructor validates dependencies
 	t.Run("creates tool with valid services", func(t *testing.T) {
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
@@ -104,14 +103,12 @@ func TestTool_Metadata(t *testing.T) {
 	t.Run("ParametersJsonSchema is valid JSON", func(t *testing.T) {
 		schema := tool.ParametersJsonSchema()
 		assert.NotEmpty(t, schema)
-		// Verify it contains expected fields
 		assert.Contains(t, string(schema), "chat_room_id")
 	})
 
 	t.Run("ResponseJsonSchema is valid JSON", func(t *testing.T) {
 		schema := tool.ResponseJsonSchema()
 		assert.NotEmpty(t, schema)
-		assert.Contains(t, string(schema), "success")
 		assert.Contains(t, string(schema), "creator_name")
 		assert.Contains(t, string(schema), "title")
 		assert.Contains(t, string(schema), "start_time")
@@ -119,7 +116,6 @@ func TestTool_Metadata(t *testing.T) {
 		assert.Contains(t, string(schema), "fee")
 		assert.Contains(t, string(schema), "capacity")
 		assert.Contains(t, string(schema), "description")
-		assert.Contains(t, string(schema), "error")
 	})
 }
 
@@ -128,7 +124,6 @@ func TestTool_Metadata(t *testing.T) {
 // =============================================================================
 
 func TestTool_Callback_Success(t *testing.T) {
-	// AC-004: Event Detail Retrieval [FR-009]
 	t.Run("retrieves event by explicit chat_room_id", func(t *testing.T) {
 		ev := validEvent()
 		eventService := &mockEventService{
@@ -147,7 +142,6 @@ func TestTool_Callback_Success(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, "Alice", result["creator_name"])
 		assert.Equal(t, "Team Meeting", result["title"])
 		assert.NotEmpty(t, result["start_time"])
@@ -155,18 +149,13 @@ func TestTool_Callback_Success(t *testing.T) {
 		assert.Equal(t, "Free", result["fee"])
 		assert.Equal(t, 10, result["capacity"])
 		assert.Equal(t, "Monthly team sync", result["description"])
-		assert.NotContains(t, result, "error")
 
-		// Verify service was called with correct chatRoomID
 		assert.Equal(t, 1, eventService.getCount)
 		assert.Equal(t, "group-123", eventService.lastChatRoomID)
-
-		// Verify profile service was called
 		assert.Equal(t, 1, profileService.getCount)
 		assert.Equal(t, "user-456", profileService.lastUserID)
 	})
 
-	// AC-004: Event Detail Retrieval using implicit sourceID from context
 	t.Run("retrieves event using implicit sourceID when chat_room_id not provided", func(t *testing.T) {
 		ev := validEvent()
 		eventService := &mockEventService{
@@ -183,15 +172,11 @@ func TestTool_Callback_Success(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, "Bob", result["creator_name"])
 		assert.Equal(t, "Team Meeting", result["title"])
-
-		// Verify sourceID was used
 		assert.Equal(t, "group-123", eventService.lastChatRoomID)
 	})
 
-	// AC-012: Creator Public [NFR-002]
 	t.Run("displays creator name when showCreator is true", func(t *testing.T) {
 		ev := validEvent()
 		ev.ShowCreator = true
@@ -209,15 +194,11 @@ func TestTool_Callback_Success(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.Equal(t, "Charlie", result["creator_name"])
-
-		// Verify profile service was called
 		assert.Equal(t, 1, profileService.getCount)
 		assert.Equal(t, "user-456", profileService.lastUserID)
 	})
 
-	// AC-013: Creator Private [NFR-002]
 	t.Run("does not display creator name when showCreator is false", func(t *testing.T) {
 		ev := validEvent()
 		ev.ShowCreator = false
@@ -235,14 +216,10 @@ func TestTool_Callback_Success(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 		assert.NotContains(t, result, "creator_name")
-
-		// Verify profile service was NOT called
 		assert.Equal(t, 0, profileService.getCount)
 	})
 
-	// AC-004: Test time formatting in JST RFC3339
 	t.Run("formats times in JST RFC3339", func(t *testing.T) {
 		startTime := time.Date(2026, 2, 15, 14, 30, 0, 0, time.UTC)
 		endTime := time.Date(2026, 2, 15, 16, 30, 0, 0, time.UTC)
@@ -264,21 +241,17 @@ func TestTool_Callback_Success(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		assert.Equal(t, true, result["success"])
 
-		// Verify times are in JST RFC3339 format
 		startTimeStr, ok := result["start_time"].(string)
 		require.True(t, ok)
 		endTimeStr, ok := result["end_time"].(string)
 		require.True(t, ok)
 
-		// Verify times are parseable as RFC3339
 		_, err = time.Parse(time.RFC3339, startTimeStr)
 		require.NoError(t, err)
 		_, err = time.Parse(time.RFC3339, endTimeStr)
 		require.NoError(t, err)
 
-		// Verify times are in JST (UTC+9)
 		expectedStart := startTime.In(JST)
 		expectedEnd := endTime.In(JST)
 		assert.Equal(t, expectedStart.Format(time.RFC3339), startTimeStr)
@@ -291,7 +264,6 @@ func TestTool_Callback_Success(t *testing.T) {
 // =============================================================================
 
 func TestTool_Callback_Errors(t *testing.T) {
-	// AC-005: Event Detail Retrieval (Not Found) [FR-009]
 	t.Run("returns error when event not found", func(t *testing.T) {
 		eventService := &mockEventService{
 			getErr: errors.New("event not found: group-404"),
@@ -302,17 +274,10 @@ func TestTool_Callback_Errors(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-404", "user-789")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "not found")
-		assert.NotContains(t, result, "title")
-		assert.NotContains(t, result, "creator_name")
-
-		// Service should be called
+		require.Error(t, err)
 		assert.Equal(t, 1, eventService.getCount)
-		// Profile service should not be called
 		assert.Equal(t, 0, profileService.getCount)
 	})
 
@@ -326,12 +291,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "storage error")
-
+		require.Error(t, err)
 		assert.Equal(t, 1, eventService.getCount)
 		assert.Equal(t, 0, profileService.getCount)
 	})
@@ -350,12 +312,9 @@ func TestTool_Callback_Errors(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-123", "user-789")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "profile not found")
-
+		require.Error(t, err)
 		assert.Equal(t, 1, eventService.getCount)
 		assert.Equal(t, 1, profileService.getCount)
 	})
@@ -365,17 +324,12 @@ func TestTool_Callback_Errors(t *testing.T) {
 		profileService := &mockProfileService{}
 		tool, _ := get.New(eventService, profileService)
 
-		// Only set userID, not sourceID
 		ctx := line.WithUserID(context.Background(), "user-123")
 		args := map[string]any{}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "internal error")
-
-		// Service should not be called
+		require.Error(t, err)
 		assert.Equal(t, 0, eventService.getCount)
 		assert.Equal(t, 0, profileService.getCount)
 	})
@@ -396,13 +350,9 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 			"chat_room_id": "",
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "chat_room_id")
-
-		// Service should not be called
+		require.Error(t, err)
 		assert.Equal(t, 0, eventService.getCount)
 	})
 
@@ -416,55 +366,10 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 			"chat_room_id": 123,
 		}
 
-		result, err := tool.Callback(ctx, args)
+		_, err := tool.Callback(ctx, args)
 
-		require.NoError(t, err)
-		assert.Equal(t, false, result["success"])
-		assert.Contains(t, result["error"], "chat_room_id")
-
-		// Service should not be called
+		require.Error(t, err)
 		assert.Equal(t, 0, eventService.getCount)
-	})
-}
-
-// =============================================================================
-// IsFinal Tests
-// =============================================================================
-
-func TestTool_IsFinal(t *testing.T) {
-	eventService := &mockEventService{}
-	profileService := &mockProfileService{}
-	tool, _ := get.New(eventService, profileService)
-
-	t.Run("returns true when success is true", func(t *testing.T) {
-		result := map[string]any{
-			"success":      true,
-			"title":        "Team Meeting",
-			"creator_name": "Alice",
-		}
-		assert.True(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is false", func(t *testing.T) {
-		result := map[string]any{
-			"success": false,
-			"error":   "some error",
-		}
-		assert.False(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is missing", func(t *testing.T) {
-		result := map[string]any{
-			"title": "Team Meeting",
-		}
-		assert.False(t, tool.IsFinal(result))
-	})
-
-	t.Run("returns false when success is not boolean", func(t *testing.T) {
-		result := map[string]any{
-			"success": "true",
-		}
-		assert.False(t, tool.IsFinal(result))
 	})
 }
 
