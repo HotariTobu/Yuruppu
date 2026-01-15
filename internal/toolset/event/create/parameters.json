@@ -25,11 +25,13 @@
     "fee": {
       "type": "string",
       "description": "Fee information (e.g., '1000 yen', 'Free')",
+      "minLength": 1,
       "maxLength": 100
     },
     "description": {
       "type": "string",
       "description": "Event description",
+      "minLength": 1,
       "maxLength": 2000
     },
     "show_creator": {
