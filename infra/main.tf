@@ -225,6 +225,16 @@ resource "google_cloud_run_v2_service" "yuruppu" {
         value = var.typing_indicator_timeout_seconds
       }
 
+      env {
+        name  = "EVENT_LIST_MAX_PERIOD_DAYS"
+        value = var.event_list_max_period_days
+      }
+
+      env {
+        name  = "EVENT_LIST_LIMIT"
+        value = var.event_list_limit
+      }
+
       resources {
         limits = {
           cpu    = "1"

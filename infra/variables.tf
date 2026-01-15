@@ -96,3 +96,25 @@ variable "typing_indicator_timeout_seconds" {
     error_message = "typing_indicator_timeout_seconds must be between 5 and 60 seconds"
   }
 }
+
+variable "event_list_max_period_days" {
+  description = "Max period in days for list_events when both start and end specified"
+  type        = number
+  default     = 366
+
+  validation {
+    condition     = var.event_list_max_period_days > 0
+    error_message = "event_list_max_period_days must be a positive integer"
+  }
+}
+
+variable "event_list_limit" {
+  description = "Max items for list_events when period not fully specified"
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.event_list_limit > 0
+    error_message = "event_list_limit must be a positive integer"
+  }
+}
