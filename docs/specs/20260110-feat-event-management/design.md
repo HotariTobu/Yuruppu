@@ -125,6 +125,63 @@ type ListEventResponse struct {
 }
 ```
 
+## Tool Input/Output
+
+### create_event
+
+**Input:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| title | string | ✓ | Event title (1-200 chars) |
+| start_time | string | ✓ | Start time RFC3339 (must be future) |
+| end_time | string | ✓ | End time RFC3339 (must be after start_time) |
+| fee | string | ✓ | Fee info (max 100 chars) |
+| capacity | integer | ✓ | Max participants (min 1) |
+| description | string | ✓ | Description (max 2000 chars) |
+| show_creator | boolean | ✓ | Whether to show creator info |
+
+**Output:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| chat_room_id | string | ✓ | Chat room ID where event was created |
+
+### get_event
+
+**Input:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| chat_room_id | string | | Chat room ID to retrieve (defaults to current chat) |
+
+**Output:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| creator_name | string | | Creator display name (only when show_creator=true) |
+| title | string | ✓ | Title |
+| start_time | string | ✓ | Start time JST RFC3339 |
+| end_time | string | ✓ | End time JST RFC3339 |
+| fee | string | ✓ | Fee |
+| capacity | integer | ✓ | Capacity |
+| description | string | ✓ | Description |
+
+### list_events
+
+**Input:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| created_by_me | boolean | | Filter to events created by current user |
+| start | string | | Events starting on or after RFC3339 or "today" (alone: asc, 5 items) |
+| end | string | | Events starting on or before RFC3339 or "today" (alone: desc, 5 items) |
+
+**Output:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| events | array | ✓ | Event list |
+| events[].chat_room_id | string | ✓ | Chat room ID |
+| events[].title | string | ✓ | Title |
+| events[].start_time | string | ✓ | Start time JST RFC3339 |
+| events[].end_time | string | ✓ | End time JST RFC3339 |
+| events[].fee | string | ✓ | Fee |
+
 ## Data Flow
 
 ### create_event
