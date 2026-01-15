@@ -327,8 +327,7 @@ func main() {
 	}
 
 	// Collect all tools
-	toolset := []agent.Tool{weatherTool, replyTool, skipTool}
-	toolset = append(toolset, eventTools...)
+	toolset := append([]agent.Tool{weatherTool, replyTool, skipTool}, eventTools...)
 
 	// Create Gemini agent with Yuruppu system prompt
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute

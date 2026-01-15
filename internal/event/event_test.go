@@ -395,7 +395,7 @@ func TestService_Get(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -542,7 +542,7 @@ func TestService_List_NoFilters(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -622,7 +622,7 @@ func TestService_List_FilterByCreator(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
