@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"log/slog"
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
@@ -33,19 +34,24 @@ type ProfileService interface {
 type Tool struct {
 	eventService   EventService
 	profileService ProfileService
+	logger         *slog.Logger
 }
 
 // New creates a new get_event tool with the specified services.
-func New(eventService EventService, profileService ProfileService) (*Tool, error) {
+func New(eventService EventService, profileService ProfileService, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
 	if profileService == nil {
 		return nil, errors.New("profileService cannot be nil")
 	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Tool{
 		eventService:   eventService,
 		profileService: profileService,
+		logger:         logger,
 	}, nil
 }
 
@@ -87,7 +93,8 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		// Use sourceID from context
 		sourceID, ok := line.SourceIDFromContext(ctx)
 		if !ok {
-			return nil, errors.New("source ID not found")
+			t.logger.ErrorContext(ctx, "source ID not found in context")
+			return nil, errors.New("internal error")
 		}
 		chatRoomID = sourceID
 	}
@@ -95,6 +102,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Retrieve event from service
 	ev, err := t.eventService.Get(ctx, chatRoomID)
 	if err != nil {
+		t.logger.ErrorContext(ctx, "failed to get event", slog.String("chatRoomID", chatRoomID), slog.Any("error", err))
 		return nil, errors.New("event not found")
 	}
 
@@ -112,6 +120,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if ev.ShowCreator {
 		userProfile, err := t.profileService.GetUserProfile(ctx, ev.CreatorID)
 		if err != nil {
+			t.logger.ErrorContext(ctx, "failed to get creator profile", slog.String("creatorID", ev.CreatorID), slog.Any("error", err))
 			return nil, errors.New("failed to get creator profile")
 		}
 		response["creator_name"] = userProfile.DisplayName

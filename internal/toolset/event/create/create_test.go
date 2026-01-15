@@ -3,6 +3,7 @@ package create_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 	"yuruppu/internal/event"
@@ -48,7 +49,7 @@ func TestNew(t *testing.T) {
 	t.Run("creates tool with valid service", func(t *testing.T) {
 		service := &mockEventService{}
 
-		tool, err := create.New(service)
+		tool, err := create.New(service, slog.New(slog.DiscardHandler))
 
 		require.NoError(t, err)
 		require.NotNil(t, tool)
@@ -56,11 +57,21 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("returns error when service is nil", func(t *testing.T) {
-		tool, err := create.New(nil)
+		tool, err := create.New(nil, slog.New(slog.DiscardHandler))
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
 		assert.Contains(t, err.Error(), "eventService cannot be nil")
+	})
+
+	t.Run("returns error when logger is nil", func(t *testing.T) {
+		service := &mockEventService{}
+
+		tool, err := create.New(service, nil)
+
+		require.Error(t, err)
+		assert.Nil(t, tool)
+		assert.Contains(t, err.Error(), "logger cannot be nil")
 	})
 }
 
@@ -70,7 +81,7 @@ func TestNew(t *testing.T) {
 
 func TestTool_Metadata(t *testing.T) {
 	service := &mockEventService{}
-	tool, _ := create.New(service)
+	tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 	t.Run("Name returns create_event", func(t *testing.T) {
 		assert.Equal(t, "create_event", tool.Name())
@@ -108,7 +119,7 @@ func TestTool_Metadata(t *testing.T) {
 func TestTool_Callback_Success(t *testing.T) {
 	t.Run("creates event with valid args from group chat", func(t *testing.T) {
 		service := &mockEventService{}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-456")
 		args := validEventArgs()
@@ -131,7 +142,7 @@ func TestTool_Callback_Success(t *testing.T) {
 
 	t.Run("sets all event attributes correctly", func(t *testing.T) {
 		service := &mockEventService{}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-999", "user-888")
 		now := time.Now()
@@ -173,7 +184,7 @@ func TestTool_Callback_Success(t *testing.T) {
 func TestTool_Callback_ContextErrors(t *testing.T) {
 	t.Run("returns error when called from 1:1 chat", func(t *testing.T) {
 		service := &mockEventService{}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "user-123", "user-123")
 		args := validEventArgs()
@@ -187,7 +198,7 @@ func TestTool_Callback_ContextErrors(t *testing.T) {
 
 	t.Run("returns error when sourceID not in context", func(t *testing.T) {
 		service := &mockEventService{}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := line.WithUserID(context.Background(), "user-123")
 		args := validEventArgs()
@@ -200,7 +211,7 @@ func TestTool_Callback_ContextErrors(t *testing.T) {
 
 	t.Run("returns error when userID not in context", func(t *testing.T) {
 		service := &mockEventService{}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := line.WithSourceID(context.Background(), "group-123")
 		args := validEventArgs()
@@ -333,7 +344,7 @@ func TestTool_Callback_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := &mockEventService{}
-			tool, _ := create.New(service)
+			tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 			ctx := withEventContext(context.Background(), "group-123", "user-456")
 			args := validEventArgs()
@@ -356,7 +367,7 @@ func TestTool_Callback_ServiceErrors(t *testing.T) {
 		service := &mockEventService{
 			createErr: errors.New("storage error"),
 		}
-		tool, _ := create.New(service)
+		tool, _ := create.New(service, slog.New(slog.DiscardHandler))
 
 		ctx := withEventContext(context.Background(), "group-123", "user-456")
 		args := validEventArgs()

@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
+	"log/slog"
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
@@ -24,15 +24,20 @@ type EventService interface {
 // Tool implements the create_event tool for creating events.
 type Tool struct {
 	eventService EventService
+	logger       *slog.Logger
 }
 
 // New creates a new create_event tool with the specified event service.
-func New(eventService EventService) (*Tool, error) {
+func New(eventService EventService, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
 	return &Tool{
 		eventService: eventService,
+		logger:       logger,
 	}, nil
 }
 
@@ -61,12 +66,14 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Get sourceID and userID from context
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return nil, errors.New("source ID not found")
+		t.logger.ErrorContext(ctx, "source ID not found in context")
+		return nil, errors.New("internal error")
 	}
 
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return nil, errors.New("user ID not found")
+		t.logger.ErrorContext(ctx, "user ID not found in context")
+		return nil, errors.New("internal error")
 	}
 
 	// FR-003: Users can only create events from group chats
@@ -94,12 +101,14 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, startTimeStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid start_time format: %w", err)
+		t.logger.ErrorContext(ctx, "invalid start_time format", slog.Any("error", err))
+		return nil, errors.New("invalid start_time format")
 	}
 
 	endTime, err := time.Parse(time.RFC3339, endTimeStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid end_time format: %w", err)
+		t.logger.ErrorContext(ctx, "invalid end_time format", slog.Any("error", err))
+		return nil, errors.New("invalid end_time format")
 	}
 
 	// FR-008: startTime must be in the future
@@ -161,6 +170,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 
 	// Call service to create event
 	if err := t.eventService.Create(ctx, ev); err != nil {
+		t.logger.ErrorContext(ctx, "failed to create event", slog.Any("error", err))
 		return nil, errors.New("failed to create event")
 	}
 
