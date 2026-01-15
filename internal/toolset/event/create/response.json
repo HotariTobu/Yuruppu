@@ -1,19 +1,11 @@
 {
   "type": "object",
   "properties": {
-    "success": {
-      "type": "boolean",
-      "description": "Whether the event was created successfully"
-    },
     "chat_room_id": {
       "type": "string",
-      "description": "The chat room ID where the event was created"
-    },
-    "error": {
-      "type": "string",
-      "description": "Error message if creation failed"
+      "description": "Chat room ID where event was created"
     }
   },
-  "required": ["success"],
+  "required": ["chat_room_id"],
   "additionalProperties": false
 }

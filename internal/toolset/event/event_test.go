@@ -224,7 +224,7 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		}
 	})
 
-	t.Run("all returned tools implement agent.FinalAction interface", func(t *testing.T) {
+	t.Run("event tools do not implement agent.FinalAction interface", func(t *testing.T) {
 		// Given: Valid configuration
 		eventService := &mockEventService{}
 		profileService := &mockProfileService{}
@@ -232,11 +232,13 @@ func TestNewTools_ToolInterfaceCompliance(t *testing.T) {
 		// When: NewTools is called
 		tools, err := eventtoolset.NewTools(eventService, profileService, 365, 5)
 
-		// Then: All tools should implement the agent.FinalAction interface
+		// Then: Event tools should NOT implement the agent.FinalAction interface
+		// because they require a follow-up reply tool call
 		require.NoError(t, err)
 		for _, tool := range tools {
-			assert.Implements(t, (*agent.FinalAction)(nil), tool,
-				"tool %s should implement agent.FinalAction interface", tool.Name())
+			_, implementsFinalAction := tool.(agent.FinalAction)
+			assert.False(t, implementsFinalAction,
+				"tool %s should NOT implement agent.FinalAction interface", tool.Name())
 		}
 	})
 }

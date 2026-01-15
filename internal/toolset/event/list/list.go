@@ -19,14 +19,6 @@ var responseSchema []byte
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
 
-// errorResponse creates an error response map.
-func errorResponse(msg string) (map[string]any, error) {
-	return map[string]any{
-		"success": false,
-		"error":   msg,
-	}, nil
-}
-
 // EventService provides access to event list operations.
 type EventService interface {
 	List(ctx context.Context, opts event.ListOptions) ([]*event.Event, error)
@@ -86,13 +78,13 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if createdByMeArg, ok := args["created_by_me"]; ok {
 		createdByMe, ok := createdByMeArg.(bool)
 		if !ok {
-			return errorResponse("created_by_me must be a boolean")
+			return nil, errors.New("created_by_me must be a boolean")
 		}
 		if createdByMe {
 			// Get userID from context
 			userID, ok := line.UserIDFromContext(ctx)
 			if !ok {
-				return errorResponse("internal error: user ID not found")
+				return nil, errors.New("user ID not found")
 			}
 			opts.CreatorID = &userID
 		}
@@ -103,11 +95,11 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if startArg, ok := args["start"]; ok {
 		startStr, ok := startArg.(string)
 		if !ok {
-			return errorResponse("start must be a string")
+			return nil, errors.New("start must be a string")
 		}
 		parsedStart, err := parseTimeParameter(startStr)
 		if err != nil {
-			return errorResponse(fmt.Sprintf("invalid start time: %v", err))
+			return nil, fmt.Errorf("invalid start time: %w", err)
 		}
 		start = &parsedStart
 		opts.Start = start
@@ -118,11 +110,11 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if endArg, ok := args["end"]; ok {
 		endStr, ok := endArg.(string)
 		if !ok {
-			return errorResponse("end must be a string")
+			return nil, errors.New("end must be a string")
 		}
 		parsedEnd, err := parseTimeParameter(endStr)
 		if err != nil {
-			return errorResponse(fmt.Sprintf("invalid end time: %v", err))
+			return nil, fmt.Errorf("invalid end time: %w", err)
 		}
 		end = &parsedEnd
 		opts.End = end
@@ -132,13 +124,13 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	if start != nil && end != nil {
 		// Check end is after start
 		if end.Before(*start) {
-			return errorResponse("end time must be after start time")
+			return nil, errors.New("end time must be after start time")
 		}
 		// Check period doesn't exceed maxPeriodDays
 		duration := end.Sub(*start)
 		maxDuration := time.Duration(t.maxPeriodDays) * 24 * time.Hour
 		if duration > maxDuration {
-			return errorResponse(fmt.Sprintf("period cannot exceed %d days", t.maxPeriodDays))
+			return nil, fmt.Errorf("period cannot exceed %d days", t.maxPeriodDays)
 		}
 		// No limit when both start and end specified
 		opts.Limit = 0
@@ -150,7 +142,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	// Retrieve events from service
 	events, err := t.eventService.List(ctx, opts)
 	if err != nil {
-		return errorResponse(err.Error())
+		return nil, errors.New("failed to list events")
 	}
 
 	// Build response with limited fields
@@ -166,15 +158,8 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}
 
 	return map[string]any{
-		"success": true,
-		"events":  eventList,
+		"events": eventList,
 	}, nil
-}
-
-// IsFinal returns true if the events were retrieved successfully.
-func (t *Tool) IsFinal(validatedResult map[string]any) bool {
-	success, ok := validatedResult["success"].(bool)
-	return ok && success
 }
 
 // parseTimeParameter parses a time parameter that can be either "today" or RFC3339 format.
