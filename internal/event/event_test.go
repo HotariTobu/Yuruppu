@@ -721,7 +721,7 @@ func TestService_List_FilterByStartOnly(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -789,7 +789,7 @@ func TestService_List_FilterByEndOnly(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -868,7 +868,7 @@ func TestService_List_FilterByStartAndEnd(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -938,7 +938,7 @@ func TestService_List_CombinedFilters(t *testing.T) {
 			},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -979,7 +979,7 @@ func TestService_List_WithLimit(t *testing.T) {
 			{ChatRoomID: "room-5", CreatorID: "user-1", Title: "Event 5", StartTime: testTime5, EndTime: testTime6, Fee: "Free", Capacity: 10, Description: "5", ShowCreator: true},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -1014,7 +1014,7 @@ func TestService_List_WithLimit(t *testing.T) {
 			{ChatRoomID: "room-5", CreatorID: "user-1", Title: "Event 5", StartTime: testTime5, EndTime: testTime6, Fee: "Free", Capacity: 10, Description: "5", ShowCreator: true},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
@@ -1049,7 +1049,7 @@ func TestService_List_WithLimit(t *testing.T) {
 			{ChatRoomID: "room-5", CreatorID: "user-1", Title: "Event 5", StartTime: testTime5, EndTime: testTime6, Fee: "Free", Capacity: 10, Description: "5", ShowCreator: true},
 		}
 
-		var lines []string
+		lines := make([]string, 0, len(events))
 		for _, ev := range events {
 			jsonData, _ := json.Marshal(ev)
 			lines = append(lines, string(jsonData))
