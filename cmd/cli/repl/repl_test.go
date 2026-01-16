@@ -76,6 +76,14 @@ func (m *mockHandler) callCount() int {
 	return len(m.calls)
 }
 
+func (m *mockHandler) HandleJoin(_ context.Context) error {
+	return nil
+}
+
+func (m *mockHandler) HandleMemberJoined(_ context.Context, _ []string) error {
+	return nil
+}
+
 // TestRun_QuitCommand tests /quit command exits cleanly
 // AC-009: Graceful exit with /quit [FR-010]
 func TestRun_QuitCommand(t *testing.T) {
