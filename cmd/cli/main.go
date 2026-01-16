@@ -155,11 +155,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	toolset := append([]agent.Tool{replyTool, weatherTool, skipTool}, eventTools...)
 
 	// Create GeminiAgent with tools
+	systemPrompt, err := yuruppu.GetSystemPrompt()
+	if err != nil {
+		return fmt.Errorf("failed to get system prompt: %w", err)
+	}
 	geminiAgent, err := agent.NewGeminiAgent(ctx, agent.GeminiConfig{
 		ProjectID:        gcpProjectID,
 		Region:           gcpRegion,
 		Model:            llmModel,
-		SystemPrompt:     yuruppu.SystemPrompt,
+		SystemPrompt:     systemPrompt,
 		Tools:            toolset,
 		FunctionCallOnly: true,
 		CacheDisplayName: "yuruppu-cli",

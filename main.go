@@ -330,12 +330,17 @@ func main() {
 	toolset := append([]agent.Tool{weatherTool, replyTool, skipTool}, eventTools...)
 
 	// Create Gemini agent with Yuruppu system prompt
+	systemPrompt, err := yuruppu.GetSystemPrompt()
+	if err != nil {
+		logger.Error("failed to get system prompt", slog.Any("error", err))
+		os.Exit(1)
+	}
 	llmCacheTTL := time.Duration(config.LLMCacheTTLMinutes) * time.Minute
 	geminiAgent, err := agent.NewGeminiAgent(context.Background(), agent.GeminiConfig{
 		ProjectID:        projectID,
 		Region:           region,
 		Model:            config.LLMModel,
-		SystemPrompt:     yuruppu.SystemPrompt,
+		SystemPrompt:     systemPrompt,
 		Tools:            toolset,
 		FunctionCallOnly: true,
 		CacheDisplayName: "yuruppu-system-prompt",
