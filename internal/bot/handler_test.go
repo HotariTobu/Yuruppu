@@ -113,9 +113,14 @@ func TestNewHandler_NilDependencies(t *testing.T) {
 
 // withLineContext creates a context with LINE-specific values
 func withLineContext(ctx context.Context, replyToken, sourceID, userID string) context.Context {
-	ctx = line.WithReplyToken(ctx, replyToken)
+	chatType := line.ChatTypeGroup
+	if sourceID == userID {
+		chatType = line.ChatTypeOneOnOne
+	}
+	ctx = line.WithChatType(ctx, chatType)
 	ctx = line.WithSourceID(ctx, sourceID)
 	ctx = line.WithUserID(ctx, userID)
+	ctx = line.WithReplyToken(ctx, replyToken)
 	return ctx
 }
 

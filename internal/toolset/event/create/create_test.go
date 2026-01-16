@@ -18,10 +18,15 @@ import (
 // Test Helpers
 // =============================================================================
 
-// withEventContext creates a context with sourceID and userID set.
+// withEventContext creates a context with chatType, sourceID and userID set.
 // For group chats: sourceID != userID
 // For 1:1 chats: sourceID == userID
 func withEventContext(ctx context.Context, sourceID, userID string) context.Context {
+	chatType := line.ChatTypeGroup
+	if sourceID == userID {
+		chatType = line.ChatTypeOneOnOne
+	}
+	ctx = line.WithChatType(ctx, chatType)
 	ctx = line.WithSourceID(ctx, sourceID)
 	ctx = line.WithUserID(ctx, userID)
 	return ctx

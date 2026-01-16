@@ -147,20 +147,20 @@ func (h *Handler) HandleUnknown(ctx context.Context) error {
 }
 
 func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessage) error {
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("chatType not found in context")
+	}
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
 		return fmt.Errorf("sourceID not found in context")
-	}
-	userID, ok := line.UserIDFromContext(ctx)
-	if !ok {
-		return fmt.Errorf("userID not found in context")
 	}
 
 	// Delayed loading indicator (FR-001, FR-002, FR-006, NFR-001, NFR-002)
 	done := make(chan struct{})
 	defer close(done)
 
-	if sourceID == userID { // 1:1 chat only (FR-002)
+	if chatType == line.ChatTypeOneOnOne {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -252,15 +252,16 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 }
 
 func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent.UserPart, error) {
-	var parts []agent.UserPart
-
-	if chatType, ok := line.ChatTypeFromContext(ctx); ok {
-		var buf bytes.Buffer
-		if err := chatContextTemplate.Execute(&buf, struct{ ChatType line.ChatType }{chatType}); err != nil {
-			return nil, fmt.Errorf("failed to execute chat context template: %w", err)
-		}
-		parts = append(parts, &agent.UserTextPart{Text: buf.String()})
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("chatType not found in context")
 	}
+
+	var buf bytes.Buffer
+	if err := chatContextTemplate.Execute(&buf, struct{ ChatType line.ChatType }{chatType}); err != nil {
+		return nil, fmt.Errorf("failed to execute chat context template: %w", err)
+	}
+	parts := []agent.UserPart{&agent.UserTextPart{Text: buf.String()}}
 
 	p, err := h.profileService.GetUserProfile(ctx, userID)
 	if err != nil {
@@ -271,11 +272,10 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 		return parts, nil
 	}
 
-	var buf bytes.Buffer
+	buf.Reset()
 	if err := userProfileTemplate.Execute(&buf, p); err != nil {
 		return nil, fmt.Errorf("failed to execute user profile template: %w", err)
 	}
-
 	parts = append(parts, &agent.UserTextPart{Text: buf.String()})
 
 	if p.PictureURL != "" {

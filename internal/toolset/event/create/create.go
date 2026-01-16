@@ -48,7 +48,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to create a new event. This tool can only be used in group chats."
+	return "Use this tool to create a new event."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.
@@ -63,13 +63,16 @@ func (t *Tool) ResponseJsonSchema() []byte {
 
 // Callback creates a new event.
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
-	// Get sourceID and userID from context
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "chat type not found in context")
+		return nil, errors.New("internal error")
+	}
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
 		t.logger.ErrorContext(ctx, "source ID not found in context")
 		return nil, errors.New("internal error")
 	}
-
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
 		t.logger.ErrorContext(ctx, "user ID not found in context")
@@ -77,8 +80,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}
 
 	// FR-003: Users can only create events from group chats
-	// In 1:1 chats, sourceID == userID
-	if sourceID == userID {
+	if chatType != line.ChatTypeGroup {
 		return nil, errors.New("events can only be created in group chats")
 	}
 
