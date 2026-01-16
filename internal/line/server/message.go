@@ -20,9 +20,8 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 	}
 }
 
-// invokeMessageHandler invokes a single handler with panic recovery.
 func (s *Server) invokeMessageHandler(handler Handler, msgEvent webhook.MessageEvent) {
-	sourceID, userID := extractSourceIDs(msgEvent.Source)
+	chatType, sourceID, userID := extractSourceInfo(msgEvent.Source)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -37,10 +36,10 @@ func (s *Server) invokeMessageHandler(handler Handler, msgEvent webhook.MessageE
 	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
 	defer cancel()
 
-	// Set LINE-specific values in context
-	ctx = line.WithReplyToken(ctx, msgEvent.ReplyToken)
+	ctx = line.WithChatType(ctx, chatType)
 	ctx = line.WithSourceID(ctx, sourceID)
 	ctx = line.WithUserID(ctx, userID)
+	ctx = line.WithReplyToken(ctx, msgEvent.ReplyToken)
 
 	var err error
 	switch msg := msgEvent.Message.(type) {

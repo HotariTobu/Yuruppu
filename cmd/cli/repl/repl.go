@@ -126,9 +126,10 @@ func Run(ctx context.Context, cfg Config) error {
 				return nil
 			}
 
-			// Prepare context with LINE context values
-			msgCtx := line.WithUserID(ctx, cfg.UserID)
-			msgCtx = line.WithSourceID(msgCtx, cfg.UserID) // sourceID = userID in CLI mode
+			// Prepare context with LINE context values (1-on-1 chat)
+			msgCtx := line.WithChatType(ctx, line.ChatTypeOneOnOne)
+			msgCtx = line.WithSourceID(msgCtx, cfg.UserID)
+			msgCtx = line.WithUserID(msgCtx, cfg.UserID)
 			msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
 
 			// Call handler

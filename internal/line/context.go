@@ -2,46 +2,54 @@ package line
 
 import "context"
 
+type ChatType string
+
+const (
+	ChatTypeOneOnOne ChatType = "1-on-1"
+	ChatTypeGroup    ChatType = "group"
+)
+
 type ctxKey int
 
 const (
-	ctxKeyReplyToken ctxKey = iota
+	ctxKeyChatType ctxKey = iota
 	ctxKeySourceID
 	ctxKeyUserID
+	ctxKeyReplyToken
 )
 
-// WithReplyToken returns a new context with the reply token set.
-func WithReplyToken(ctx context.Context, token string) context.Context {
-	return context.WithValue(ctx, ctxKeyReplyToken, token)
+func WithChatType(ctx context.Context, chatType ChatType) context.Context {
+	return context.WithValue(ctx, ctxKeyChatType, chatType)
 }
 
-// WithSourceID returns a new context with the source ID set.
+func ChatTypeFromContext(ctx context.Context) (ChatType, bool) {
+	v, ok := ctx.Value(ctxKeyChatType).(ChatType)
+	return v, ok
+}
+
 func WithSourceID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, ctxKeySourceID, id)
 }
 
-// WithUserID returns a new context with the user ID set.
-func WithUserID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, ctxKeyUserID, id)
-}
-
-// ReplyTokenFromContext retrieves the reply token from the context.
-// Returns the token and true if present, or empty string and false if not.
-func ReplyTokenFromContext(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(ctxKeyReplyToken).(string)
-	return v, ok
-}
-
-// SourceIDFromContext retrieves the source ID from the context.
-// Returns the ID and true if present, or empty string and false if not.
 func SourceIDFromContext(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(ctxKeySourceID).(string)
 	return v, ok
 }
 
-// UserIDFromContext retrieves the user ID from the context.
-// Returns the ID and true if present, or empty string and false if not.
+func WithUserID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, ctxKeyUserID, id)
+}
+
 func UserIDFromContext(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(ctxKeyUserID).(string)
+	return v, ok
+}
+
+func WithReplyToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, ctxKeyReplyToken, token)
+}
+
+func ReplyTokenFromContext(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(ctxKeyReplyToken).(string)
 	return v, ok
 }

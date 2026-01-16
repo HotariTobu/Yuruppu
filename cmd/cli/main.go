@@ -17,10 +17,12 @@ import (
 	"yuruppu/cmd/cli/setup"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
+	eventdomain "yuruppu/internal/event"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/media"
 	"yuruppu/internal/profile"
+	"yuruppu/internal/toolset/event"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
@@ -138,13 +140,27 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return fmt.Errorf("failed to create skip tool: %w", err)
 	}
 
+	// Create event service and tools
+	eventStorage := mock.NewFileStorage(*dataDir, "event/")
+	eventService, err := eventdomain.NewService(eventStorage)
+	if err != nil {
+		return fmt.Errorf("failed to create event service: %w", err)
+	}
+	eventTools, err := event.NewTools(eventService, profileService, 366, 5, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create event tools: %w", err)
+	}
+
+	// Collect all tools
+	toolset := append([]agent.Tool{replyTool, weatherTool, skipTool}, eventTools...)
+
 	// Create GeminiAgent with tools
 	geminiAgent, err := agent.NewGeminiAgent(ctx, agent.GeminiConfig{
 		ProjectID:        gcpProjectID,
 		Region:           gcpRegion,
 		Model:            llmModel,
 		SystemPrompt:     yuruppu.SystemPrompt,
-		Tools:            []agent.Tool{replyTool, weatherTool, skipTool},
+		Tools:            toolset,
 		FunctionCallOnly: true,
 		CacheDisplayName: "yuruppu-cli",
 		CacheTTL:         1 * time.Hour,
@@ -179,9 +195,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	// Single-turn mode or REPL mode
 	if *message != "" {
-		// Single-turn mode
-		msgCtx := line.WithUserID(ctx, *userID)
-		msgCtx = line.WithSourceID(msgCtx, *userID) // sourceID = userID in CLI mode
+		// Single-turn mode (1-on-1 chat)
+		msgCtx := line.WithChatType(ctx, line.ChatTypeOneOnOne)
+		msgCtx = line.WithSourceID(msgCtx, *userID)
+		msgCtx = line.WithUserID(msgCtx, *userID)
 		msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
 
 		if err := handler.HandleText(msgCtx, *message); err != nil {

@@ -19,9 +19,8 @@ func (s *Server) dispatchFollow(followEvent webhook.FollowEvent) {
 	}
 }
 
-// invokeFollowHandler invokes a single handler for follow event with panic recovery.
 func (s *Server) invokeFollowHandler(handler Handler, followEvent webhook.FollowEvent) {
-	sourceID, userID := extractSourceIDs(followEvent.Source)
+	chatType, sourceID, userID := extractSourceInfo(followEvent.Source)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -36,7 +35,7 @@ func (s *Server) invokeFollowHandler(handler Handler, followEvent webhook.Follow
 	ctx, cancel := context.WithTimeout(context.Background(), s.handlerTimeout)
 	defer cancel()
 
-	// Set LINE-specific values in context
+	ctx = line.WithChatType(ctx, chatType)
 	ctx = line.WithSourceID(ctx, sourceID)
 	ctx = line.WithUserID(ctx, userID)
 

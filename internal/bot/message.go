@@ -16,6 +16,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+//go:embed template/chat_context.txt
+var chatContextTemplateText string
+var chatContextTemplate = template.Must(template.New("chat_context").Parse(chatContextTemplateText))
+
 //go:embed template/user_profile.txt
 var userProfileTemplateText string
 var userProfileTemplate = template.Must(template.New("user_profile").Parse(userProfileTemplateText))
@@ -247,16 +251,24 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 	return nil
 }
 
-// buildContextParts builds context parts containing user profile and other metadata.
 func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent.UserPart, error) {
+	var parts []agent.UserPart
+
+	if chatType, ok := line.ChatTypeFromContext(ctx); ok {
+		var buf bytes.Buffer
+		if err := chatContextTemplate.Execute(&buf, struct{ ChatType line.ChatType }{chatType}); err != nil {
+			return nil, fmt.Errorf("failed to execute chat context template: %w", err)
+		}
+		parts = append(parts, &agent.UserTextPart{Text: buf.String()})
+	}
+
 	p, err := h.profileService.GetUserProfile(ctx, userID)
 	if err != nil {
 		h.logger.WarnContext(ctx, "failed to get user profile",
 			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
-		// Profile fetch failure is non-fatal; return empty parts (NFR-001)
-		return []agent.UserPart{}, nil
+		return parts, nil
 	}
 
 	var buf bytes.Buffer
@@ -264,7 +276,7 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 		return nil, fmt.Errorf("failed to execute user profile template: %w", err)
 	}
 
-	parts := []agent.UserPart{&agent.UserTextPart{Text: buf.String()}}
+	parts = append(parts, &agent.UserTextPart{Text: buf.String()})
 
 	if p.PictureURL != "" {
 		parts = append(parts, &agent.UserFileDataPart{

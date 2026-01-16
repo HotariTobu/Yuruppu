@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"yuruppu/internal/line"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
@@ -94,21 +95,18 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// extractSourceIDs extracts source ID and user ID from a webhook source.
-// Returns (sourceID, userID) where:
-//   - sourceID: user ID for 1:1 chats, group ID for groups, room ID for rooms
-//   - userID: the user ID for all source types
-func extractSourceIDs(source webhook.SourceInterface) (string, string) {
+// extractSourceInfo returns (chatType, sourceID, userID).
+func extractSourceInfo(source webhook.SourceInterface) (line.ChatType, string, string) {
 	if source == nil {
-		return "", ""
+		return "", "", ""
 	}
 	switch s := source.(type) {
 	case webhook.UserSource:
-		return s.UserId, s.UserId
+		return line.ChatTypeOneOnOne, s.UserId, s.UserId
 	case webhook.GroupSource:
-		return s.GroupId, s.UserId
+		return line.ChatTypeGroup, s.GroupId, s.UserId
 	case webhook.RoomSource:
-		return s.RoomId, s.UserId
+		return line.ChatTypeGroup, s.RoomId, s.UserId
 	}
-	return "", ""
+	return "", "", ""
 }
