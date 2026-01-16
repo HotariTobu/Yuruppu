@@ -62,7 +62,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to retrieve event details from a group chat."
+	return "Use this tool to retrieve event details."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.

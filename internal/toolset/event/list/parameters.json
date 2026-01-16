@@ -7,11 +7,11 @@
     },
     "start": {
       "type": "string",
-      "description": "Filter events with start time on or after this date. Use RFC3339 format or 'today'. If only 'start' is specified, returns future events in ascending order with a limit."
+      "description": "Filter events with start time on or after this date. Use RFC3339 format with JST timezone (+09:00) or 'today'. If only 'start' is specified, returns future events in ascending order with a limit."
     },
     "end": {
       "type": "string",
-      "description": "Filter events with start time on or before this date. Use RFC3339 format or 'today'. If only 'end' is specified, returns past events in descending order with a limit."
+      "description": "Filter events with start time on or before this date. Use RFC3339 format with JST timezone (+09:00) or 'today'. If only 'end' is specified, returns past events in descending order with a limit."
     }
   },
   "additionalProperties": false

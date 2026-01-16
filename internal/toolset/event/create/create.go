@@ -48,7 +48,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to create a new event in a group chat."
+	return "Use this tool to create a new event. This tool can only be used in group chats."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.

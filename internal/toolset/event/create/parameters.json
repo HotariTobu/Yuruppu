@@ -9,12 +9,12 @@
     },
     "start_time": {
       "type": "string",
-      "description": "Event start time in RFC3339 format (must be in the future)",
+      "description": "Event start time in RFC3339 format with JST timezone (+09:00) (must be in the future)",
       "format": "date-time"
     },
     "end_time": {
       "type": "string",
-      "description": "Event end time in RFC3339 format (must be after start_time)",
+      "description": "Event end time in RFC3339 format with JST timezone (+09:00) (must be after start_time)",
       "format": "date-time"
     },
     "capacity": {
