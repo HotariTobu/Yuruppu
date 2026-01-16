@@ -1,0 +1,31 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2026-01-16",
+  "requirements": [
+    { "id": "FR-001", "passes": false },
+    { "id": "FR-002", "passes": false },
+    { "id": "FR-003", "passes": false },
+    { "id": "FR-004", "passes": false },
+    { "id": "FR-005", "passes": false },
+    { "id": "FR-006", "passes": false },
+    { "id": "FR-007", "passes": false },
+    { "id": "FR-008", "passes": false },
+    { "id": "FR-009", "passes": false },
+    { "id": "FR-010", "passes": false },
+    { "id": "FR-011", "passes": false },
+    { "id": "FR-012", "passes": false },
+    { "id": "FR-013", "passes": false },
+    { "id": "FR-014", "passes": false },
+    { "id": "FR-015", "passes": false },
+    { "id": "FR-016", "passes": false },
+    { "id": "FR-017", "passes": false },
+    { "id": "FR-018", "passes": false },
+    { "id": "FR-019", "passes": false },
+    { "id": "FR-020", "passes": false },
+    { "id": "FR-021", "passes": false },
+    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-002", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
