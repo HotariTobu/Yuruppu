@@ -32,32 +32,31 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
 
 - [ ] FR-006: In group mode, chat type is set to "group" with source ID = group ID
 - [ ] FR-007: REPL prompt displays current active user as `DisplayName(user-id)> ` (e.g., `Alice(alice)> `). If user has no profile, display `(user-id)> ` (e.g., `(alice)> `)
-- [ ] FR-008: Ctrl+U cycles to the next group member (in insertion order)
-- [ ] FR-009: `/switch <user-id>` switches to a specific group member
-- [ ] FR-010: `/users` lists all group members
+- [ ] FR-008: `/switch <user-id>` switches to a specific group member
+- [ ] FR-009: `/users` lists all group members
 
 #### User Invitation
 
-- [ ] FR-011: `/invite <user-id>` adds a new user to the group
-- [ ] FR-012: If invited user has no profile, they are treated as not having followed the bot (no profile creation triggered)
-- [ ] FR-013: Inviting an already-member user shows an error message to stderr
+- [ ] FR-010: `/invite <user-id>` adds a new user to the group
+- [ ] FR-011: If invited user has no profile, they are treated as not having followed the bot (no profile creation triggered)
+- [ ] FR-012: Inviting an already-member user shows an error message to stderr
 
 #### Bot Invitation
 
-- [ ] FR-015: Bot is not a member of newly created groups by default
-- [ ] FR-016: `/invite-bot` adds the bot to the group and triggers `HandleJoin` event
-- [ ] FR-017: When bot is not in the group, messages are not sent to the LLM (no response)
-- [ ] FR-018: When bot is in the group, messages are processed by the LLM as normal
+- [ ] FR-014: Bot is not a member of newly created groups by default
+- [ ] FR-015: `/invite-bot` adds the bot to the group and triggers `HandleJoin` event
+- [ ] FR-016: When bot is not in the group, messages are not sent to the LLM (no response)
+- [ ] FR-017: When bot is in the group, messages are processed by the LLM as normal
 
 #### Event Simulation
 
-- [ ] FR-019: `/invite <user-id>` triggers `HandleMemberJoined` event when bot is already in the group
-- [ ] FR-020: `HandleMemberJoined` is called with the invited user's ID (always included, regardless of profile existence)
-- [ ] FR-021: `HandleJoin` and `HandleMemberJoined` handlers are added to bot.Handler interface (implementation: log only)
+- [ ] FR-018: `/invite <user-id>` triggers `HandleMemberJoined` event when bot is already in the group
+- [ ] FR-019: `HandleMemberJoined` is called with the invited user's ID (always included, regardless of profile existence)
+- [ ] FR-020: `HandleJoin` and `HandleMemberJoined` handlers are added to bot.Handler interface (implementation: log only)
 
 #### Persistence
 
-- [ ] FR-014: Group membership and bot invitation status are persisted to storage (survives CLI restarts)
+- [ ] FR-013: Group membership and bot invitation status are persisted to storage (survives CLI restarts)
 
 ### Non-Functional Requirements
 
@@ -125,24 +124,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
 - **Then**:
   - Prompt shows `(bob)> `
 
-### AC-007: Ctrl+U cycles users [FR-008]
-
-- **Given**: Group has members ["alice", "bob", "charlie"] with display names "Alice", "Bob", "Charlie"
-- **And**: Current user is "alice"
-- **When**: User presses Ctrl+U
-- **Then**:
-  - Current user changes to "bob"
-  - Prompt updates to `Bob(bob)> `
-- **When**: User presses Ctrl+U again
-- **Then**:
-  - Current user changes to "charlie"
-  - Prompt updates to `Charlie(charlie)> `
-- **When**: User presses Ctrl+U again
-- **Then**:
-  - Current user wraps around to "alice"
-  - Prompt updates to `Alice(alice)> `
-
-### AC-008: /switch command [FR-009]
+### AC-007: /switch command [FR-008]
 
 - **Given**: Group has members ["alice", "bob", "charlie"] with display names "Alice", "Bob", "Charlie"
 - **And**: Current user is "alice"
@@ -151,7 +133,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Current user changes to "charlie"
   - Prompt updates to `Charlie(charlie)> `
 
-### AC-009: /switch with invalid user [FR-009, Error]
+### AC-008: /switch with invalid user [FR-008, Error]
 
 - **Given**: Group has members ["alice", "bob"]
 - **When**: User types `/switch unknown`
@@ -159,14 +141,14 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Error message to stderr: "'unknown' is not a member of this group"
   - Current user remains unchanged
 
-### AC-010: /users command [FR-010]
+### AC-009: /users command [FR-009]
 
 - **Given**: Group has members ["alice", "bob", "charlie"] with display names "Alice", "Bob", "Charlie"
 - **When**: User types `/users`
 - **Then**:
   - Output: `Alice(alice), Bob(bob), Charlie(charlie)`
 
-### AC-011: /invite new user [FR-011]
+### AC-010: /invite new user [FR-010]
 
 - **Given**: Group has members ["alice"], current is "alice"
 - **When**: User types `/invite bob`
@@ -174,7 +156,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - "bob" is added to group members
   - Message: "bob has been invited to the group"
 
-### AC-012: /invite user without profile [FR-011, FR-012]
+### AC-011: /invite user without profile [FR-010, FR-011]
 
 - **Given**: Group has members ["alice"]
 - **And**: User "newuser" has no profile (never followed the bot)
@@ -184,7 +166,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - No profile creation is triggered
   - When "newuser" sends a message, bot treats them as not having followed
 
-### AC-013: /invite existing member [FR-013]
+### AC-012: /invite existing member [FR-012]
 
 - **Given**: Group has members ["alice", "bob"]
 - **When**: User types `/invite bob`
@@ -192,7 +174,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Error message to stderr: "bob is already a member of this group"
   - Membership unchanged
 
-### AC-014: Bot not in group by default [FR-015, FR-017]
+### AC-013: Bot not in group by default [FR-014, FR-016]
 
 - **Given**: New group "mygroup" is created with user "alice"
 - **And**: Bot has not been invited
@@ -201,7 +183,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Message is not sent to the LLM
   - No bot response is displayed
 
-### AC-015: Invite bot to group [FR-016, FR-018]
+### AC-014: Invite bot to group [FR-015, FR-017]
 
 - **Given**: Group "mygroup" exists, bot is not a member
 - **When**: User types `/invite-bot`
@@ -214,7 +196,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Message is sent to the LLM
   - Bot response is displayed
 
-### AC-016: Invite user triggers HandleMemberJoined [FR-019, FR-020]
+### AC-015: Invite user triggers HandleMemberJoined [FR-018, FR-019]
 
 - **Given**: Group "mygroup" exists with bot as member
 - **When**: User types `/invite bob`
@@ -225,7 +207,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
     - joined.members=[{type: "user", userId: "bob"}]
   - Message: "bob has been invited to the group"
 
-### AC-017: Invite user without bot does not trigger event [FR-019]
+### AC-016: Invite user without bot does not trigger event [FR-018]
 
 - **Given**: Group "mygroup" exists, bot is NOT a member
 - **When**: User types `/invite bob`
@@ -234,7 +216,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - `HandleMemberJoined` is NOT called
   - Message: "bob has been invited to the group"
 
-### AC-018: Group persists across restarts [FR-014]
+### AC-017: Group persists across restarts [FR-013]
 
 - **Given**: Group "mygroup" was created with members ["alice", "bob"]
 - **And**: CLI was restarted
@@ -243,7 +225,7 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
   - Group membership is ["alice", "bob"] (not reset)
   - REPL starts normally
 
-### AC-019: Single-turn mode with group [FR-001, FR-006]
+### AC-018: Single-turn mode with group [FR-001, FR-006]
 
 - **Given**: Group "mygroup" exists with members ["alice", "bob"] and bot
 - **When**: CLI is invoked with `-user-id alice -group-id mygroup -message "Hello"`
@@ -258,3 +240,4 @@ Currently, the CLI only supports 1-on-1 chat with a single user ID. To test and 
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2026-01-16 | 1.0 | Initial version | - |
+| 2026-01-16 | 1.1 | Remove Ctrl+U requirement (FR-008), use /switch only | - |
