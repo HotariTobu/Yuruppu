@@ -17,17 +17,18 @@ import (
 	"yuruppu/cmd/cli/setup"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
+	"yuruppu/internal/groupprofile"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/media"
-	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event"
+	"yuruppu/internal/userprofile"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
 
-	cliprofile "yuruppu/cmd/cli/profile"
+	"yuruppu/cmd/cli/prompter"
 
 	eventdomain "yuruppu/internal/event"
 )
@@ -142,7 +143,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// Create FileStorage instances with key prefixes
-	profileStorage := mock.NewFileStorage(*dataDir, "profile/")
+	userProfileStorage := mock.NewFileStorage(*dataDir, "userprofile/")
 	historyStorage := mock.NewFileStorage(*dataDir, "history/")
 	mediaStorage := mock.NewFileStorage(*dataDir, "media/")
 
@@ -157,14 +158,21 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 	}
 
-	// Create profile service
-	profileService, err := profile.NewService(profileStorage, logger)
+	// Create user profile service
+	userProfileService, err := userprofile.NewService(userProfileStorage, logger)
 	if err != nil {
-		return fmt.Errorf("failed to create profile service: %w", err)
+		return fmt.Errorf("failed to create user profile service: %w", err)
 	}
 
-	// Create mock LINE client with profile prompter
-	lineClient := mock.NewLineClient(cliprofile.NewPrompter(stdin, stderr))
+	// Create group profile service
+	groupProfileStorage := mock.NewFileStorage(*dataDir, "groupprofile/")
+	groupProfileService, err := groupprofile.NewService(groupProfileStorage, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create group profile service: %w", err)
+	}
+
+	// Create mock LINE client with prompter
+	lineClient := mock.NewLineClient(prompter.NewPrompter(stdin, stderr))
 
 	// Create history service
 	historyService, err := history.NewService(historyStorage)
@@ -200,7 +208,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("failed to create event service: %w", err)
 	}
-	eventTools, err := event.NewTools(eventService, profileService, 366, 5, logger)
+	eventTools, err := event.NewTools(eventService, userProfileService, 366, 5, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create event tools: %w", err)
 	}
@@ -233,13 +241,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		TypingIndicatorDelay:   3 * time.Second,
 		TypingIndicatorTimeout: 30 * time.Second,
 	}
-	handler, err := bot.NewHandler(lineClient, profileService, historyService, mediaService, geminiAgent, handlerConfig, logger)
+	handler, err := bot.NewHandler(lineClient, userProfileService, groupProfileService, historyService, mediaService, geminiAgent, handlerConfig, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create handler: %w", err)
 	}
 
 	// Check if profile exists, if not call HandleFollow to create it
-	_, err = profileService.GetUserProfile(ctx, *userID)
+	_, err = userProfileService.GetUserProfile(ctx, *userID)
 	if err != nil {
 		logger.Info("profile not found, prompting for new profile", slog.String("userID", *userID))
 
@@ -257,7 +265,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// REPL mode
-	r, err := repl.NewRunner(*userID, *groupID, profileService, groupService, handler, logger, stdin, stdout)
+	r, err := repl.NewRunner(*userID, *groupID, userProfileService, groupService, handler, logger, stdin, stdout)
 	if err != nil {
 		return fmt.Errorf("failed to create REPL: %w", err)
 	}

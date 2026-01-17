@@ -6,15 +6,17 @@ import (
 	"log/slog"
 	"time"
 	"yuruppu/internal/agent"
+	"yuruppu/internal/groupprofile"
 	"yuruppu/internal/history"
 	lineclient "yuruppu/internal/line/client"
-	"yuruppu/internal/profile"
+	"yuruppu/internal/userprofile"
 )
 
 // LineClient provides access to LINE API.
 type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
-	GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
+	GetUserProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
+	GetGroupSummary(ctx context.Context, groupID string) (*lineclient.GroupSummary, error)
 	ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error
 }
 
@@ -24,10 +26,10 @@ type HandlerConfig struct {
 	TypingIndicatorTimeout time.Duration // indicator display duration (5-60s)
 }
 
-// ProfileService provides access to user profiles.
-type ProfileService interface {
-	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
-	SetUserProfile(ctx context.Context, userID string, profile *profile.UserProfile) error
+// UserProfileService provides access to user profiles.
+type UserProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
+	SetUserProfile(ctx context.Context, userID string, profile *userprofile.UserProfile) error
 }
 
 // HistoryService provides access to conversation history.
@@ -42,25 +44,35 @@ type MediaService interface {
 	GetSignedURL(ctx context.Context, storageKey string, ttl time.Duration) (string, error)
 }
 
+// GroupProfileService provides access to group profiles.
+type GroupProfileService interface {
+	GetGroupProfile(ctx context.Context, groupID string) (*groupprofile.GroupProfile, error)
+	SetGroupProfile(ctx context.Context, groupID string, profile *groupprofile.GroupProfile) error
+}
+
 // Handler implements the server.Handler interface for handling LINE messages.
 type Handler struct {
-	lineClient     LineClient
-	profileService ProfileService
-	history        HistoryService
-	media          MediaService
-	agent          agent.Agent
-	config         HandlerConfig
-	logger         *slog.Logger
+	lineClient          LineClient
+	userProfileService  UserProfileService
+	groupProfileService GroupProfileService
+	history             HistoryService
+	media               MediaService
+	agent               agent.Agent
+	config              HandlerConfig
+	logger              *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(lineClient LineClient, profileService ProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
+func NewHandler(lineClient LineClient, userProfileSvc UserProfileService, groupProfileSvc GroupProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
 	if lineClient == nil {
 		return nil, errors.New("lineClient is required")
 	}
-	if profileService == nil {
-		return nil, errors.New("profileService is required")
+	if userProfileSvc == nil {
+		return nil, errors.New("userProfileSvc is required")
+	}
+	if groupProfileSvc == nil {
+		return nil, errors.New("groupProfileSvc is required")
 	}
 	if historySvc == nil {
 		return nil, errors.New("historySvc is required")
@@ -75,12 +87,13 @@ func NewHandler(lineClient LineClient, profileService ProfileService, historySvc
 		return nil, errors.New("logger is required")
 	}
 	return &Handler{
-		lineClient:     lineClient,
-		profileService: profileService,
-		history:        historySvc,
-		media:          mediaSvc,
-		agent:          agent,
-		config:         config,
-		logger:         logger,
+		lineClient:          lineClient,
+		userProfileService:  userProfileSvc,
+		groupProfileService: groupProfileSvc,
+		history:             historySvc,
+		media:               mediaSvc,
+		agent:               agent,
+		config:              config,
+		logger:              logger,
 	}, nil
 }
