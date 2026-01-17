@@ -1433,3 +1433,287 @@ func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
 		assert.Contains(t, stderrOutput, "/users is not available", "should display unavailable command error")
 	})
 }
+
+// TestRun_InviteCommand_Success tests /invite adds new user to group
+// AC-010: /invite new user [FR-010]
+func TestRun_InviteCommand_Success(t *testing.T) {
+	t.Run("should add new user to group and display success message", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "bob has been invited to the group", "should display success message")
+
+		// Verify bob was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "bob", "bob should be added to group members")
+	})
+}
+
+// TestRun_InviteCommand_UserWithoutProfile tests /invite works for users without profile
+// AC-011: /invite user without profile [FR-010, FR-011]
+func TestRun_InviteCommand_UserWithoutProfile(t *testing.T) {
+	t.Run("should add user without profile without triggering profile creation", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite newuser\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+				// "newuser" has no profile
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "newuser has been invited to the group", "should display success message")
+
+		// Verify newuser was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "newuser", "newuser should be added to group members")
+
+		// Verify no profile was created (profile getter not called for invitation)
+		_, err = profileGetter.GetUserProfile(ctx, "newuser")
+		assert.Error(t, err, "newuser should still have no profile")
+	})
+}
+
+// TestRun_InviteCommand_ExistingMember tests /invite shows error for existing member
+// AC-012: /invite existing member [FR-012]
+func TestRun_InviteCommand_ExistingMember(t *testing.T) {
+	t.Run("should show error when inviting existing member", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+				"bob":   {displayName: "Bob"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice", "bob"}
+		groupSim.botInGroup["mygroup"] = false
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "bob is already a member of this group", "should display error message to stderr")
+
+		// Verify membership unchanged (still 2 members)
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(members), "membership count should remain unchanged")
+		assert.Contains(t, members, "alice", "alice should still be a member")
+		assert.Contains(t, members, "bob", "bob should still be a member")
+	})
+}
+
+// TestRun_InviteCommand_NotInGroupMode tests /invite in 1-on-1 mode
+func TestRun_InviteCommand_NotInGroupMode(t *testing.T) {
+	t.Run("should show error when /invite is used in 1-on-1 mode", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			Stderr:        stderr,
+			ProfileGetter: profileGetter,
+			// GroupID is empty (1-on-1 mode)
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "/invite is not available", "should display unavailable command error")
+	})
+}
+
+// TestRun_InviteCommand_EmptyUserID tests /invite with empty user ID
+func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
+	t.Run("should show usage error when /invite is called without user ID", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "usage: /invite <user-id>", "should display usage message")
+	})
+}
+
+// TestRun_InviteCommand_WithWhitespace tests /invite handles whitespace correctly
+func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
+	t.Run("should trim whitespace from user ID in /invite command", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite   bob   \n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "bob has been invited to the group", "should display success message")
+
+		// Verify bob was added (whitespace trimmed)
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "bob", "bob should be added to group members")
+	})
+}

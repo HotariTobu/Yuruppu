@@ -35,6 +35,7 @@ type ProfileGetter interface {
 type GroupSimService interface {
 	GetMembers(ctx context.Context, groupID string) ([]string, error)
 	IsMember(ctx context.Context, groupID, userID string) (bool, error)
+	AddMember(ctx context.Context, groupID, userID string) error
 }
 
 // Config holds REPL configuration.
@@ -137,6 +138,40 @@ func handleUsersCommand(ctx context.Context, cfg Config) {
 
 	// Print to stdout
 	_, _ = fmt.Fprintln(cfg.Stdout, strings.Join(memberStrings, ", "))
+}
+
+// handleInviteCommand handles the /invite <user-id> command.
+// Adds a new user to the group.
+func handleInviteCommand(ctx context.Context, cfg Config, userID string) {
+	stderr := getStderr(cfg)
+
+	// Check if in group mode
+	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+		_, _ = fmt.Fprintln(stderr, "/invite is not available")
+		return
+	}
+
+	// Validate user ID is not empty
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		_, _ = fmt.Fprintln(stderr, "usage: /invite <user-id>")
+		return
+	}
+
+	// Add member to group
+	err := cfg.GroupSimService.AddMember(ctx, cfg.GroupID, userID)
+	if err != nil {
+		// Check if error is because user is already a member
+		if strings.Contains(err.Error(), "already a member") {
+			_, _ = fmt.Fprintf(stderr, "%s is already a member of this group\n", userID)
+			return
+		}
+		cfg.Logger.ErrorContext(ctx, "failed to add member", "error", err)
+		return
+	}
+
+	// Success message to stdout
+	_, _ = fmt.Fprintf(cfg.Stdout, "%s has been invited to the group\n", userID)
 }
 
 // Run starts the REPL loop.
@@ -254,6 +289,16 @@ func Run(ctx context.Context, cfg Config) error {
 			// Handle /users command
 			if trimmed == "/users" {
 				handleUsersCommand(ctx, cfg)
+				continue
+			}
+
+			// Handle /invite command
+			if targetUserID, ok := strings.CutPrefix(trimmed, "/invite "); ok {
+				handleInviteCommand(ctx, cfg, targetUserID)
+				continue
+			}
+			if trimmed == "/invite" {
+				_, _ = fmt.Fprintln(getStderr(cfg), "usage: /invite <user-id>")
 				continue
 			}
 
