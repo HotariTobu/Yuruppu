@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 	"yuruppu/internal/event"
@@ -77,20 +78,9 @@ func (t *Tool) ResponseJsonSchema() []byte {
 
 // Callback retrieves event details.
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
-	// Determine chat_room_id (explicit or from context)
-	var chatRoomID string
-	if chatRoomIDArg, ok := args["chat_room_id"]; ok {
-		chatRoomID, ok = chatRoomIDArg.(string)
-		if !ok {
-			return nil, errors.New("invalid chat_room_id")
-		}
-	} else {
-		sourceID, ok := line.SourceIDFromContext(ctx)
-		if !ok {
-			t.logger.ErrorContext(ctx, "source ID not found in context")
-			return nil, errors.New("internal error")
-		}
-		chatRoomID = sourceID
+	chatRoomID, err := t.determineChatRoomID(ctx, args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine chat room ID: %w", err)
 	}
 
 	// Retrieve event from service
@@ -121,4 +111,30 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}
 
 	return response, nil
+}
+
+// determineChatRoomID determines the chat room ID from args or context.
+func (t *Tool) determineChatRoomID(ctx context.Context, args map[string]any) (string, error) {
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "chat type not found in context")
+		return "", errors.New("internal error")
+	}
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "source ID not found in context")
+		return "", errors.New("internal error")
+	}
+
+	if chatRoomIDArg, ok := args["chat_room_id"]; ok {
+		chatRoomID, ok := chatRoomIDArg.(string)
+		if !ok {
+			return "", errors.New("invalid chat_room_id")
+		}
+		return chatRoomID, nil
+	}
+	if chatType == line.ChatTypeGroup {
+		return sourceID, nil
+	}
+	return "", errors.New("chat_room_id is required in 1-on-1 chats")
 }

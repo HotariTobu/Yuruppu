@@ -194,14 +194,14 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 
 		require.NoError(t, err)
 
-		events, ok := result["events"].([]map[string]any)
+		events, ok := result["events"].([]any)
 		require.True(t, ok)
 		assert.Len(t, events, 3)
 
 		// Verify order preserved (service handles sorting)
-		assert.Equal(t, "Event C", events[0]["title"])
-		assert.Equal(t, "Event A", events[1]["title"])
-		assert.Equal(t, "Event B", events[2]["title"])
+		assert.Equal(t, "Event C", events[0].(map[string]any)["title"])
+		assert.Equal(t, "Event A", events[1].(map[string]any)["title"])
+		assert.Equal(t, "Event B", events[2].(map[string]any)["title"])
 
 		// Verify service was called with correct options
 		assert.Equal(t, 1, eventService.listCount)
@@ -226,11 +226,11 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		result, err := tool.Callback(ctx, args)
 
 		require.NoError(t, err)
-		events, ok := result["events"].([]map[string]any)
+		events, ok := result["events"].([]any)
 		require.True(t, ok)
 		require.Len(t, events, 1)
 
-		ev := events[0]
+		ev := events[0].(map[string]any)
 		assert.Contains(t, ev, "chat_room_id")
 		assert.Contains(t, ev, "title")
 		assert.Contains(t, ev, "start_time")
@@ -257,7 +257,7 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 
 		require.NoError(t, err)
 
-		events, ok := result["events"].([]map[string]any)
+		events, ok := result["events"].([]any)
 		require.True(t, ok)
 		assert.Len(t, events, 0)
 	})
@@ -288,7 +288,7 @@ func TestTool_Callback_CreatorFilter(t *testing.T) {
 
 		require.NoError(t, err)
 
-		events, ok := result["events"].([]map[string]any)
+		events, ok := result["events"].([]any)
 		require.True(t, ok)
 		assert.Len(t, events, 2)
 
@@ -789,14 +789,15 @@ func TestTool_Callback_TimeFormat(t *testing.T) {
 
 		require.NoError(t, err)
 
-		events, ok := result["events"].([]map[string]any)
+		events, ok := result["events"].([]any)
 		require.True(t, ok)
 		require.Len(t, events, 1)
 
 		// Verify times are in JST RFC3339 format
-		startTimeStr, ok := events[0]["start_time"].(string)
+		ev := events[0].(map[string]any)
+		startTimeStr, ok := ev["start_time"].(string)
 		require.True(t, ok)
-		endTimeStr, ok := events[0]["end_time"].(string)
+		endTimeStr, ok := ev["end_time"].(string)
 		require.True(t, ok)
 
 		// Verify times are parseable as RFC3339

@@ -3,7 +3,7 @@
   "properties": {
     "chat_room_id": {
       "type": "string",
-      "description": "The chat room ID to retrieve event details for. If not specified, uses the current chat room."
+      "description": "The chat room ID to retrieve event details for. Can be omitted in group chats to use the current chat room. Must be specified in 1-on-1 chats."
     }
   },
   "additionalProperties": false

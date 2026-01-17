@@ -154,7 +154,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 	}
 
 	// Build response with limited fields
-	eventList := make([]map[string]any, len(events))
+	eventList := make([]any, len(events))
 	for i, ev := range events {
 		eventList[i] = map[string]any{
 			"chat_room_id": ev.ChatRoomID,
