@@ -1,7 +1,6 @@
 package mock_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -24,18 +23,18 @@ func (m *mockProfileFetcher) FetchProfile(ctx context.Context, userID string) (*
 
 // TestNewLineClient tests the constructor
 func TestNewLineClient(t *testing.T) {
-	t.Run("should create client with valid writer", func(t *testing.T) {
+	t.Run("should create client with fetcher", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
+		fetcher := &mockProfileFetcher{}
 
 		// When
-		client := mock.NewLineClient(&buf)
+		client := mock.NewLineClient(fetcher)
 
 		// Then
 		require.NotNil(t, client)
 	})
 
-	t.Run("should panic when writer is nil", func(t *testing.T) {
+	t.Run("should panic when fetcher is nil", func(t *testing.T) {
 		// When/Then
 		assert.Panics(t, func() {
 			mock.NewLineClient(nil)
@@ -43,32 +42,11 @@ func TestNewLineClient(t *testing.T) {
 	})
 }
 
-// TestLineClient_RegisterProfileFetcher tests the RegisterProfileFetcher method
-func TestLineClient_RegisterProfileFetcher(t *testing.T) {
-	t.Run("should register profile fetcher", func(t *testing.T) {
-		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
-		fetcher := &mockProfileFetcher{
-			profile: &lineclient.UserProfile{DisplayName: "Test User"},
-		}
-
-		// When
-		client.RegisterProfileFetcher(fetcher)
-
-		// Then
-		profile, err := client.GetProfile(context.Background(), "user123")
-		require.NoError(t, err)
-		assert.Equal(t, "Test User", profile.DisplayName)
-	})
-}
-
 // TestLineClient_GetMessageContent tests the GetMessageContent method
 func TestLineClient_GetMessageContent(t *testing.T) {
 	t.Run("should return error indicating media is not supported", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
+		client := mock.NewLineClient(&mockProfileFetcher{})
 
 		// When
 		data, mimeType, err := client.GetMessageContent("msg123")
@@ -84,30 +62,14 @@ func TestLineClient_GetMessageContent(t *testing.T) {
 
 // TestLineClient_GetProfile tests the GetProfile method
 func TestLineClient_GetProfile(t *testing.T) {
-	t.Run("should return error when no fetcher registered", func(t *testing.T) {
+	t.Run("should delegate to fetcher", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
-
-		// When
-		profile, err := client.GetProfile(context.Background(), "user123")
-
-		// Then
-		require.Error(t, err)
-		assert.Nil(t, profile)
-		assert.Contains(t, err.Error(), "not registered")
-	})
-
-	t.Run("should delegate to registered fetcher", func(t *testing.T) {
-		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
 		expectedProfile := &lineclient.UserProfile{
 			DisplayName:   "Test User",
 			PictureURL:    "https://example.com/pic.jpg",
 			StatusMessage: "Hello",
 		}
-		client.RegisterProfileFetcher(&mockProfileFetcher{profile: expectedProfile})
+		client := mock.NewLineClient(&mockProfileFetcher{profile: expectedProfile})
 
 		// When
 		profile, err := client.GetProfile(context.Background(), "user123")
@@ -119,10 +81,8 @@ func TestLineClient_GetProfile(t *testing.T) {
 
 	t.Run("should propagate fetcher error", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
 		expectedErr := errors.New("fetch failed")
-		client.RegisterProfileFetcher(&mockProfileFetcher{err: expectedErr})
+		client := mock.NewLineClient(&mockProfileFetcher{err: expectedErr})
 
 		// When
 		profile, err := client.GetProfile(context.Background(), "user123")
@@ -136,46 +96,15 @@ func TestLineClient_GetProfile(t *testing.T) {
 
 // TestLineClient_SendReply tests the SendReply method
 func TestLineClient_SendReply(t *testing.T) {
-	t.Run("should write message to stdout", func(t *testing.T) {
+	t.Run("should return nil (no-op)", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
+		client := mock.NewLineClient(&mockProfileFetcher{})
 
 		// When
 		err := client.SendReply("token123", "Hello, user!")
 
 		// Then
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Hello, user!")
-	})
-
-	t.Run("should handle multiline messages", func(t *testing.T) {
-		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
-
-		// When
-		err := client.SendReply("token123", "Line 1\nLine 2\nLine 3")
-
-		// Then
-		require.NoError(t, err)
-		output := buf.String()
-		assert.Contains(t, output, "Line 1")
-		assert.Contains(t, output, "Line 2")
-		assert.Contains(t, output, "Line 3")
-	})
-
-	t.Run("should handle Japanese characters", func(t *testing.T) {
-		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
-
-		// When
-		err := client.SendReply("token123", "こんにちは、世界！")
-
-		// Then
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "こんにちは、世界！")
 	})
 }
 
@@ -183,8 +112,7 @@ func TestLineClient_SendReply(t *testing.T) {
 func TestLineClient_InterfaceCompliance(t *testing.T) {
 	t.Run("should implement bot.LineClient interface", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
+		client := mock.NewLineClient(&mockProfileFetcher{})
 
 		// When/Then
 		var _ interface {
@@ -195,8 +123,7 @@ func TestLineClient_InterfaceCompliance(t *testing.T) {
 
 	t.Run("should implement reply.LineClient interface", func(t *testing.T) {
 		// Given
-		var buf bytes.Buffer
-		client := mock.NewLineClient(&buf)
+		client := mock.NewLineClient(&mockProfileFetcher{})
 
 		// When/Then
 		var _ interface {

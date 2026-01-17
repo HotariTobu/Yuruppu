@@ -3,8 +3,6 @@ package mock
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
 	"time"
 
 	lineclient "yuruppu/internal/line/client"
@@ -19,24 +17,16 @@ type ProfileFetcher interface {
 // LineClient is a mock implementation of LINE client interfaces for CLI testing.
 // It implements both bot.LineClient and reply.LineClient interfaces.
 type LineClient struct {
-	writer         io.Writer
 	profileFetcher ProfileFetcher
 }
 
-// NewLineClient creates a new mock LINE client that writes output to the given writer.
-// Panics if the writer is nil.
-func NewLineClient(w io.Writer) *LineClient {
-	if w == nil {
-		panic("writer cannot be nil")
+// NewLineClient creates a new mock LINE client with the given profile fetcher.
+// Panics if fetcher is nil.
+func NewLineClient(fetcher ProfileFetcher) *LineClient {
+	if fetcher == nil {
+		panic("fetcher cannot be nil")
 	}
-	return &LineClient{
-		writer: w,
-	}
-}
-
-// RegisterProfileFetcher registers a profile fetcher for GetProfile calls.
-func (c *LineClient) RegisterProfileFetcher(fetcher ProfileFetcher) {
-	c.profileFetcher = fetcher
+	return &LineClient{profileFetcher: fetcher}
 }
 
 // GetMessageContent returns an error indicating that media operations are not supported in mock mode.
@@ -45,25 +35,20 @@ func (c *LineClient) GetMessageContent(messageID string) ([]byte, string, error)
 	return nil, "", errors.New("media operations are not supported in CLI mode")
 }
 
-// GetProfile delegates to the registered ProfileFetcher.
+// GetProfile delegates to the ProfileFetcher.
 // This method implements the bot.LineClient interface.
 func (c *LineClient) GetProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error) {
-	if c.profileFetcher == nil {
-		return nil, errors.New("profile fetcher not registered")
-	}
 	return c.profileFetcher.FetchProfile(ctx, userID)
 }
 
-// SendReply writes the message to the configured output writer.
+// SendReply is a no-op in CLI mode since bot output is already logged.
 // This method implements the reply.LineClient interface.
 func (c *LineClient) SendReply(replyToken string, text string) error {
-	_, err := fmt.Fprintf(c.writer, "%s\n", text)
-	return err
+	return nil
 }
 
-// ShowLoadingAnimation writes a loading animation message to the output.
+// ShowLoadingAnimation is a no-op in CLI mode since bot output is already logged.
 // This method implements the bot.LineClient interface.
 func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
-	_, err := fmt.Fprintf(c.writer, "[Loading animation: %s]\n", timeout)
-	return err
+	return nil
 }

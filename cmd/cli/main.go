@@ -164,8 +164,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// Create mock LINE client with profile prompter
-	lineClient := mock.NewLineClient(stdout)
-	lineClient.RegisterProfileFetcher(cliprofile.NewPrompter(stdin, stderr))
+	lineClient := mock.NewLineClient(cliprofile.NewPrompter(stdin, stderr))
 
 	// Create history service
 	historyService, err := history.NewService(historyStorage)
