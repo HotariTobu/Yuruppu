@@ -255,3 +255,68 @@ func applyLimit(events *[]*Event, opts ListOptions) {
 		*events = (*events)[:opts.Limit]
 	}
 }
+
+// Update updates the description of an existing event.
+// Returns error if the event is not found or if storage operations fail.
+func (s *Service) Update(ctx context.Context, chatRoomID string, description string) error {
+	if chatRoomID == "" {
+		return errors.New("chatRoomID cannot be empty")
+	}
+
+	events, generation, err := s.readEvents(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read events: %w", err)
+	}
+
+	found := false
+	for _, ev := range events {
+		if ev.ChatRoomID == chatRoomID {
+			ev.Description = description
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("event not found: %s", chatRoomID)
+	}
+
+	if err := s.writeEvents(ctx, events, generation); err != nil {
+		return fmt.Errorf("failed to write events: %w", err)
+	}
+
+	return nil
+}
+
+// Delete removes an event from storage.
+// Returns error if the event is not found or if storage operations fail.
+func (s *Service) Delete(ctx context.Context, chatRoomID string) error {
+	if chatRoomID == "" {
+		return errors.New("chatRoomID cannot be empty")
+	}
+
+	events, generation, err := s.readEvents(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read events: %w", err)
+	}
+
+	found := false
+	newEvents := make([]*Event, 0, len(events))
+	for _, ev := range events {
+		if ev.ChatRoomID == chatRoomID {
+			found = true
+			continue
+		}
+		newEvents = append(newEvents, ev)
+	}
+
+	if !found {
+		return fmt.Errorf("event not found: %s", chatRoomID)
+	}
+
+	if err := s.writeEvents(ctx, newEvents, generation); err != nil {
+		return fmt.Errorf("failed to write events: %w", err)
+	}
+
+	return nil
+}

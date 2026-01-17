@@ -8,8 +8,10 @@ import (
 	"yuruppu/internal/event"
 	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/create"
+	"yuruppu/internal/toolset/event/delete"
 	"yuruppu/internal/toolset/event/get"
 	"yuruppu/internal/toolset/event/list"
+	"yuruppu/internal/toolset/event/update"
 )
 
 // EventService provides access to event operations.
@@ -17,6 +19,8 @@ type EventService interface {
 	Create(ctx context.Context, ev *event.Event) error
 	Get(ctx context.Context, chatRoomID string) (*event.Event, error)
 	List(ctx context.Context, opts event.ListOptions) ([]*event.Event, error)
+	Update(ctx context.Context, chatRoomID string, description string) error
+	Delete(ctx context.Context, chatRoomID string) error
 }
 
 // ProfileService provides access to user profile operations.
@@ -61,5 +65,17 @@ func NewTools(eventService EventService, profileService ProfileService, listMaxP
 		return nil, err
 	}
 
-	return []agent.Tool{createTool, getTool, listTool}, nil
+	// Create update_event tool
+	updateTool, err := update.New(eventService, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create delete_event tool
+	deleteTool, err := delete.New(eventService, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return []agent.Tool{createTool, getTool, listTool, updateTool, deleteTool}, nil
 }
