@@ -66,7 +66,7 @@ func (s *Service) Create(ctx context.Context, groupID, firstMemberID string) err
 
 // GetMembers returns the list of members in a group.
 func (s *Service) GetMembers(ctx context.Context, groupID string) ([]string, error) {
-	group, err := s.readGroup(ctx, groupID)
+	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (s *Service) GetMembers(ctx context.Context, groupID string) ([]string, err
 
 // IsMember checks if a user is a member of a group.
 func (s *Service) IsMember(ctx context.Context, groupID, userID string) (bool, error) {
-	group, err := s.readGroup(ctx, groupID)
+	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return false, err
 	}
@@ -85,7 +85,7 @@ func (s *Service) IsMember(ctx context.Context, groupID, userID string) (bool, e
 
 // AddMember adds a new member to a group.
 func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
-	group, gen, err := s.readGroupWithGen(ctx, groupID)
+	group, gen, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
 
 // IsBotInGroup checks if the bot is in a group.
 func (s *Service) IsBotInGroup(ctx context.Context, groupID string) (bool, error) {
-	group, err := s.readGroup(ctx, groupID)
+	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return false, err
 	}
@@ -123,7 +123,7 @@ func (s *Service) IsBotInGroup(ctx context.Context, groupID string) (bool, error
 
 // AddBot adds the bot to a group.
 func (s *Service) AddBot(ctx context.Context, groupID string) error {
-	group, gen, err := s.readGroupWithGen(ctx, groupID)
+	group, gen, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -150,14 +150,8 @@ func (s *Service) AddBot(ctx context.Context, groupID string) error {
 	return nil
 }
 
-// readGroup reads group data from storage.
-func (s *Service) readGroup(ctx context.Context, groupID string) (*groupSim, error) {
-	group, _, err := s.readGroupWithGen(ctx, groupID)
-	return group, err
-}
-
-// readGroupWithGen reads group data from storage along with its generation.
-func (s *Service) readGroupWithGen(ctx context.Context, groupID string) (*groupSim, int64, error) {
+// readGroup reads group data from storage along with its generation.
+func (s *Service) readGroup(ctx context.Context, groupID string) (*groupSim, int64, error) {
 	data, gen, err := s.storage.Read(ctx, groupID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read group: %w", err)
