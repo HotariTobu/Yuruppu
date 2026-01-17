@@ -1408,12 +1408,12 @@ func TestService_Update_StorageErrors(t *testing.T) {
 }
 
 // =============================================================================
-// Delete Tests (FR-007, FR-010, FR-011, NFR-001)
+// Remove Tests (FR-007, FR-010, FR-011, NFR-001)
 // =============================================================================
 
-// AC-004: Event deletion - physically removed from storage (FR-007, FR-009, FR-011)
-func TestService_Delete(t *testing.T) {
-	t.Run("successfully deletes event and physically removes it", func(t *testing.T) {
+// AC-004: Event removal - physically removed from storage (FR-007, FR-009, FR-011)
+func TestService_Remove(t *testing.T) {
+	t.Run("successfully removes event and physically removes it", func(t *testing.T) {
 		// Given: Storage with existing event
 		store := newMockStorage()
 		existingEvent := &event.Event{
@@ -1434,10 +1434,10 @@ func TestService_Delete(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// When: Delete event
-		err = svc.Delete(context.Background(), "chatroom-001")
+		// When: Remove event
+		err = svc.Remove(context.Background(), "chatroom-001")
 
-		// Then: Delete should succeed
+		// Then: Remove should succeed
 		require.NoError(t, err)
 		assert.Equal(t, 1, store.writeCallCount)
 
@@ -1454,7 +1454,7 @@ func TestService_Delete(t *testing.T) {
 		}
 	})
 
-	t.Run("deletes correct event when multiple events exist", func(t *testing.T) {
+	t.Run("removes correct event when multiple events exist", func(t *testing.T) {
 		// Given: Storage with multiple events
 		store := newMockStorage()
 		events := []*event.Event{
@@ -1504,8 +1504,8 @@ func TestService_Delete(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// When: Delete middle event
-		err = svc.Delete(context.Background(), "chatroom-002")
+		// When: Remove middle event
+		err = svc.Remove(context.Background(), "chatroom-002")
 
 		// Then: Only target event should be removed
 		require.NoError(t, err)
@@ -1537,13 +1537,13 @@ func TestService_Delete(t *testing.T) {
 	})
 }
 
-func TestService_Delete_InvalidInput(t *testing.T) {
+func TestService_Remove_InvalidInput(t *testing.T) {
 	t.Run("returns error when chatRoomID is empty", func(t *testing.T) {
 		store := newMockStorage()
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		err = svc.Delete(context.Background(), "")
+		err = svc.Remove(context.Background(), "")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "chatRoomID cannot be empty")
@@ -1551,16 +1551,16 @@ func TestService_Delete_InvalidInput(t *testing.T) {
 	})
 }
 
-// AC-006: Event deletion when event does not exist (FR-010)
-func TestService_Delete_EventNotFound(t *testing.T) {
+// AC-006: Event removal when event does not exist (FR-010)
+func TestService_Remove_EventNotFound(t *testing.T) {
 	t.Run("returns error when event does not exist in empty storage", func(t *testing.T) {
 		// Given: Empty storage
 		store := newMockStorage()
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// When: Try to delete non-existent event
-		err = svc.Delete(context.Background(), "chatroom-999")
+		// When: Try to remove non-existent event
+		err = svc.Remove(context.Background(), "chatroom-999")
 
 		// Then: Should return error (FR-010)
 		require.Error(t, err)
@@ -1590,8 +1590,8 @@ func TestService_Delete_EventNotFound(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// When: Try to delete different chatRoomID
-		err = svc.Delete(context.Background(), "chatroom-999")
+		// When: Try to remove different chatRoomID
+		err = svc.Remove(context.Background(), "chatroom-999")
 
 		// Then: Should return error (FR-010)
 		require.Error(t, err)
@@ -1601,9 +1601,9 @@ func TestService_Delete_EventNotFound(t *testing.T) {
 	})
 }
 
-// FR-011: Verify deleted events don't appear in Get/List
-func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
-	t.Run("deleted event does not appear in Get", func(t *testing.T) {
+// FR-011: Verify removed events don't appear in Get/List
+func TestService_Remove_VerifyPhysicalRemoval(t *testing.T) {
+	t.Run("removed event does not appear in Get", func(t *testing.T) {
 		// Given: Storage with event
 		store := newMockStorage()
 		existingEvent := &event.Event{
@@ -1624,13 +1624,13 @@ func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// Verify event exists before deletion
+		// Verify event exists before removal
 		ev, err := svc.Get(context.Background(), "chatroom-001")
 		require.NoError(t, err)
 		assert.Equal(t, "chatroom-001", ev.ChatRoomID)
 
-		// When: Delete event
-		err = svc.Delete(context.Background(), "chatroom-001")
+		// When: Remove event
+		err = svc.Remove(context.Background(), "chatroom-001")
 		require.NoError(t, err)
 
 		// Then: Get should return "not found" error (FR-011)
@@ -1640,7 +1640,7 @@ func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
 		assert.Nil(t, ev)
 	})
 
-	t.Run("deleted event does not appear in List", func(t *testing.T) {
+	t.Run("removed event does not appear in List", func(t *testing.T) {
 		// Given: Storage with multiple events
 		store := newMockStorage()
 		events := []*event.Event{
@@ -1690,13 +1690,13 @@ func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// Verify 3 events exist before deletion
+		// Verify 3 events exist before removal
 		listResult, err := svc.List(context.Background(), event.ListOptions{})
 		require.NoError(t, err)
 		assert.Len(t, listResult, 3)
 
-		// When: Delete middle event
-		err = svc.Delete(context.Background(), "chatroom-002")
+		// When: Remove middle event
+		err = svc.Remove(context.Background(), "chatroom-002")
 		require.NoError(t, err)
 
 		// Then: List should return only 2 events (FR-011)
@@ -1704,7 +1704,7 @@ func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, listResult, 2)
 
-		// Verify deleted event is not in list
+		// Verify removed event is not in list
 		for _, ev := range listResult {
 			assert.NotEqual(t, "chatroom-002", ev.ChatRoomID)
 		}
@@ -1715,9 +1715,9 @@ func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
 	})
 }
 
-// NFR-001: Atomic delete operation (optimistic locking)
-func TestService_Delete_Atomicity(t *testing.T) {
-	t.Run("concurrent deletes on different events - generation check prevents race", func(t *testing.T) {
+// NFR-001: Atomic remove operation (optimistic locking)
+func TestService_Remove_Atomicity(t *testing.T) {
+	t.Run("concurrent removes on different events - generation check prevents race", func(t *testing.T) {
 		// Given: Storage with multiple events
 		store := newMockStorage()
 		events := []*event.Event{
@@ -1759,11 +1759,11 @@ func TestService_Delete_Atomicity(t *testing.T) {
 		// Simulate concurrent writes by enabling conflict detection
 		store.simulateConcurrentWrite = true
 
-		// When: First delete succeeds
-		err1 := svc.Delete(context.Background(), "chatroom-001")
+		// When: First remove succeeds
+		err1 := svc.Remove(context.Background(), "chatroom-001")
 
-		// When: Second delete with stale generation fails
-		err2 := svc.Delete(context.Background(), "chatroom-002")
+		// When: Second remove with stale generation fails
+		err2 := svc.Remove(context.Background(), "chatroom-002")
 
 		// Then: One should succeed, one should fail with generation mismatch (NFR-001: atomicity)
 		if err1 == nil {
@@ -1786,7 +1786,7 @@ func TestService_Delete_Atomicity(t *testing.T) {
 			EndTime:     testTime2,
 			Fee:         "Free",
 			Capacity:    10,
-			Description: "To delete",
+			Description: "To remove",
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existingEvent)
@@ -1796,8 +1796,8 @@ func TestService_Delete_Atomicity(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		// When: Delete event
-		err = svc.Delete(context.Background(), "chatroom-001")
+		// When: Remove event
+		err = svc.Remove(context.Background(), "chatroom-001")
 
 		// Then: Should succeed and increment generation (NFR-001)
 		require.NoError(t, err)
@@ -1805,14 +1805,14 @@ func TestService_Delete_Atomicity(t *testing.T) {
 	})
 }
 
-func TestService_Delete_StorageErrors(t *testing.T) {
+func TestService_Remove_StorageErrors(t *testing.T) {
 	t.Run("returns error when storage read fails", func(t *testing.T) {
 		store := newMockStorage()
 		store.readErr = errors.New("storage read error")
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		err = svc.Delete(context.Background(), "chatroom-001")
+		err = svc.Remove(context.Background(), "chatroom-001")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read")
@@ -1829,7 +1829,7 @@ func TestService_Delete_StorageErrors(t *testing.T) {
 			EndTime:     testTime2,
 			Fee:         "Free",
 			Capacity:    10,
-			Description: "To delete",
+			Description: "To remove",
 			ShowCreator: true,
 		}
 		existingJSON, _ := json.Marshal(existingEvent)
@@ -1840,7 +1840,7 @@ func TestService_Delete_StorageErrors(t *testing.T) {
 		svc, err := event.NewService(store)
 		require.NoError(t, err)
 
-		err = svc.Delete(context.Background(), "chatroom-001")
+		err = svc.Remove(context.Background(), "chatroom-001")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to write")

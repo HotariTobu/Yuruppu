@@ -18,7 +18,7 @@ var responseSchema []byte
 // EventService provides access to event operations.
 type EventService interface {
 	Get(ctx context.Context, chatRoomID string) (*event.Event, error)
-	Delete(ctx context.Context, chatRoomID string) error
+	Remove(ctx context.Context, chatRoomID string) error
 }
 
 // Tool implements the delete_event tool for deleting events.
@@ -43,12 +43,12 @@ func New(eventService EventService, logger *slog.Logger) (*Tool, error) {
 
 // Name returns the tool name.
 func (t *Tool) Name() string {
-	return "delete_event"
+	return "remove_event"
 }
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to delete (cancel) the event in the current group chat. Only the event creator can delete the event."
+	return "Use this tool to remove (cancel) the event in the current group chat. Only the event creator can remove the event."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.
@@ -83,13 +83,13 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 
 	// Check authorization
 	if ev.CreatorID != userID {
-		return nil, errors.New("only the event creator can delete the event")
+		return nil, errors.New("only the event creator can remove the event")
 	}
 
-	// Delete event
-	if err := t.eventService.Delete(ctx, sourceID); err != nil {
-		t.logger.ErrorContext(ctx, "failed to delete event", slog.Any("error", err))
-		return nil, errors.New("failed to delete event")
+	// Remove event
+	if err := t.eventService.Remove(ctx, sourceID); err != nil {
+		t.logger.ErrorContext(ctx, "failed to remove event", slog.Any("error", err))
+		return nil, errors.New("failed to remove event")
 	}
 
 	return map[string]any{

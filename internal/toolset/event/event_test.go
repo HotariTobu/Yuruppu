@@ -36,7 +36,7 @@ func (m *mockEventService) Update(ctx context.Context, chatRoomID string, descri
 	return nil
 }
 
-func (m *mockEventService) Delete(ctx context.Context, chatRoomID string) error {
+func (m *mockEventService) Remove(ctx context.Context, chatRoomID string) error {
 	return nil
 }
 
@@ -80,7 +80,7 @@ func TestNewTools(t *testing.T) {
 		assert.True(t, toolNames["get_event"], "should include get_event tool")
 		assert.True(t, toolNames["list_events"], "should include list_events tool")
 		assert.True(t, toolNames["update_event"], "should include update_event tool")
-		assert.True(t, toolNames["delete_event"], "should include delete_event tool")
+		assert.True(t, toolNames["remove_event"], "should include remove_event tool")
 	})
 
 	t.Run("each tool has valid metadata", func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestNewTools_ReturnOrder(t *testing.T) {
 		require.Len(t, tools, 5)
 
 		// Expected order based on implementation
-		expectedOrder := []string{"create_event", "get_event", "list_events", "update_event", "delete_event"}
+		expectedOrder := []string{"create_event", "get_event", "list_events", "update_event", "remove_event"}
 		for i, expectedName := range expectedOrder {
 			assert.Equal(t, expectedName, tools[i].Name(),
 				"tool at index %d should be %s", i, expectedName)

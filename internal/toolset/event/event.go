@@ -20,7 +20,7 @@ type EventService interface {
 	Get(ctx context.Context, chatRoomID string) (*event.Event, error)
 	List(ctx context.Context, opts event.ListOptions) ([]*event.Event, error)
 	Update(ctx context.Context, chatRoomID string, description string) error
-	Delete(ctx context.Context, chatRoomID string) error
+	Remove(ctx context.Context, chatRoomID string) error
 }
 
 // ProfileService provides access to user profile operations.
@@ -71,11 +71,11 @@ func NewTools(eventService EventService, profileService ProfileService, listMaxP
 		return nil, err
 	}
 
-	// Create delete_event tool
-	deleteTool, err := remove.New(eventService, logger)
+	// Create remove_event tool
+	removeTool, err := remove.New(eventService, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return []agent.Tool{createTool, getTool, listTool, updateTool, deleteTool}, nil
+	return []agent.Tool{createTool, getTool, listTool, updateTool, removeTool}, nil
 }
