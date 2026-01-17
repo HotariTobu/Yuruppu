@@ -12,8 +12,8 @@ import (
 
 // GroupProfile contains LINE group profile information.
 type GroupProfile struct {
-	GroupName  string `json:"groupName"`
-	PictureURL string `json:"pictureUrl,omitempty"`
+	DisplayName string `json:"displayName"`
+	PictureURL  string `json:"pictureUrl,omitempty"`
 }
 
 // Service provides group profile management with caching and persistence.

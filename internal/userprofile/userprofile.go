@@ -23,10 +23,10 @@ type Service struct {
 	storage storage.Storage
 	logger  *slog.Logger
 
-	cache sync.Map // userID -> *Profile
+	cache sync.Map // userID -> *UserProfile
 }
 
-// NewService creates a new profile service.
+// NewService creates a new user profile service.
 func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
@@ -42,23 +42,21 @@ func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) 
 
 // GetUserProfile retrieves user profile from cache or storage.
 func (s *Service) GetUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
-	// Check cache
 	if cached, ok := s.cache.Load(userID); ok {
 		return cached.(*UserProfile), nil
 	}
 
-	// Load from storage
 	data, _, err := s.storage.Read(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read profile: %w", err)
+		return nil, fmt.Errorf("failed to read user profile: %w", err)
 	}
 	if data == nil {
-		return nil, fmt.Errorf("profile not found: %s", userID)
+		return nil, fmt.Errorf("user profile not found: %s", userID)
 	}
 
 	var profile UserProfile
 	if err := json.Unmarshal(data, &profile); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal profile: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal user profile: %w", err)
 	}
 
 	s.cache.Store(userID, &profile)
@@ -71,12 +69,12 @@ func (s *Service) SetUserProfile(ctx context.Context, userID string, profile *Us
 
 	data, err := json.Marshal(profile)
 	if err != nil {
-		return fmt.Errorf("failed to marshal profile: %w", err)
+		return fmt.Errorf("failed to marshal user profile: %w", err)
 	}
 
 	_, err = s.storage.Write(ctx, userID, "application/json", data, 0)
 	if err != nil {
-		return fmt.Errorf("failed to write profile: %w", err)
+		return fmt.Errorf("failed to write user profile: %w", err)
 	}
 
 	return nil

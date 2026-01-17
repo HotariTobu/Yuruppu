@@ -24,35 +24,19 @@ func (h *Handler) HandleJoin(ctx context.Context) error {
 		slog.String("sourceID", sourceID),
 	)
 
-	// Fetch and save group profile asynchronously (NFR-001)
-	go func() {
-		summary, err := h.lineClient.GetGroupSummary(context.Background(), sourceID)
-		if err != nil {
-			h.logger.ErrorContext(ctx, "failed to get group summary",
-				slog.String("sourceID", sourceID),
-				slog.Any("error", err),
-			)
-			return
-		}
+	summary, err := h.lineClient.GetGroupSummary(ctx, sourceID)
+	if err != nil {
+		return fmt.Errorf("failed to get group summary: %w", err)
+	}
 
-		profile := &groupprofile.GroupProfile{
-			GroupName:  summary.GroupName,
-			PictureURL: summary.PictureURL,
-		}
+	profile := &groupprofile.GroupProfile{
+		DisplayName: summary.GroupName,
+		PictureURL:  summary.PictureURL,
+	}
 
-		if err := h.groupProfileService.SetGroupProfile(context.Background(), sourceID, profile); err != nil {
-			h.logger.ErrorContext(ctx, "failed to save group profile",
-				slog.String("sourceID", sourceID),
-				slog.Any("error", err),
-			)
-			return
-		}
-
-		h.logger.InfoContext(ctx, "group profile saved",
-			slog.String("sourceID", sourceID),
-			slog.String("groupName", profile.GroupName),
-		)
-	}()
+	if err := h.groupProfileService.SetGroupProfile(ctx, sourceID, profile); err != nil {
+		return fmt.Errorf("failed to save group profile: %w", err)
+	}
 
 	return nil
 }
