@@ -57,12 +57,19 @@ type Config struct {
 	GroupSimService GroupSimService // If set, enables group commands (/switch, /users)
 }
 
-// getStderr returns cfg.Stderr if set, otherwise os.Stderr.
-func getStderr(cfg Config) io.Writer {
-	if cfg.Stderr != nil {
-		return cfg.Stderr
+// buildMessageContext creates context with LINE context values for message handling.
+func buildMessageContext(ctx context.Context, cfg Config, currentUserID string) context.Context {
+	var msgCtx context.Context
+	if cfg.GroupID != "" {
+		msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
+		msgCtx = line.WithSourceID(msgCtx, cfg.GroupID)
+	} else {
+		msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
+		msgCtx = line.WithSourceID(msgCtx, currentUserID)
 	}
-	return os.Stderr
+	msgCtx = line.WithUserID(msgCtx, currentUserID)
+	msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
+	return msgCtx
 }
 
 // buildPrompt constructs the REPL prompt based on current user and profile.
@@ -84,7 +91,7 @@ func buildPrompt(ctx context.Context, cfg Config, currentUserID string) string {
 // handleSwitchCommand handles the /switch <user-id> command.
 // Returns the new user ID on success, or the current user ID on error.
 func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetUserID string) string {
-	stderr := getStderr(cfg)
+	stderr := cfg.Stderr
 
 	// Check if in group mode
 	if cfg.GroupID == "" || cfg.GroupSimService == nil {
@@ -112,7 +119,7 @@ func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetU
 func handleUsersCommand(ctx context.Context, cfg Config) {
 	// Check if in group mode
 	if cfg.GroupID == "" || cfg.GroupSimService == nil {
-		_, _ = fmt.Fprintln(getStderr(cfg), "/users is not available")
+		_, _ = fmt.Fprintln(cfg.Stderr, "/users is not available")
 		return
 	}
 
@@ -147,7 +154,7 @@ func handleUsersCommand(ctx context.Context, cfg Config) {
 // handleInviteCommand handles the /invite <user-id> command.
 // Adds a new user to the group.
 func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invitedUserID string) {
-	stderr := getStderr(cfg)
+	stderr := cfg.Stderr
 
 	// Check if in group mode
 	if cfg.GroupID == "" || cfg.GroupSimService == nil {
@@ -201,7 +208,7 @@ func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invited
 // handleInviteBotCommand handles the /invite-bot command.
 // Adds the bot to the group and triggers HandleJoin event.
 func handleInviteBotCommand(ctx context.Context, cfg Config, currentUserID string) {
-	stderr := getStderr(cfg)
+	stderr := cfg.Stderr
 
 	// Check if in group mode
 	if cfg.GroupID == "" || cfg.GroupSimService == nil {
@@ -259,6 +266,9 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Stdout == nil {
 		return errors.New("stdout must not be nil")
 	}
+	if cfg.Stderr == nil {
+		cfg.Stderr = os.Stderr
+	}
 
 	// Setup signal handler for SIGINT (Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
@@ -306,7 +316,7 @@ func Run(ctx context.Context, cfg Config) error {
 			ctrlCCount++
 			if ctrlCCount == 1 {
 				// First Ctrl+C: show warning
-				_, _ = fmt.Fprintln(getStderr(cfg), "Press Ctrl+C again to exit")
+				_, _ = fmt.Fprintln(cfg.Stderr, "Press Ctrl+C again to exit")
 			} else {
 				// Second Ctrl+C: exit cleanly
 				return nil
@@ -342,7 +352,7 @@ func Run(ctx context.Context, cfg Config) error {
 			if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
 				targetUserID = strings.TrimSpace(targetUserID)
 				if targetUserID == "" {
-					_, _ = fmt.Fprintln(getStderr(cfg), "usage: /switch <user-id>")
+					_, _ = fmt.Fprintln(cfg.Stderr, "usage: /switch <user-id>")
 					continue
 				}
 				currentUserID = handleSwitchCommand(ctx, cfg, currentUserID, targetUserID)
@@ -361,7 +371,7 @@ func Run(ctx context.Context, cfg Config) error {
 				continue
 			}
 			if trimmed == "/invite" {
-				_, _ = fmt.Fprintln(getStderr(cfg), "usage: /invite <user-id>")
+				_, _ = fmt.Fprintln(cfg.Stderr, "usage: /invite <user-id>")
 				continue
 			}
 
@@ -372,18 +382,7 @@ func Run(ctx context.Context, cfg Config) error {
 			}
 
 			// Prepare context with LINE context values
-			var msgCtx context.Context
-			if cfg.GroupID != "" {
-				// Group mode: chat type is "group", source ID is group ID
-				msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-				msgCtx = line.WithSourceID(msgCtx, cfg.GroupID)
-			} else {
-				// 1-on-1 mode: chat type is "1-on-1", source ID is user ID
-				msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
-				msgCtx = line.WithSourceID(msgCtx, currentUserID)
-			}
-			msgCtx = line.WithUserID(msgCtx, currentUserID)
-			msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
+			msgCtx := buildMessageContext(ctx, cfg, currentUserID)
 
 			// Check bot presence in group mode
 			if cfg.GroupID != "" && cfg.GroupSimService != nil {
@@ -393,7 +392,6 @@ func Run(ctx context.Context, cfg Config) error {
 					continue
 				}
 				if !botInGroup {
-					// Bot is not in group, skip message processing
 					continue
 				}
 			}
