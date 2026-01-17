@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -35,7 +36,7 @@ const signedURLTTL = 60 * time.Second
 func (h *Handler) HandleText(ctx context.Context, text string) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -48,11 +49,11 @@ func (h *Handler) HandleText(ctx context.Context, text string) error {
 func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("sourceID not found in context")
+		return errors.New("sourceID not found in context")
 	}
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 
 	var parts []history.UserPart
@@ -84,7 +85,7 @@ func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -97,7 +98,7 @@ func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string
 func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -110,7 +111,7 @@ func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
 func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -123,7 +124,7 @@ func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
 func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float64) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -136,7 +137,7 @@ func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float6
 func (h *Handler) HandleUnknown(ctx context.Context) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("userID not found in context")
+		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
@@ -149,11 +150,11 @@ func (h *Handler) HandleUnknown(ctx context.Context) error {
 func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessage) error {
 	chatType, ok := line.ChatTypeFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("chatType not found in context")
+		return errors.New("chatType not found in context")
 	}
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("sourceID not found in context")
+		return errors.New("sourceID not found in context")
 	}
 
 	// Delayed loading indicator (FR-001, FR-002, FR-006, NFR-001, NFR-002)
@@ -254,7 +255,7 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent.UserPart, error) {
 	chatType, ok := line.ChatTypeFromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("chatType not found in context")
+		return nil, errors.New("chatType not found in context")
 	}
 
 	var buf bytes.Buffer

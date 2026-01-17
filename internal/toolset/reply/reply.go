@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 	"yuruppu/internal/agent"
@@ -78,26 +77,26 @@ func (t *Tool) ResponseJsonSchema() []byte {
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
 	message, ok := args["message"].(string)
 	if !ok || message == "" {
-		return nil, fmt.Errorf("invalid message")
+		return nil, errors.New("invalid message")
 	}
 
 	// Get replyToken and sourceID from context
 	replyToken, ok := line.ReplyTokenFromContext(ctx)
 	if !ok {
 		t.logger.ErrorContext(ctx, "reply token not found in context")
-		return nil, fmt.Errorf("internal error")
+		return nil, errors.New("internal error")
 	}
 
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
 		t.logger.ErrorContext(ctx, "source ID not found in context")
-		return nil, fmt.Errorf("internal error")
+		return nil, errors.New("internal error")
 	}
 
 	modelName, ok := agent.ModelNameFromContext(ctx)
 	if !ok {
 		t.logger.ErrorContext(ctx, "model name not found in context")
-		return nil, fmt.Errorf("internal error")
+		return nil, errors.New("internal error")
 	}
 
 	// Load history
@@ -107,7 +106,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
-		return nil, fmt.Errorf("failed to load conversation")
+		return nil, errors.New("failed to load conversation")
 	}
 
 	// Send reply
@@ -116,7 +115,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
-		return nil, fmt.Errorf("failed to send reply")
+		return nil, errors.New("failed to send reply")
 	}
 
 	// Append assistant message to history
@@ -133,7 +132,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			slog.String("sourceID", sourceID),
 			slog.Any("error", err),
 		)
-		return nil, fmt.Errorf("failed to save message")
+		return nil, errors.New("failed to save message")
 	}
 
 	return map[string]any{

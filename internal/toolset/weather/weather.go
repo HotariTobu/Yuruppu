@@ -72,7 +72,7 @@ func (t *Tool) ResponseJsonSchema() []byte {
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
 	location, ok := args["location"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid location")
+		return nil, errors.New("invalid location")
 	}
 
 	dates := []string{"today"}
@@ -117,31 +117,31 @@ func (t *Tool) fetchWeather(ctx context.Context, location string) (*wttrResponse
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		t.logger.Error("failed to create request", slog.Any("error", err))
-		return nil, fmt.Errorf("failed to create request")
+		return nil, errors.New("failed to create request")
 	}
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
 		t.logger.Error("API request failed", slog.Any("error", err), slog.String("location", location))
-		return nil, fmt.Errorf("API request failed")
+		return nil, errors.New("API request failed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.logger.Error("API returned error status", slog.Int("status", resp.StatusCode), slog.String("location", location))
-		return nil, fmt.Errorf("API returned error status")
+		return nil, errors.New("API returned error status")
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
 		t.logger.Error("failed to read response", slog.Any("error", err))
-		return nil, fmt.Errorf("failed to read response")
+		return nil, errors.New("failed to read response")
 	}
 
 	var wttrResp wttrResponse
 	if err := json.Unmarshal(body, &wttrResp); err != nil {
 		t.logger.Error("failed to parse response", slog.Any("error", err))
-		return nil, fmt.Errorf("failed to parse response")
+		return nil, errors.New("failed to parse response")
 	}
 
 	return &wttrResp, nil
@@ -149,7 +149,7 @@ func (t *Tool) fetchWeather(ctx context.Context, location string) (*wttrResponse
 
 func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string, hourly bool) ([]any, error) {
 	if len(resp.Weather) == 0 {
-		return nil, fmt.Errorf("no weather data available")
+		return nil, errors.New("no weather data available")
 	}
 
 	dateIndexMap := map[string]int{
@@ -176,7 +176,7 @@ func (t *Tool) buildForecasts(resp *wttrResponse, dates []string, detail string,
 	}
 
 	if len(forecasts) == 0 {
-		return nil, fmt.Errorf("no forecast data for requested dates")
+		return nil, errors.New("no forecast data for requested dates")
 	}
 
 	return forecasts, nil

@@ -42,7 +42,10 @@ func EnsureDataDir(dataDir string, stdin io.Reader, stderr io.Writer) error {
 	// Read user input
 	scanner := bufio.NewScanner(stdin)
 	if !scanner.Scan() {
-		return errors.New("failed to read user input")
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("read user input: %w", err)
+		}
+		return errors.New("read user input: unexpected EOF")
 	}
 
 	response := strings.TrimSpace(scanner.Text())
@@ -57,5 +60,5 @@ func EnsureDataDir(dataDir string, stdin io.Reader, stderr io.Writer) error {
 	}
 
 	// User declined
-	return errors.New("user declined to create directory")
+	return fmt.Errorf("user declined to create directory: %s", dataDir)
 }

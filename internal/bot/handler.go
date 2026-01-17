@@ -2,7 +2,7 @@ package bot
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"time"
 	"yuruppu/internal/agent"
@@ -57,22 +57,22 @@ type Handler struct {
 // Returns error if any dependency is nil.
 func NewHandler(lineClient LineClient, profileService ProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
 	if lineClient == nil {
-		return nil, fmt.Errorf("lineClient is required")
+		return nil, errors.New("lineClient is required")
 	}
 	if profileService == nil {
-		return nil, fmt.Errorf("profileService is required")
+		return nil, errors.New("profileService is required")
 	}
 	if historySvc == nil {
-		return nil, fmt.Errorf("historySvc is required")
+		return nil, errors.New("historySvc is required")
 	}
 	if mediaSvc == nil {
-		return nil, fmt.Errorf("mediaSvc is required")
+		return nil, errors.New("mediaSvc is required")
 	}
 	if agent == nil {
-		return nil, fmt.Errorf("agent is required")
+		return nil, errors.New("agent is required")
 	}
 	if logger == nil {
-		return nil, fmt.Errorf("logger is required")
+		return nil, errors.New("logger is required")
 	}
 	return &Handler{
 		lineClient:     lineClient,
