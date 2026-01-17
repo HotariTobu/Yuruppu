@@ -11,9 +11,9 @@
     { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": true },
     { "id": "FR-009", "passes": true },
-    { "id": "FR-010", "passes": false },
-    { "id": "FR-011", "passes": false },
-    { "id": "FR-012", "passes": false },
+    { "id": "FR-010", "passes": true },
+    { "id": "FR-011", "passes": true },
+    { "id": "FR-012", "passes": true },
     { "id": "FR-013", "passes": true },
     { "id": "FR-014", "passes": false },
     { "id": "FR-015", "passes": false },
@@ -26,5 +26,5 @@
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 4 complete: Implemented FR-008 (/switch command) and FR-009 (/users command). Changes: (1) Added GroupSimService interface to repl.Config for group member operations, (2) Added Stderr field to Config for testable error output, (3) Implemented handleSwitchCommand() to switch active user within group members, (4) Implemented handleUsersCommand() to list all group members with display names, (5) Added getStderr() helper for configurable stderr, (6) Used strings.CutPrefix for cleaner command parsing. Tests added for AC-007 (/switch success), AC-008 (/switch invalid user), AC-009 (/users listing), and unavailable command errors in 1-on-1 mode. NFR-001 (instant switching) verified - no network calls for /switch. All preflight checks pass. All 7 reviewers run: spec-compliance APPROVE, correctness minor issues (silent failures), architecture scope for future, readability Run() complexity noted, testing future scope, security path traversal in groupsim.go (not this PR), performance APPROVE. Next session should focus on FR-010-FR-012 (/invite command for user invitation)."
+  "notes": "Session 5 complete: Implemented FR-010, FR-011, FR-012 (/invite command). Changes: (1) Added AddMember method to GroupSimService interface, (2) Implemented handleInviteCommand() in repl.go to add users to group, (3) Handles already-member error by checking error message, (4) Validates empty user ID with usage message, (5) Trims whitespace from user ID, (6) No profile creation triggered for invited users (FR-011). Tests added for AC-010 (invite success), AC-011 (invite without profile), AC-012 (invite existing member), plus edge cases for empty user ID, whitespace, and 1-on-1 mode unavailability. All preflight checks pass. Next session should focus on FR-014-FR-017 (/invite-bot command and bot message handling)."
 }
