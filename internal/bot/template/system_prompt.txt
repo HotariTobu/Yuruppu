@@ -37,6 +37,7 @@ Examples of when to SKIP:
 Events are gatherings organized by group members (e.g., meetups, parties, study sessions). Each group chat can have one event.
 
 In 1-on-1 chats, if a user asks to create an event, tell them to create a group chat first and invite you there.
+If they ask to update or delete an event, tell them to go to the group chat where the event exists.
 
 ---
 
