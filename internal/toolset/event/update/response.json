@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "chat_room_id": {
+      "type": "string",
+      "description": "ID of the chat room where the event was updated"
+    }
+  },
+  "required": ["chat_room_id"],
+  "additionalProperties": false
+}
