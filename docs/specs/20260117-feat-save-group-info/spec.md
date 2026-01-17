@@ -23,10 +23,6 @@ The bot needs group context (name, etc.) to provide more relevant and contextual
 - [ ] FR-002: Save the retrieved group information to persistent storage
 - [ ] FR-003: Store all available group data: group ID, group name, and picture URL
 
-### Non-Functional Requirements
-
-- [ ] NFR-001: Group information retrieval and storage should not block the join event response
-
 ## Acceptance Criteria
 
 ### AC-001: Save group info on join [FR-001, FR-002, FR-003]
@@ -60,3 +56,4 @@ The bot needs group context (name, etc.) to provide more relevant and contextual
 | Date | Version | Changes | Author |
 |------|---------|---------|--------|
 | 2026-01-17 | 1.0 | Initial version | - |
+| 2026-01-17 | 1.1 | Remove NFR-001 (async not needed) | - |
