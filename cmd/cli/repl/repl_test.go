@@ -15,6 +15,7 @@ import (
 	"time"
 	"yuruppu/cmd/cli/repl"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -817,26 +818,19 @@ func TestRun_CtrlC_SignalChannel(t *testing.T) {
 	})
 }
 
-// mockProfileGetter implements a test profile getter for tests.
-type mockProfileGetter struct {
-	profiles map[string]*mockProfile
+func ptr(s string) *string { return &s }
+
+type mockProfileService struct {
+	profiles map[string]*profile.UserProfile
 	err      error
 }
 
-type mockProfile struct {
-	displayName string
-}
-
-func (m *mockProfile) GetDisplayName() string {
-	return m.displayName
-}
-
-func (m *mockProfileGetter) GetUserProfile(ctx context.Context, userID string) (repl.UserProfile, error) {
+func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	if profile, ok := m.profiles[userID]; ok {
-		return profile, nil
+	if p, ok := m.profiles[userID]; ok {
+		return p, nil
 	}
 	return nil, fmt.Errorf("profile not found: %s", userID)
 }
@@ -866,7 +860,7 @@ func TestRun_GroupMode_ChatContext(t *testing.T) {
 			Logger:  logger,
 			Stdin:   stdin,
 			Stdout:  stdout,
-			GroupID: "mygroup",
+			GroupID: ptr("mygroup"),
 		}
 
 		// When
@@ -956,21 +950,21 @@ func TestRun_Prompt_WithProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			GroupID:       "mygroup",
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			GroupID:        ptr("mygroup"),
+			ProfileService: profileService,
 		}
 
 		// When
@@ -993,21 +987,21 @@ func TestRun_Prompt_WithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
 				// "bob" has no profile
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "bob",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			GroupID:       "mygroup",
-			ProfileGetter: profileGetter,
+			UserID:         "bob",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			GroupID:        ptr("mygroup"),
+			ProfileService: profileService,
 		}
 
 		// When
@@ -1030,20 +1024,20 @@ func TestRun_Prompt_OneOnOneWithProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"charlie": {displayName: "Charlie"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"charlie": {DisplayName: "Charlie"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "charlie",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			ProfileGetter: profileGetter,
+			UserID:         "charlie",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			ProfileService: profileService,
 		}
 
 		// When
@@ -1066,20 +1060,20 @@ func TestRun_Prompt_OneOnOneWithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
 				// "dave" has no profile
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "dave",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			ProfileGetter: profileGetter,
+			UserID:         "dave",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			ProfileService: profileService,
 		}
 
 		// When
@@ -1101,19 +1095,19 @@ func TestRun_Prompt_ProfileGetterError(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
+		profileService := &mockProfileService{
 			err: errors.New("profile service unavailable"),
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			GroupID:       "mygroup",
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			GroupID:        ptr("mygroup"),
+			ProfileService: profileService,
 		}
 
 		// When
@@ -1142,7 +1136,7 @@ func TestRun_Prompt_NoProfileGetter(t *testing.T) {
 			Logger:  logger,
 			Stdin:   stdin,
 			Stdout:  stdout,
-			GroupID: "mygroup",
+			GroupID: ptr("mygroup"),
 			// ProfileGetter is nil
 		}
 
@@ -1250,11 +1244,11 @@ func TestRun_SwitchCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice":   {displayName: "Alice"},
-				"bob":     {displayName: "Bob"},
-				"charlie": {displayName: "Charlie"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice":   {DisplayName: "Alice"},
+				"bob":     {DisplayName: "Bob"},
+				"charlie": {DisplayName: "Charlie"},
 			},
 		}
 
@@ -1269,8 +1263,8 @@ func TestRun_SwitchCommand_Success(t *testing.T) {
 			Logger:          logger,
 			Stdin:           stdin,
 			Stdout:          stdout,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1298,10 +1292,10 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
-				"bob":   {displayName: "Bob"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
+				"bob":   {DisplayName: "Bob"},
 			},
 		}
 
@@ -1317,8 +1311,8 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1347,21 +1341,21 @@ func TestRun_SwitchCommand_NotInGroupMode(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			Stderr:        stderr,
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			Stderr:         stderr,
+			ProfileService: profileService,
 			// GroupID is empty (1-on-1 mode)
 		}
 
@@ -1386,11 +1380,11 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice":   {displayName: "Alice"},
-				"bob":     {displayName: "Bob"},
-				"charlie": {displayName: "Charlie"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice":   {DisplayName: "Alice"},
+				"bob":     {DisplayName: "Bob"},
+				"charlie": {DisplayName: "Charlie"},
 			},
 		}
 
@@ -1405,8 +1399,8 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 			Logger:          logger,
 			Stdin:           stdin,
 			Stdout:          stdout,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1430,11 +1424,11 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 				// bob has no profile
-				"charlie": {displayName: "Charlie"},
+				"charlie": {DisplayName: "Charlie"},
 			},
 		}
 
@@ -1449,8 +1443,8 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 			Logger:          logger,
 			Stdin:           stdin,
 			Stdout:          stdout,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1474,21 +1468,21 @@ func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			Stderr:        stderr,
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			Stderr:         stderr,
+			ProfileService: profileService,
 			// GroupID is empty (1-on-1 mode)
 		}
 
@@ -1513,9 +1507,9 @@ func TestRun_InviteCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1531,8 +1525,8 @@ func TestRun_InviteCommand_Success(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1562,9 +1556,9 @@ func TestRun_InviteCommand_UserWithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 				// "newuser" has no profile
 			},
 		}
@@ -1581,8 +1575,8 @@ func TestRun_InviteCommand_UserWithoutProfile(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1600,7 +1594,7 @@ func TestRun_InviteCommand_UserWithoutProfile(t *testing.T) {
 		assert.Contains(t, members, "newuser", "newuser should be added to group members")
 
 		// Verify no profile was created (profile getter not called for invitation)
-		_, err = profileGetter.GetUserProfile(ctx, "newuser")
+		_, err = profileService.GetUserProfile(ctx, "newuser")
 		assert.Error(t, err, "newuser should still have no profile")
 	})
 }
@@ -1616,10 +1610,10 @@ func TestRun_InviteCommand_ExistingMember(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
-				"bob":   {displayName: "Bob"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
+				"bob":   {DisplayName: "Bob"},
 			},
 		}
 
@@ -1635,8 +1629,8 @@ func TestRun_InviteCommand_ExistingMember(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1667,21 +1661,21 @@ func TestRun_InviteCommand_NotInGroupMode(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			Stderr:        stderr,
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			Stderr:         stderr,
+			ProfileService: profileService,
 			// GroupID is empty (1-on-1 mode)
 		}
 
@@ -1705,9 +1699,9 @@ func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1723,8 +1717,8 @@ func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1748,9 +1742,9 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1766,8 +1760,8 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1797,9 +1791,9 @@ func TestRun_BotNotInGroup_NoLLMCall(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1815,8 +1809,8 @@ func TestRun_BotNotInGroup_NoLLMCall(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1840,9 +1834,9 @@ func TestRun_BotInGroup_LLMCalled(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1858,8 +1852,8 @@ func TestRun_BotInGroup_LLMCalled(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1922,9 +1916,9 @@ func TestRun_BotStatusCheck_ErrorHandling(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1940,8 +1934,8 @@ func TestRun_BotStatusCheck_ErrorHandling(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -1965,9 +1959,9 @@ func TestRun_InviteBotCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -1983,8 +1977,8 @@ func TestRun_InviteBotCommand_Success(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2020,9 +2014,9 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -2038,8 +2032,8 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2066,21 +2060,21 @@ func TestRun_InviteBotCommand_NotInGroupMode(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
 		ctx := context.Background()
 		cfg := repl.Config{
-			UserID:        "alice",
-			Handler:       handler,
-			Logger:        logger,
-			Stdin:         stdin,
-			Stdout:        stdout,
-			Stderr:        stderr,
-			ProfileGetter: profileGetter,
+			UserID:         "alice",
+			Handler:        handler,
+			Logger:         logger,
+			Stdin:          stdin,
+			Stdout:         stdout,
+			Stderr:         stderr,
+			ProfileService: profileService,
 			// GroupID is empty (1-on-1 mode)
 		}
 
@@ -2108,9 +2102,9 @@ func TestRun_InviteBotCommand_EnablesMessageProcessing(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -2126,8 +2120,8 @@ func TestRun_InviteBotCommand_EnablesMessageProcessing(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2159,9 +2153,9 @@ func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -2177,8 +2171,8 @@ func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2220,9 +2214,9 @@ func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -2238,8 +2232,8 @@ func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2272,9 +2266,9 @@ func TestRun_InviteCommand_UserWithoutProfile_TriggersHandleMemberJoined(t *test
 		handler := &mockHandler{}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 				// "newuser" has no profile
 			},
 		}
@@ -2291,8 +2285,8 @@ func TestRun_InviteCommand_UserWithoutProfile_TriggersHandleMemberJoined(t *test
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
@@ -2335,9 +2329,9 @@ func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
 		}
 		logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-		profileGetter := &mockProfileGetter{
-			profiles: map[string]*mockProfile{
-				"alice": {displayName: "Alice"},
+		profileService := &mockProfileService{
+			profiles: map[string]*profile.UserProfile{
+				"alice": {DisplayName: "Alice"},
 			},
 		}
 
@@ -2353,8 +2347,8 @@ func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
 			Stdin:           stdin,
 			Stdout:          stdout,
 			Stderr:          stderr,
-			GroupID:         "mygroup",
-			ProfileGetter:   profileGetter,
+			GroupID:         ptr("mygroup"),
+			ProfileService:  profileService,
 			GroupSimService: groupSim,
 		}
 
