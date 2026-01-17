@@ -229,7 +229,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 			msgCtx = line.WithSourceID(msgCtx, *userID)
 		}
 		msgCtx = line.WithUserID(msgCtx, *userID)
-		msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
+		msgCtx = line.WithReplyToken(msgCtx, repl.CLIReplyToken)
 
 		if err := handler.HandleText(msgCtx, *message); err != nil {
 			return fmt.Errorf("failed to handle message: %w", err)

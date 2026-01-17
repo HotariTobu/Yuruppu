@@ -15,6 +15,9 @@ import (
 	"yuruppu/internal/profile"
 )
 
+// CLIReplyToken is a dummy reply token used for CLI messages.
+const CLIReplyToken = "cli-reply-token"
+
 type MessageHandler interface {
 	HandleText(ctx context.Context, text string) error
 	HandleJoin(ctx context.Context) error
@@ -107,7 +110,7 @@ func (r *Runner) buildMessageContext(ctx context.Context) context.Context {
 		msgCtx = line.WithSourceID(msgCtx, r.userID)
 	}
 	msgCtx = line.WithUserID(msgCtx, r.userID)
-	msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
+	msgCtx = line.WithReplyToken(msgCtx, CLIReplyToken)
 	return msgCtx
 }
 
@@ -177,11 +180,7 @@ func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 	if err != nil {
 		r.logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
 	} else if botInGroup {
-		memberJoinedCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, r.groupID)
-		memberJoinedCtx = line.WithUserID(memberJoinedCtx, r.userID)
-		memberJoinedCtx = line.WithReplyToken(memberJoinedCtx, "cli-reply-token")
-
+		memberJoinedCtx := r.buildMessageContext(ctx)
 		if err := r.handler.HandleMemberJoined(memberJoinedCtx, []string{invitedUserID}); err != nil {
 			r.logger.ErrorContext(memberJoinedCtx, "HandleMemberJoined error", "error", err)
 		}
@@ -202,11 +201,7 @@ func (r *Runner) handleInviteBot(ctx context.Context) {
 		return
 	}
 
-	joinCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-	joinCtx = line.WithSourceID(joinCtx, r.groupID)
-	joinCtx = line.WithUserID(joinCtx, r.userID)
-	joinCtx = line.WithReplyToken(joinCtx, "cli-reply-token")
-
+	joinCtx := r.buildMessageContext(ctx)
 	if err := r.handler.HandleJoin(joinCtx); err != nil {
 		r.logger.ErrorContext(joinCtx, "HandleJoin error", "error", err)
 	}
@@ -248,7 +243,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	scanner := bufio.NewScanner(r.stdin)
 
-	inputChan := make(chan string)
+	inputChan := make(chan string, 1)
 	doneChan := make(chan error, 1)
 
 	go func() {
