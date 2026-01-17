@@ -2,11 +2,14 @@ package setup
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"yuruppu/cmd/cli/groupsim"
+	"yuruppu/cmd/cli/mock"
 )
 
 // EnsureDataDir checks if dataDir exists. If not, prompts user for confirmation.
@@ -61,4 +64,37 @@ func EnsureDataDir(dataDir string, stdin io.Reader, stderr io.Writer) error {
 
 	// User declined
 	return fmt.Errorf("user declined to create directory: %s", dataDir)
+}
+
+// EnsureGroup handles group creation and membership validation.
+// Precondition: groupID must not be empty.
+func EnsureGroup(ctx context.Context, dataDir, groupID, userID string) (*groupsim.Service, error) {
+	groupSimStorage := mock.NewFileStorage(dataDir, "groupsim/")
+	groupService, err := groupsim.NewService(groupSimStorage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create group service: %w", err)
+	}
+
+	exists, err := groupService.Exists(ctx, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check group existence: %w", err)
+	}
+
+	if !exists {
+		if err := groupService.Create(ctx, groupID, userID); err != nil {
+			return nil, fmt.Errorf("failed to create group: %w", err)
+		}
+		return groupService, nil
+	}
+
+	isMember, err := groupService.IsMember(ctx, groupID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check group membership: %w", err)
+	}
+
+	if !isMember {
+		return nil, fmt.Errorf("user '%s' is not a member of group '%s'", userID, groupID)
+	}
+
+	return groupService, nil
 }
