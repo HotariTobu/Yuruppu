@@ -250,7 +250,6 @@ func TestNewRunner_Validation(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			strings.NewReader(""),
 			&bytes.Buffer{},
-			nil,
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "userID")
@@ -266,7 +265,6 @@ func TestNewRunner_Validation(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			strings.NewReader(""),
 			&bytes.Buffer{},
-			nil,
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "handler")
@@ -282,7 +280,6 @@ func TestNewRunner_Validation(t *testing.T) {
 			nil,
 			strings.NewReader(""),
 			&bytes.Buffer{},
-			nil,
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "logger")
@@ -298,7 +295,6 @@ func TestNewRunner_Validation(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			nil,
 			&bytes.Buffer{},
-			nil,
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "stdin")
@@ -313,7 +309,6 @@ func TestNewRunner_Validation(t *testing.T) {
 			&mockHandler{},
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			strings.NewReader(""),
-			nil,
 			nil,
 		)
 		require.Error(t, err)
@@ -332,7 +327,6 @@ func TestNewRunner_Valid(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			strings.NewReader(""),
 			&bytes.Buffer{},
-			nil,
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, r)
@@ -355,7 +349,6 @@ func TestRun_QuitCommand(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -392,7 +385,6 @@ func TestRun_EmptyInput(t *testing.T) {
 				slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 				stdin,
 				stdout,
-				nil,
 			)
 			require.NoError(t, err)
 
@@ -419,7 +411,6 @@ func TestRun_TextInput(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -454,7 +445,6 @@ func TestRun_ContextValues(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -495,7 +485,6 @@ func TestRun_HandlerError(t *testing.T) {
 			slog.New(slog.NewTextHandler(stderr, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
@@ -524,7 +513,6 @@ func TestRun_ContextCancellation(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			pipeReader,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -564,7 +552,6 @@ func TestRun_MultipleMessages(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -597,7 +584,6 @@ func TestRun_PromptDisplay(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -625,7 +611,6 @@ func TestRun_StdinEOF(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			pipeReader,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -661,7 +646,6 @@ func TestRun_GroupMode_ChatContext(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -706,7 +690,6 @@ func TestRun_OneOnOneMode_ChatContext(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -754,7 +737,6 @@ func TestRun_Prompt_WithProfile(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -788,7 +770,6 @@ func TestRun_Prompt_WithoutProfile(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -818,7 +799,6 @@ func TestRun_Prompt_NoProfileService(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -855,7 +835,6 @@ func TestRun_SwitchCommand_Success(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -872,7 +851,7 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 	t.Run("should show error and keep current user when switching to non-member", func(t *testing.T) {
 		stdin := strings.NewReader("/switch unknown\nHello\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
@@ -891,16 +870,16 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 			profileService,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "'unknown' is not a member of this group")
+		assert.Contains(t, logBuf.String(), "user is not a member of this group")
+		assert.Contains(t, logBuf.String(), "userID=unknown")
 
 		require.Equal(t, 1, handler.callCount())
 		calls := handler.getCalls()
@@ -913,7 +892,7 @@ func TestRun_SwitchCommand_NotInGroupMode(t *testing.T) {
 	t.Run("should show error when /switch is used in 1-on-1 mode", func(t *testing.T) {
 		stdin := strings.NewReader("/switch bob\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		r, err := repl.NewRunner(
@@ -922,16 +901,15 @@ func TestRun_SwitchCommand_NotInGroupMode(t *testing.T) {
 			nil,
 			nil,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "/switch is not available")
+		assert.Contains(t, logBuf.String(), "/switch is not available")
 	})
 }
 
@@ -940,6 +918,7 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 	t.Run("should list all group members with display names", func(t *testing.T) {
 		stdin := strings.NewReader("/users\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
@@ -960,17 +939,16 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 			profileService,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		output := stdout.String()
-		assert.Contains(t, output, "Alice(alice), Bob(bob), Charlie(charlie)")
+		assert.Contains(t, logBuf.String(), "group members")
+		assert.Contains(t, logBuf.String(), "Alice(alice), Bob(bob), Charlie(charlie)")
 	})
 }
 
@@ -979,6 +957,7 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 	t.Run("should list members showing (user-id) for users without profiles", func(t *testing.T) {
 		stdin := strings.NewReader("/users\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
@@ -998,17 +977,16 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 			profileService,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		output := stdout.String()
-		assert.Contains(t, output, "Alice(alice), (bob), Charlie(charlie)")
+		assert.Contains(t, logBuf.String(), "group members")
+		assert.Contains(t, logBuf.String(), "Alice(alice), (bob), Charlie(charlie)")
 	})
 }
 
@@ -1017,7 +995,7 @@ func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
 	t.Run("should show error when /users is used in 1-on-1 mode", func(t *testing.T) {
 		stdin := strings.NewReader("/users\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		r, err := repl.NewRunner(
@@ -1026,16 +1004,15 @@ func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
 			nil,
 			nil,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "/users is not available")
+		assert.Contains(t, logBuf.String(), "/users is not available")
 	})
 }
 
@@ -1044,6 +1021,7 @@ func TestRun_InviteCommand_Success(t *testing.T) {
 	t.Run("should add new user to group and display success message", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1056,16 +1034,16 @@ func TestRun_InviteCommand_Success(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stdout.String(), "bob has been invited to the group")
+		assert.Contains(t, logBuf.String(), "user invited to group")
+		assert.Contains(t, logBuf.String(), "userID=bob")
 
 		members, err := groupSim.GetMembers(context.Background(), "mygroup")
 		require.NoError(t, err)
@@ -1078,7 +1056,7 @@ func TestRun_InviteCommand_ExistingMember(t *testing.T) {
 	t.Run("should show error when inviting existing member", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1091,16 +1069,15 @@ func TestRun_InviteCommand_ExistingMember(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "bob is already a member of this group")
+		assert.Contains(t, logBuf.String(), "failed to add member")
 	})
 }
 
@@ -1109,7 +1086,7 @@ func TestRun_InviteCommand_NotInGroupMode(t *testing.T) {
 	t.Run("should show error when /invite is used in 1-on-1 mode", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		r, err := repl.NewRunner(
@@ -1118,16 +1095,15 @@ func TestRun_InviteCommand_NotInGroupMode(t *testing.T) {
 			nil,
 			nil,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "/invite is not available")
+		assert.Contains(t, logBuf.String(), "/invite is not available")
 	})
 }
 
@@ -1136,7 +1112,7 @@ func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
 	t.Run("should show usage error when /invite is called without user ID", func(t *testing.T) {
 		stdin := strings.NewReader("/invite\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1149,16 +1125,15 @@ func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "usage: /invite <user-id>")
+		assert.Contains(t, logBuf.String(), "usage: /invite <user-id>")
 	})
 }
 
@@ -1167,6 +1142,7 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 	t.Run("should trim whitespace from user ID in /invite command", func(t *testing.T) {
 		stdin := strings.NewReader("/invite   bob   \n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1179,16 +1155,16 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stdout.String(), "bob has been invited to the group")
+		assert.Contains(t, logBuf.String(), "user invited to group")
+		assert.Contains(t, logBuf.String(), "userID=bob")
 
 		members, err := groupSim.GetMembers(context.Background(), "mygroup")
 		require.NoError(t, err)
@@ -1216,7 +1192,6 @@ func TestRun_BotNotInGroup_NoLLMCall(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -1246,7 +1221,6 @@ func TestRun_BotInGroup_LLMCalled(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -1275,7 +1249,6 @@ func TestRun_OneOnOneMode_AlwaysProcessed(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -1309,7 +1282,6 @@ func TestRun_BotStatusCheck_ErrorHandling(t *testing.T) {
 			slog.New(slog.NewTextHandler(stderr, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
@@ -1324,6 +1296,7 @@ func TestRun_InviteBotCommand_Success(t *testing.T) {
 	t.Run("should add bot to group, call HandleJoin, and display success message", func(t *testing.T) {
 		stdin := strings.NewReader("/invite-bot\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1336,16 +1309,15 @@ func TestRun_InviteBotCommand_Success(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stdout.String(), "Bot has been invited to the group")
+		assert.Contains(t, logBuf.String(), "bot invited to group")
 
 		botInGroup, err := groupSim.IsBotInGroup(context.Background(), "mygroup")
 		require.NoError(t, err)
@@ -1363,7 +1335,7 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 	t.Run("should show error message when bot is already in group", func(t *testing.T) {
 		stdin := strings.NewReader("/invite-bot\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1376,16 +1348,15 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "bot is already in group 'mygroup'")
+		assert.Contains(t, logBuf.String(), "failed to add bot")
 		assert.Equal(t, 0, handler.joinCallCount())
 	})
 }
@@ -1395,7 +1366,7 @@ func TestRun_InviteBotCommand_NotInGroupMode(t *testing.T) {
 	t.Run("should show error when /invite-bot is used in 1-on-1 mode", func(t *testing.T) {
 		stdin := strings.NewReader("/invite-bot\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		r, err := repl.NewRunner(
@@ -1404,16 +1375,15 @@ func TestRun_InviteBotCommand_NotInGroupMode(t *testing.T) {
 			nil,
 			nil,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "/invite-bot is not available")
+		assert.Contains(t, logBuf.String(), "/invite-bot is not available")
 		assert.Equal(t, 0, handler.joinCallCount())
 	})
 }
@@ -1438,7 +1408,6 @@ func TestRun_InviteBotCommand_EnablesMessageProcessing(t *testing.T) {
 			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
@@ -1458,6 +1427,7 @@ func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
 	t.Run("should call HandleMemberJoined with invited user ID when bot is in group", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1470,16 +1440,16 @@ func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stdout.String(), "bob has been invited to the group")
+		assert.Contains(t, logBuf.String(), "user invited to group")
+		assert.Contains(t, logBuf.String(), "userID=bob")
 
 		members, err := groupSim.GetMembers(context.Background(), "mygroup")
 		require.NoError(t, err)
@@ -1501,6 +1471,7 @@ func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
 	t.Run("should NOT call HandleMemberJoined when bot is not in group", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{}
 
 		groupSim := newMockGroupSimService()
@@ -1513,16 +1484,16 @@ func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			nil,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stdout.String(), "bob has been invited to the group")
+		assert.Contains(t, logBuf.String(), "user invited to group")
+		assert.Contains(t, logBuf.String(), "userID=bob")
 
 		members, err := groupSim.GetMembers(context.Background(), "mygroup")
 		require.NoError(t, err)
@@ -1537,7 +1508,7 @@ func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
 	t.Run("should continue and show success message even if HandleMemberJoined returns error", func(t *testing.T) {
 		stdin := strings.NewReader("/invite bob\n/quit\n")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		logBuf := &bytes.Buffer{}
 		handler := &mockHandler{
 			returnErr: errors.New("HandleMemberJoined processing error"),
 		}
@@ -1552,23 +1523,23 @@ func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
 			nil,
 			groupSim,
 			handler,
-			slog.New(slog.NewTextHandler(stderr, nil)),
+			slog.New(slog.NewTextHandler(logBuf, nil)),
 			stdin,
 			stdout,
-			stderr,
 		)
 		require.NoError(t, err)
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
 
-		assert.Contains(t, stdout.String(), "bob has been invited to the group")
+		assert.Contains(t, logBuf.String(), "user invited to group")
+		assert.Contains(t, logBuf.String(), "userID=bob")
 
 		members, err := groupSim.GetMembers(context.Background(), "mygroup")
 		require.NoError(t, err)
 		assert.Contains(t, members, "bob")
 
 		require.Equal(t, 1, handler.memberJoinedCallCount())
-		assert.Contains(t, stderr.String(), "HandleMemberJoined processing error")
+		assert.Contains(t, logBuf.String(), "HandleMemberJoined processing error")
 	})
 }

@@ -226,7 +226,7 @@ func main() {
 	// Load configuration
 	config, err := loadConfig()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to load configuration:", err)
+		slog.Error("failed to load configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
 

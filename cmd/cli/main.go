@@ -89,7 +89,7 @@ func loadEnvConfig() (*envConfig, error) {
 
 func main() {
 	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		slog.Error("CLI error", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
@@ -258,7 +258,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// REPL mode
-	r, err := repl.NewRunner(*userID, *groupID, profileService, groupService, handler, logger, stdin, stdout, stderr)
+	r, err := repl.NewRunner(*userID, *groupID, profileService, groupService, handler, logger, stdin, stdout)
 	if err != nil {
 		return fmt.Errorf("failed to create REPL: %w", err)
 	}

@@ -45,7 +45,6 @@ type Runner struct {
 	logger          *slog.Logger
 	stdin           io.Reader
 	stdout          io.Writer
-	stderr          io.Writer
 }
 
 func NewRunner(
@@ -57,7 +56,6 @@ func NewRunner(
 	logger *slog.Logger,
 	stdin io.Reader,
 	stdout io.Writer,
-	stderr io.Writer,
 ) (*Runner, error) {
 	if userID == "" {
 		return nil, errors.New("userID must not be empty")
@@ -74,9 +72,6 @@ func NewRunner(
 	if stdout == nil {
 		return nil, errors.New("stdout must not be nil")
 	}
-	if stderr == nil {
-		stderr = os.Stderr
-	}
 
 	return &Runner{
 		userID:          userID,
@@ -87,7 +82,6 @@ func NewRunner(
 		logger:          logger,
 		stdin:           stdin,
 		stdout:          stdout,
-		stderr:          stderr,
 	}, nil
 }
 
@@ -120,18 +114,18 @@ func (r *Runner) buildPrompt(ctx context.Context) string {
 
 func (r *Runner) handleSwitch(ctx context.Context, targetUserID string) {
 	if r.groupID == "" || r.groupSimService == nil {
-		_, _ = fmt.Fprintln(r.stderr, "/switch is not available")
+		r.logger.WarnContext(ctx, "/switch is not available")
 		return
 	}
 
 	isMember, err := r.groupSimService.IsMember(ctx, r.groupID, targetUserID)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to check membership", "error", err)
+		r.logger.ErrorContext(ctx, "failed to check membership", slog.Any("error", err))
 		return
 	}
 
 	if !isMember {
-		_, _ = fmt.Fprintf(r.stderr, "'%s' is not a member of this group\n", targetUserID)
+		r.logger.WarnContext(ctx, "user is not a member of this group", slog.String("userID", targetUserID))
 		return
 	}
 
@@ -140,13 +134,13 @@ func (r *Runner) handleSwitch(ctx context.Context, targetUserID string) {
 
 func (r *Runner) handleUsers(ctx context.Context) {
 	if r.groupID == "" || r.groupSimService == nil {
-		_, _ = fmt.Fprintln(r.stderr, "/users is not available")
+		r.logger.WarnContext(ctx, "/users is not available")
 		return
 	}
 
 	members, err := r.groupSimService.GetMembers(ctx, r.groupID)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get members", "error", err)
+		r.logger.ErrorContext(ctx, "failed to get members", slog.Any("error", err))
 		return
 	}
 
@@ -155,58 +149,58 @@ func (r *Runner) handleUsers(ctx context.Context) {
 		memberStrings = append(memberStrings, r.formatUser(ctx, memberID))
 	}
 
-	_, _ = fmt.Fprintln(r.stdout, strings.Join(memberStrings, ", "))
+	r.logger.InfoContext(ctx, "group members", slog.String("members", strings.Join(memberStrings, ", ")))
 }
 
 func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 	if r.groupID == "" || r.groupSimService == nil {
-		_, _ = fmt.Fprintln(r.stderr, "/invite is not available")
+		r.logger.WarnContext(ctx, "/invite is not available")
 		return
 	}
 
 	invitedUserID = strings.TrimSpace(invitedUserID)
 	if invitedUserID == "" {
-		_, _ = fmt.Fprintln(r.stderr, "usage: /invite <user-id>")
+		r.logger.WarnContext(ctx, "usage: /invite <user-id>")
 		return
 	}
 
 	err := r.groupSimService.AddMember(ctx, r.groupID, invitedUserID)
 	if err != nil {
-		_, _ = fmt.Fprintln(r.stderr, err)
+		r.logger.ErrorContext(ctx, "failed to add member", slog.Any("error", err))
 		return
 	}
 
 	botInGroup, err := r.groupSimService.IsBotInGroup(ctx, r.groupID)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
+		r.logger.ErrorContext(ctx, "failed to check bot presence", slog.Any("error", err))
 	} else if botInGroup {
 		memberJoinedCtx := r.buildMessageContext(ctx)
 		if err := r.handler.HandleMemberJoined(memberJoinedCtx, []string{invitedUserID}); err != nil {
-			r.logger.ErrorContext(memberJoinedCtx, "HandleMemberJoined error", "error", err)
+			r.logger.ErrorContext(memberJoinedCtx, "HandleMemberJoined error", slog.Any("error", err))
 		}
 	}
 
-	_, _ = fmt.Fprintf(r.stdout, "%s has been invited to the group\n", invitedUserID)
+	r.logger.InfoContext(ctx, "user invited to group", slog.String("userID", invitedUserID))
 }
 
 func (r *Runner) handleInviteBot(ctx context.Context) {
 	if r.groupID == "" || r.groupSimService == nil {
-		_, _ = fmt.Fprintln(r.stderr, "/invite-bot is not available")
+		r.logger.WarnContext(ctx, "/invite-bot is not available")
 		return
 	}
 
 	err := r.groupSimService.AddBot(ctx, r.groupID)
 	if err != nil {
-		_, _ = fmt.Fprintln(r.stderr, err)
+		r.logger.ErrorContext(ctx, "failed to add bot", slog.Any("error", err))
 		return
 	}
 
 	joinCtx := r.buildMessageContext(ctx)
 	if err := r.handler.HandleJoin(joinCtx); err != nil {
-		r.logger.ErrorContext(joinCtx, "HandleJoin error", "error", err)
+		r.logger.ErrorContext(joinCtx, "HandleJoin error", slog.Any("error", err))
 	}
 
-	_, _ = fmt.Fprintln(r.stdout, "Bot has been invited to the group")
+	r.logger.InfoContext(ctx, "bot invited to group")
 }
 
 func (r *Runner) handleText(ctx context.Context, text string) {
@@ -268,7 +262,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		case <-sigChan:
 			ctrlCCount++
 			if ctrlCCount == 1 {
-				_, _ = fmt.Fprintln(r.stderr, "Press Ctrl+C again to exit")
+				r.logger.InfoContext(ctx, "press Ctrl+C again to exit")
 			} else {
 				return nil
 			}
@@ -296,7 +290,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
 				targetUserID = strings.TrimSpace(targetUserID)
 				if targetUserID == "" {
-					_, _ = fmt.Fprintln(r.stderr, "usage: /switch <user-id>")
+					r.logger.WarnContext(ctx, "usage: /switch <user-id>")
 					continue
 				}
 				r.handleSwitch(ctx, targetUserID)
@@ -313,7 +307,7 @@ func (r *Runner) Run(ctx context.Context) error {
 				continue
 			}
 			if trimmed == "/invite" {
-				_, _ = fmt.Fprintln(r.stderr, "usage: /invite <user-id>")
+				r.logger.WarnContext(ctx, "usage: /invite <user-id>")
 				continue
 			}
 
