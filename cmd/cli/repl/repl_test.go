@@ -748,3 +748,341 @@ func TestRun_CtrlC_SignalChannel(t *testing.T) {
 		}
 	})
 }
+
+// mockProfileGetter implements a test profile getter for tests.
+type mockProfileGetter struct {
+	profiles map[string]*mockProfile
+	err      error
+}
+
+type mockProfile struct {
+	displayName string
+}
+
+func (m *mockProfile) GetDisplayName() string {
+	return m.displayName
+}
+
+func (m *mockProfileGetter) GetUserProfile(ctx context.Context, userID string) (repl.UserProfile, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if profile, ok := m.profiles[userID]; ok {
+		return profile, nil
+	}
+	return nil, fmt.Errorf("profile not found: %s", userID)
+}
+
+// TestRun_GroupMode_ChatContext tests group mode sets correct chat type and source ID
+// AC-005: Group chat context [FR-006]
+func TestRun_GroupMode_ChatContext(t *testing.T) {
+	t.Run("should set chat type to group and source ID to group ID in group mode", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello from group\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		var capturedCtx context.Context
+		handler := &mockHandler{
+			ctxChecker: func(ctx context.Context) error {
+				capturedCtx = ctx
+				return nil
+			},
+		}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:  "alice",
+			Handler: handler,
+			Logger:  logger,
+			Stdin:   stdin,
+			Stdout:  stdout,
+			GroupID: "mygroup",
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		require.NotNil(t, capturedCtx, "context should be captured")
+
+		// Check chat type is "group"
+		chatType, ok := line.ChatTypeFromContext(capturedCtx)
+		assert.True(t, ok, "chatType should be in context")
+		assert.Equal(t, line.ChatTypeGroup, chatType)
+
+		// Check source ID equals group ID
+		sourceID, ok := line.SourceIDFromContext(capturedCtx)
+		assert.True(t, ok, "sourceID should be in context")
+		assert.Equal(t, "mygroup", sourceID)
+
+		// Check user ID is still set correctly
+		userID, ok := line.UserIDFromContext(capturedCtx)
+		assert.True(t, ok, "userID should be in context")
+		assert.Equal(t, "alice", userID)
+	})
+}
+
+// TestRun_OneOnOneMode_ChatContext tests 1-on-1 mode maintains existing behavior
+// AC-004: No group-id means 1-on-1 [FR-005]
+func TestRun_OneOnOneMode_ChatContext(t *testing.T) {
+	t.Run("should set chat type to 1-on-1 and source ID to user ID when no group ID", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		var capturedCtx context.Context
+		handler := &mockHandler{
+			ctxChecker: func(ctx context.Context) error {
+				capturedCtx = ctx
+				return nil
+			},
+		}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:  "alice",
+			Handler: handler,
+			Logger:  logger,
+			Stdin:   stdin,
+			Stdout:  stdout,
+			// GroupID is empty (default)
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		require.NotNil(t, capturedCtx, "context should be captured")
+
+		// Check chat type is "1-on-1"
+		chatType, ok := line.ChatTypeFromContext(capturedCtx)
+		assert.True(t, ok, "chatType should be in context")
+		assert.Equal(t, line.ChatTypeOneOnOne, chatType)
+
+		// Check source ID equals user ID
+		sourceID, ok := line.SourceIDFromContext(capturedCtx)
+		assert.True(t, ok, "sourceID should be in context")
+		assert.Equal(t, "alice", sourceID)
+
+		// Check user ID is set correctly
+		userID, ok := line.UserIDFromContext(capturedCtx)
+		assert.True(t, ok, "userID should be in context")
+		assert.Equal(t, "alice", userID)
+	})
+}
+
+// TestRun_Prompt_WithProfile tests prompt shows DisplayName(user-id) format
+// AC-006: Prompt shows current user with profile [FR-007]
+func TestRun_Prompt_WithProfile(t *testing.T) {
+	t.Run("should display DisplayName(user-id)> when user has profile", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			GroupID:       "mygroup",
+			ProfileGetter: profileGetter,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "Alice(alice)> ", "should display prompt with display name")
+	})
+}
+
+// TestRun_Prompt_WithoutProfile tests prompt shows (user-id) format when no profile
+// AC-006b: Prompt shows current user without profile [FR-007]
+func TestRun_Prompt_WithoutProfile(t *testing.T) {
+	t.Run("should display (user-id)> when user has no profile", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				// "bob" has no profile
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "bob",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			GroupID:       "mygroup",
+			ProfileGetter: profileGetter,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "(bob)> ", "should display prompt with user-id only")
+	})
+}
+
+// TestRun_Prompt_OneOnOneWithProfile tests 1-on-1 mode also uses new prompt format
+// FR-007: Prompt format applies to all modes, not just group mode
+func TestRun_Prompt_OneOnOneWithProfile(t *testing.T) {
+	t.Run("should display DisplayName(user-id)> in 1-on-1 mode when user has profile", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"charlie": {displayName: "Charlie"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "charlie",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			ProfileGetter: profileGetter,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "Charlie(charlie)> ", "should display prompt with display name in 1-on-1 mode")
+	})
+}
+
+// TestRun_Prompt_OneOnOneWithoutProfile tests 1-on-1 mode shows (user-id) without profile
+// FR-007: Prompt format applies to all modes
+func TestRun_Prompt_OneOnOneWithoutProfile(t *testing.T) {
+	t.Run("should display (user-id)> in 1-on-1 mode when user has no profile", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				// "dave" has no profile
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "dave",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			ProfileGetter: profileGetter,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "(dave)> ", "should display prompt with user-id only in 1-on-1 mode")
+	})
+}
+
+// TestRun_Prompt_ProfileGetterError tests fallback when profile getter returns error
+func TestRun_Prompt_ProfileGetterError(t *testing.T) {
+	t.Run("should display (user-id)> when profile getter returns error", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			err: errors.New("profile service unavailable"),
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			GroupID:       "mygroup",
+			ProfileGetter: profileGetter,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "(alice)> ", "should display prompt with user-id only on error")
+	})
+}
+
+// TestRun_Prompt_NoProfileGetter tests backward compatibility when ProfileGetter is nil
+func TestRun_Prompt_NoProfileGetter(t *testing.T) {
+	t.Run("should display (user-id)> when ProfileGetter is nil", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:  "alice",
+			Handler: handler,
+			Logger:  logger,
+			Stdin:   stdin,
+			Stdout:  stdout,
+			GroupID: "mygroup",
+			// ProfileGetter is nil
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "(alice)> ", "should display prompt with user-id only when no ProfileGetter")
+	})
+}
