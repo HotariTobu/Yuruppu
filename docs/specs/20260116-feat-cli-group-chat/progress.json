@@ -7,8 +7,8 @@
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": true },
     { "id": "FR-005", "passes": true },
-    { "id": "FR-006", "passes": false },
-    { "id": "FR-007", "passes": false },
+    { "id": "FR-006", "passes": true },
+    { "id": "FR-007", "passes": true },
     { "id": "FR-008", "passes": false },
     { "id": "FR-009", "passes": false },
     { "id": "FR-010", "passes": false },
@@ -26,5 +26,5 @@
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 2 complete: Integrated GroupSimService into cmd/cli/main.go for -group-id flag handling (FR-001 to FR-005). Added handleGroupMode() function to reduce cyclomatic complexity. Tests verify: (1) flag parsing works, (2) new groups are created with first member, (3) existing members can join, (4) non-members are rejected with proper error message, (5) 1-on-1 mode unchanged without -group-id. FR-013 (persistence) passes since GroupSimService uses storage. NFR-002 (existing behavior unchanged) passes. Reviewer findings: (1) Security: add groupID validation to prevent path traversal, (2) Architecture: handleGroupMode creates its own storage instead of receiving it as dependency - consider refactoring, (3) Correctness: double 'groupsim/' prefix bug exists (storage prefix + groupKey function). These are noted for future sessions but not blocking. All preflight checks pass. Next session should focus on FR-006/FR-007 (group chat context and REPL prompt changes) - requires updating repl.Config to accept GroupID and setting chat type appropriately."
+  "notes": "Session 3 complete: Implemented FR-006 (group chat context) and FR-007 (REPL prompt format). Changes: (1) Added GroupID and ProfileGetter fields to repl.Config, (2) Updated context building to use ChatTypeGroup when GroupID is set with SourceID=GroupID, (3) Added buildPrompt() function to display DisplayName(user-id)> or (user-id)> based on profile lookup, (4) Created UserProfile and ProfileGetter interfaces for profile display name lookup. Tests added for AC-005 (group chat context), AC-006/AC-006b (prompt format with/without profile), and backward compatibility. All preflight checks pass. Next session should focus on FR-008/FR-009 (/switch and /users REPL commands) or FR-010-FR-012 (/invite command)."
 }
