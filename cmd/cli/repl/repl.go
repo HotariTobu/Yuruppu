@@ -35,7 +35,7 @@ type GroupSimService interface {
 
 type Runner struct {
 	UserID          string
-	GroupID         *string
+	GroupID         string
 	ProfileService  ProfileService
 	GroupSimService GroupSimService
 	Handler         MessageHandler
@@ -48,7 +48,7 @@ type Runner struct {
 
 func NewRunner(
 	userID string,
-	groupID *string,
+	groupID string,
 	profileService ProfileService,
 	groupSimService GroupSimService,
 	handler MessageHandler,
@@ -101,9 +101,9 @@ func (r *Runner) formatUser(ctx context.Context, userID string) string {
 
 func (r *Runner) buildMessageContext(ctx context.Context) context.Context {
 	var msgCtx context.Context
-	if r.GroupID != nil {
+	if r.GroupID != "" {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-		msgCtx = line.WithSourceID(msgCtx, *r.GroupID)
+		msgCtx = line.WithSourceID(msgCtx, r.GroupID)
 	} else {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
 		msgCtx = line.WithSourceID(msgCtx, r.currentUserID)
@@ -118,12 +118,12 @@ func (r *Runner) buildPrompt(ctx context.Context) string {
 }
 
 func (r *Runner) handleSwitch(ctx context.Context, targetUserID string) {
-	if r.GroupID == nil || r.GroupSimService == nil {
+	if r.GroupID == "" || r.GroupSimService == nil {
 		_, _ = fmt.Fprintln(r.Stderr, "/switch is not available")
 		return
 	}
 
-	isMember, err := r.GroupSimService.IsMember(ctx, *r.GroupID, targetUserID)
+	isMember, err := r.GroupSimService.IsMember(ctx, r.GroupID, targetUserID)
 	if err != nil {
 		r.Logger.ErrorContext(ctx, "failed to check membership", "error", err)
 		return
@@ -138,12 +138,12 @@ func (r *Runner) handleSwitch(ctx context.Context, targetUserID string) {
 }
 
 func (r *Runner) handleUsers(ctx context.Context) {
-	if r.GroupID == nil || r.GroupSimService == nil {
+	if r.GroupID == "" || r.GroupSimService == nil {
 		_, _ = fmt.Fprintln(r.Stderr, "/users is not available")
 		return
 	}
 
-	members, err := r.GroupSimService.GetMembers(ctx, *r.GroupID)
+	members, err := r.GroupSimService.GetMembers(ctx, r.GroupID)
 	if err != nil {
 		r.Logger.ErrorContext(ctx, "failed to get members", "error", err)
 		return
@@ -158,7 +158,7 @@ func (r *Runner) handleUsers(ctx context.Context) {
 }
 
 func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
-	if r.GroupID == nil || r.GroupSimService == nil {
+	if r.GroupID == "" || r.GroupSimService == nil {
 		_, _ = fmt.Fprintln(r.Stderr, "/invite is not available")
 		return
 	}
@@ -169,7 +169,7 @@ func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 		return
 	}
 
-	err := r.GroupSimService.AddMember(ctx, *r.GroupID, invitedUserID)
+	err := r.GroupSimService.AddMember(ctx, r.GroupID, invitedUserID)
 	if err != nil {
 		if strings.Contains(err.Error(), "already a member") {
 			_, _ = fmt.Fprintf(r.Stderr, "%s is already a member of this group\n", invitedUserID)
@@ -179,12 +179,12 @@ func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 		return
 	}
 
-	botInGroup, err := r.GroupSimService.IsBotInGroup(ctx, *r.GroupID)
+	botInGroup, err := r.GroupSimService.IsBotInGroup(ctx, r.GroupID)
 	if err != nil {
 		r.Logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
 	} else if botInGroup {
 		memberJoinedCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, *r.GroupID)
+		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, r.GroupID)
 		memberJoinedCtx = line.WithUserID(memberJoinedCtx, r.currentUserID)
 		memberJoinedCtx = line.WithReplyToken(memberJoinedCtx, "cli-reply-token")
 
@@ -197,12 +197,12 @@ func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 }
 
 func (r *Runner) handleInviteBot(ctx context.Context) {
-	if r.GroupID == nil || r.GroupSimService == nil {
+	if r.GroupID == "" || r.GroupSimService == nil {
 		_, _ = fmt.Fprintln(r.Stderr, "/invite-bot is not available")
 		return
 	}
 
-	err := r.GroupSimService.AddBot(ctx, *r.GroupID)
+	err := r.GroupSimService.AddBot(ctx, r.GroupID)
 	if err != nil {
 		if strings.Contains(err.Error(), "already in the group") {
 			_, _ = fmt.Fprintln(r.Stderr, "bot is already in the group")
@@ -213,7 +213,7 @@ func (r *Runner) handleInviteBot(ctx context.Context) {
 	}
 
 	joinCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-	joinCtx = line.WithSourceID(joinCtx, *r.GroupID)
+	joinCtx = line.WithSourceID(joinCtx, r.GroupID)
 	joinCtx = line.WithUserID(joinCtx, r.currentUserID)
 	joinCtx = line.WithReplyToken(joinCtx, "cli-reply-token")
 
@@ -227,8 +227,8 @@ func (r *Runner) handleInviteBot(ctx context.Context) {
 func (r *Runner) handleText(ctx context.Context, text string) {
 	msgCtx := r.buildMessageContext(ctx)
 
-	if r.GroupID != nil && r.GroupSimService != nil {
-		botInGroup, err := r.GroupSimService.IsBotInGroup(msgCtx, *r.GroupID)
+	if r.GroupID != "" && r.GroupSimService != nil {
+		botInGroup, err := r.GroupSimService.IsBotInGroup(msgCtx, r.GroupID)
 		if err != nil {
 			r.Logger.ErrorContext(msgCtx, "failed to check bot presence", "error", err)
 			return
