@@ -31,6 +31,12 @@ type ProfileGetter interface {
 	GetUserProfile(ctx context.Context, userID string) (UserProfile, error)
 }
 
+// GroupSimService provides group simulation operations.
+type GroupSimService interface {
+	GetMembers(ctx context.Context, groupID string) ([]string, error)
+	IsMember(ctx context.Context, groupID, userID string) (bool, error)
+}
+
 // Config holds REPL configuration.
 type Config struct {
 	UserID  string
@@ -38,26 +44,99 @@ type Config struct {
 	Logger  *slog.Logger
 	Stdin   io.Reader
 	Stdout  io.Writer
+	Stderr  io.Writer // If nil, defaults to os.Stderr
 
 	// Group mode (optional)
-	GroupID       string        // If set, REPL runs in group chat mode
-	ProfileGetter ProfileGetter // If set, displays user's display name in prompt
+	GroupID         string          // If set, REPL runs in group chat mode
+	ProfileGetter   ProfileGetter   // If set, displays user's display name in prompt
+	GroupSimService GroupSimService // If set, enables group commands (/switch, /users)
+}
+
+// getStderr returns cfg.Stderr if set, otherwise os.Stderr.
+func getStderr(cfg Config) io.Writer {
+	if cfg.Stderr != nil {
+		return cfg.Stderr
+	}
+	return os.Stderr
 }
 
 // buildPrompt constructs the REPL prompt based on current user and profile.
 // Returns "DisplayName(user-id)> " if profile exists, or "(user-id)> " otherwise.
-func buildPrompt(ctx context.Context, cfg Config) string {
+func buildPrompt(ctx context.Context, cfg Config, currentUserID string) string {
 	displayName := ""
 	if cfg.ProfileGetter != nil {
-		if profile, err := cfg.ProfileGetter.GetUserProfile(ctx, cfg.UserID); err == nil {
+		if profile, err := cfg.ProfileGetter.GetUserProfile(ctx, currentUserID); err == nil {
 			displayName = profile.GetDisplayName()
 		}
 	}
 
 	if displayName != "" {
-		return fmt.Sprintf("%s(%s)> ", displayName, cfg.UserID)
+		return fmt.Sprintf("%s(%s)> ", displayName, currentUserID)
 	}
-	return fmt.Sprintf("(%s)> ", cfg.UserID)
+	return fmt.Sprintf("(%s)> ", currentUserID)
+}
+
+// handleSwitchCommand handles the /switch <user-id> command.
+// Returns the new user ID on success, or the current user ID on error.
+func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetUserID string) string {
+	stderr := getStderr(cfg)
+
+	// Check if in group mode
+	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+		_, _ = fmt.Fprintln(stderr, "/switch is not available")
+		return currentUserID
+	}
+
+	// Check if target user is a member
+	isMember, err := cfg.GroupSimService.IsMember(ctx, cfg.GroupID, targetUserID)
+	if err != nil {
+		cfg.Logger.ErrorContext(ctx, "failed to check membership", "error", err)
+		return currentUserID
+	}
+
+	if !isMember {
+		_, _ = fmt.Fprintf(stderr, "'%s' is not a member of this group\n", targetUserID)
+		return currentUserID
+	}
+
+	return targetUserID
+}
+
+// handleUsersCommand handles the /users command.
+// Lists all group members in the format: DisplayName(user-id), ...
+func handleUsersCommand(ctx context.Context, cfg Config) {
+	// Check if in group mode
+	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+		_, _ = fmt.Fprintln(getStderr(cfg), "/users is not available")
+		return
+	}
+
+	// Get all members
+	members, err := cfg.GroupSimService.GetMembers(ctx, cfg.GroupID)
+	if err != nil {
+		cfg.Logger.ErrorContext(ctx, "failed to get members", "error", err)
+		return
+	}
+
+	// Build output string
+	var memberStrings []string
+	for _, memberID := range members {
+		displayName := ""
+		if cfg.ProfileGetter != nil {
+			if profile, err := cfg.ProfileGetter.GetUserProfile(ctx, memberID); err == nil {
+				displayName = profile.GetDisplayName()
+			}
+		}
+
+		if displayName != "" {
+			memberStrings = append(memberStrings, fmt.Sprintf("%s(%s)", displayName, memberID))
+		} else {
+			memberStrings = append(memberStrings, fmt.Sprintf("(%s)", memberID))
+		}
+	}
+
+	// Print to stdout
+	_, _ = fmt.Fprintln(cfg.Stdout, strings.Join(memberStrings, ", "))
 }
 
 // Run starts the REPL loop.
@@ -91,6 +170,9 @@ func Run(ctx context.Context, cfg Config) error {
 	// Track Ctrl+C count
 	ctrlCCount := 0
 
+	// Track current user (can be changed with /switch command)
+	currentUserID := cfg.UserID
+
 	// Create scanner for reading input
 	scanner := bufio.NewScanner(cfg.Stdin)
 
@@ -114,7 +196,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	for {
 		// Display prompt
-		prompt := buildPrompt(ctx, cfg)
+		prompt := buildPrompt(ctx, cfg, currentUserID)
 		_, _ = fmt.Fprint(cfg.Stdout, prompt)
 
 		// Wait for input or signals
@@ -126,7 +208,7 @@ func Run(ctx context.Context, cfg Config) error {
 			ctrlCCount++
 			if ctrlCCount == 1 {
 				// First Ctrl+C: show warning
-				fmt.Fprintln(os.Stderr, "Press Ctrl+C again to exit")
+				_, _ = fmt.Fprintln(getStderr(cfg), "Press Ctrl+C again to exit")
 			} else {
 				// Second Ctrl+C: exit cleanly
 				return nil
@@ -158,6 +240,23 @@ func Run(ctx context.Context, cfg Config) error {
 				return nil
 			}
 
+			// Handle /switch command
+			if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
+				targetUserID = strings.TrimSpace(targetUserID)
+				if targetUserID == "" {
+					_, _ = fmt.Fprintln(getStderr(cfg), "usage: /switch <user-id>")
+					continue
+				}
+				currentUserID = handleSwitchCommand(ctx, cfg, currentUserID, targetUserID)
+				continue
+			}
+
+			// Handle /users command
+			if trimmed == "/users" {
+				handleUsersCommand(ctx, cfg)
+				continue
+			}
+
 			// Prepare context with LINE context values
 			var msgCtx context.Context
 			if cfg.GroupID != "" {
@@ -167,9 +266,9 @@ func Run(ctx context.Context, cfg Config) error {
 			} else {
 				// 1-on-1 mode: chat type is "1-on-1", source ID is user ID
 				msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
-				msgCtx = line.WithSourceID(msgCtx, cfg.UserID)
+				msgCtx = line.WithSourceID(msgCtx, currentUserID)
 			}
-			msgCtx = line.WithUserID(msgCtx, cfg.UserID)
+			msgCtx = line.WithUserID(msgCtx, currentUserID)
 			msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
 
 			// Call handler

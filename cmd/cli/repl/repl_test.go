@@ -1086,3 +1086,350 @@ func TestRun_Prompt_NoProfileGetter(t *testing.T) {
 		assert.Contains(t, stdout.String(), "(alice)> ", "should display prompt with user-id only when no ProfileGetter")
 	})
 }
+
+// mockGroupSimService implements a test group simulation service for tests.
+type mockGroupSimService struct {
+	members    map[string][]string // groupID -> userIDs
+	botInGroup map[string]bool     // groupID -> bot status
+	err        error
+}
+
+func newMockGroupSimService() *mockGroupSimService {
+	return &mockGroupSimService{
+		members:    make(map[string][]string),
+		botInGroup: make(map[string]bool),
+	}
+}
+
+func (m *mockGroupSimService) GetMembers(ctx context.Context, groupID string) ([]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	members, ok := m.members[groupID]
+	if !ok {
+		return nil, fmt.Errorf("group not found: %s", groupID)
+	}
+	return members, nil
+}
+
+func (m *mockGroupSimService) IsMember(ctx context.Context, groupID, userID string) (bool, error) {
+	if m.err != nil {
+		return false, m.err
+	}
+	members, ok := m.members[groupID]
+	if !ok {
+		return false, fmt.Errorf("group not found: %s", groupID)
+	}
+	for _, member := range members {
+		if member == userID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *mockGroupSimService) AddMember(ctx context.Context, groupID, userID string) error {
+	if m.err != nil {
+		return m.err
+	}
+	members, ok := m.members[groupID]
+	if !ok {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+	// Check if already member
+	for _, member := range members {
+		if member == userID {
+			return fmt.Errorf("already a member")
+		}
+	}
+	m.members[groupID] = append(members, userID)
+	return nil
+}
+
+func (m *mockGroupSimService) IsBotInGroup(ctx context.Context, groupID string) (bool, error) {
+	if m.err != nil {
+		return false, m.err
+	}
+	botIn, ok := m.botInGroup[groupID]
+	if !ok {
+		return false, fmt.Errorf("group not found: %s", groupID)
+	}
+	return botIn, nil
+}
+
+func (m *mockGroupSimService) AddBot(ctx context.Context, groupID string) error {
+	if m.err != nil {
+		return m.err
+	}
+	if _, ok := m.botInGroup[groupID]; !ok {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+	if m.botInGroup[groupID] {
+		return fmt.Errorf("bot is already in the group")
+	}
+	m.botInGroup[groupID] = true
+	return nil
+}
+
+// TestRun_SwitchCommand_Success tests /switch command successfully switches user
+// AC-007: /switch command [FR-008]
+func TestRun_SwitchCommand_Success(t *testing.T) {
+	t.Run("should switch to specified user and update prompt when user is member", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/switch charlie\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice":   {displayName: "Alice"},
+				"bob":     {displayName: "Bob"},
+				"charlie": {displayName: "Charlie"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice", "bob", "charlie"}
+		groupSim.botInGroup["mygroup"] = true
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		// Should start with Alice prompt
+		assert.Contains(t, output, "Alice(alice)> ", "should display initial prompt for alice")
+		// After /switch, should show Charlie prompt
+		assert.Contains(t, output, "Charlie(charlie)> ", "should display updated prompt for charlie")
+	})
+}
+
+// TestRun_SwitchCommand_InvalidUser tests /switch with invalid user
+// AC-008: /switch with invalid user [FR-008, Error]
+func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
+	t.Run("should show error and keep current user when switching to non-member", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/switch unknown\nHello\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+				"bob":   {displayName: "Bob"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice", "bob"}
+		groupSim.botInGroup["mygroup"] = true
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "'unknown' is not a member of this group", "should display error message")
+
+		// Check that user remains alice by verifying HandleText was called with alice
+		require.Equal(t, 1, handler.callCount(), "should call HandleText for non-command message")
+		calls := handler.getCalls()
+		assert.Equal(t, "alice", calls[0].userID, "current user should remain alice")
+	})
+}
+
+// TestRun_SwitchCommand_NotInGroupMode tests /switch in 1-on-1 mode
+func TestRun_SwitchCommand_NotInGroupMode(t *testing.T) {
+	t.Run("should show error when /switch is used in 1-on-1 mode", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/switch bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			Stderr:        stderr,
+			ProfileGetter: profileGetter,
+			// GroupID is empty (1-on-1 mode)
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "/switch is not available", "should display unavailable command error")
+	})
+}
+
+// TestRun_UsersCommand_Success tests /users lists all group members
+// AC-009: /users command [FR-009]
+func TestRun_UsersCommand_Success(t *testing.T) {
+	t.Run("should list all group members with display names", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/users\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice":   {displayName: "Alice"},
+				"bob":     {displayName: "Bob"},
+				"charlie": {displayName: "Charlie"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice", "bob", "charlie"}
+		groupSim.botInGroup["mygroup"] = true
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "Alice(alice), Bob(bob), Charlie(charlie)", "should list all members with display names")
+	})
+}
+
+// TestRun_UsersCommand_WithoutProfile tests /users with users without profiles
+func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
+	t.Run("should list members showing (user-id) for users without profiles", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/users\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+				// bob has no profile
+				"charlie": {displayName: "Charlie"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice", "bob", "charlie"}
+		groupSim.botInGroup["mygroup"] = true
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "Alice(alice), (bob), Charlie(charlie)", "should list members with (user-id) for users without profiles")
+	})
+}
+
+// TestRun_UsersCommand_NotInGroupMode tests /users in 1-on-1 mode
+func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
+	t.Run("should show error when /users is used in 1-on-1 mode", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/users\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			Stderr:        stderr,
+			ProfileGetter: profileGetter,
+			// GroupID is empty (1-on-1 mode)
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "/users is not available", "should display unavailable command error")
+	})
+}
