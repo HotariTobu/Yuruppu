@@ -212,8 +212,22 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	// Single-turn mode
 	if *message != "" {
-		msgCtx := line.WithChatType(ctx, line.ChatTypeOneOnOne)
-		msgCtx = line.WithSourceID(msgCtx, *userID)
+		var msgCtx context.Context
+		if *groupID != "" {
+			msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
+			msgCtx = line.WithSourceID(msgCtx, *groupID)
+
+			botInGroup, err := groupService.IsBotInGroup(ctx, *groupID)
+			if err != nil {
+				return fmt.Errorf("failed to check bot presence: %w", err)
+			}
+			if !botInGroup {
+				return nil
+			}
+		} else {
+			msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
+			msgCtx = line.WithSourceID(msgCtx, *userID)
+		}
 		msgCtx = line.WithUserID(msgCtx, *userID)
 		msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
 

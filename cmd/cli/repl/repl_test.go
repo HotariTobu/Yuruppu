@@ -167,7 +167,7 @@ func (m *mockGroupSimService) GetMembers(_ context.Context, groupID string) ([]s
 	}
 	members, ok := m.members[groupID]
 	if !ok {
-		return nil, fmt.Errorf("group not found: %s", groupID)
+		return nil, fmt.Errorf("group '%s' not found", groupID)
 	}
 	return members, nil
 }
@@ -178,7 +178,7 @@ func (m *mockGroupSimService) IsMember(_ context.Context, groupID, userID string
 	}
 	members, ok := m.members[groupID]
 	if !ok {
-		return false, fmt.Errorf("group not found: %s", groupID)
+		return false, fmt.Errorf("group '%s' not found", groupID)
 	}
 	for _, member := range members {
 		if member == userID {
@@ -194,11 +194,11 @@ func (m *mockGroupSimService) AddMember(_ context.Context, groupID, userID strin
 	}
 	members, ok := m.members[groupID]
 	if !ok {
-		return fmt.Errorf("group not found: %s", groupID)
+		return fmt.Errorf("group '%s' not found", groupID)
 	}
 	for _, member := range members {
 		if member == userID {
-			return fmt.Errorf("already a member")
+			return fmt.Errorf("%s is already a member of this group", userID)
 		}
 	}
 	m.members[groupID] = append(members, userID)
@@ -211,7 +211,7 @@ func (m *mockGroupSimService) IsBotInGroup(_ context.Context, groupID string) (b
 	}
 	botIn, ok := m.botInGroup[groupID]
 	if !ok {
-		return false, fmt.Errorf("group not found: %s", groupID)
+		return false, fmt.Errorf("group '%s' not found", groupID)
 	}
 	return botIn, nil
 }
@@ -221,10 +221,10 @@ func (m *mockGroupSimService) AddBot(_ context.Context, groupID string) error {
 		return m.err
 	}
 	if _, ok := m.botInGroup[groupID]; !ok {
-		return fmt.Errorf("group not found: %s", groupID)
+		return fmt.Errorf("group '%s' not found", groupID)
 	}
 	if m.botInGroup[groupID] {
-		return fmt.Errorf("bot is already in the group")
+		return fmt.Errorf("bot is already in group '%s'", groupID)
 	}
 	m.botInGroup[groupID] = true
 	return nil
@@ -1385,7 +1385,7 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 
 		err = r.Run(context.Background())
 		require.NoError(t, err)
-		assert.Contains(t, stderr.String(), "bot is already in the group")
+		assert.Contains(t, stderr.String(), "bot is already in group 'mygroup'")
 		assert.Equal(t, 0, handler.joinCallCount())
 	})
 }

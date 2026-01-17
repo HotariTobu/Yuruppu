@@ -226,7 +226,7 @@ func TestService_GetMembers(t *testing.T) {
 		// Then
 		require.Error(t, err)
 		assert.Nil(t, members)
-		assert.Contains(t, err.Error(), "group not found")
+		assert.Contains(t, err.Error(), "group 'nonexistent' not found")
 	})
 
 	t.Run("returns error when storage read fails", func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestService_IsMember(t *testing.T) {
 		// Then
 		require.Error(t, err)
 		assert.False(t, isMember)
-		assert.Contains(t, err.Error(), "group not found")
+		assert.Contains(t, err.Error(), "group 'nonexistent' not found")
 	})
 }
 
@@ -410,7 +410,7 @@ func TestService_AddMember(t *testing.T) {
 
 		// Then
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "group not found")
+		assert.Contains(t, err.Error(), "group 'nonexistent' not found")
 	})
 
 	t.Run("returns error when storage write fails", func(t *testing.T) {
@@ -496,7 +496,7 @@ func TestService_IsBotInGroup(t *testing.T) {
 		// Then
 		require.Error(t, err)
 		assert.False(t, inGroup)
-		assert.Contains(t, err.Error(), "group not found")
+		assert.Contains(t, err.Error(), "group 'nonexistent' not found")
 	})
 }
 
@@ -555,7 +555,7 @@ func TestService_AddBot(t *testing.T) {
 
 		// Then
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "bot is already in the group")
+		assert.Contains(t, err.Error(), "bot is already in group 'mygroup'")
 		assert.Equal(t, 0, store.writeCallCount, "should not write to storage")
 	})
 
@@ -570,7 +570,7 @@ func TestService_AddBot(t *testing.T) {
 
 		// Then
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "group not found")
+		assert.Contains(t, err.Error(), "group 'nonexistent' not found")
 	})
 
 	t.Run("returns error when storage write fails", func(t *testing.T) {
