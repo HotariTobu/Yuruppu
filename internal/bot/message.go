@@ -259,7 +259,13 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 	}
 
 	var buf bytes.Buffer
-	if err := chatContextTemplate.Execute(&buf, struct{ ChatType line.ChatType }{chatType}); err != nil {
+	if err := chatContextTemplate.Execute(&buf, struct {
+		CurrentLocalTime string
+		ChatType         line.ChatType
+	}{
+		CurrentLocalTime: time.Now().In(jst).Format("2006 Jan 2(Mon) 3:04PM"),
+		ChatType:         chatType,
+	}); err != nil {
 		return nil, fmt.Errorf("failed to execute chat context template: %w", err)
 	}
 	parts := []agent.UserPart{&agent.UserTextPart{Text: buf.String()}}
