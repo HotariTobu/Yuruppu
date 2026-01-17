@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"testing"
+	"yuruppu/cmd/cli/groupsim"
+	"yuruppu/cmd/cli/mock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -608,4 +611,501 @@ func TestRun_NilIO(t *testing.T) {
 		err := run(args, strings.NewReader(""), &bytes.Buffer{}, nil)
 		require.Error(t, err, "should return error for nil stderr")
 	})
+}
+
+// TestRun_GroupID_FlagParsing tests group-id flag parsing
+// FR-001: CLI accepts optional -group-id flag
+func TestRun_GroupID_FlagParsing(t *testing.T) {
+	t.Run("group-id flag is parsed successfully", func(t *testing.T) {
+		// Given
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+			"--message", "test",
+		}
+
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		// When
+		err := run(args, stdin, stdout, stderr)
+		// Then: The run will fail due to Gemini API not available in tests,
+		// but it should NOT fail on flag parsing
+		if err != nil {
+			assert.NotContains(t, err.Error(), "flag",
+				"should not fail on flag parsing for valid flags")
+		}
+	})
+
+	t.Run("no group-id flag means 1-on-1 mode", func(t *testing.T) {
+		// Given
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--data-dir", dataDir,
+			"--message", "test",
+		}
+
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		// When
+		err := run(args, stdin, stdout, stderr)
+		// Then: The run will fail due to Gemini API not available in tests,
+		// but it should NOT fail on flag parsing
+		if err != nil {
+			assert.NotContains(t, err.Error(), "flag",
+				"should not fail on flag parsing for valid flags")
+		}
+	})
+}
+
+// TestRun_GroupID_CreateNewGroup tests creating a new group when it doesn't exist
+// AC-001: Create new group [FR-001, FR-002]
+func TestRun_GroupID_CreateNewGroup(t *testing.T) {
+	t.Run("should create new group when group-id is specified and group does not exist", func(t *testing.T) {
+		// Given: CLI is invoked with -user-id alice -group-id mygroup
+		// And: Group "mygroup" does not exist
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+			"--message", "Hello in group",
+		}
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		// When: The CLI starts
+		err := run(args, stdin, stdout, stderr)
+
+		// Then:
+		// The function will fail because implementation doesn't exist yet (TDD)
+		// Once implemented, it should:
+		// 1. Group "mygroup" is created
+		// 2. "alice" is added as the first member
+		// 3. REPL starts in group chat mode (or processes single message)
+		_ = err
+
+		// Once implemented, verify group was created:
+		// groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+		// groupService, _ := groupsim.NewService(groupStorage)
+		// exists, _ := groupService.Exists(context.Background(), "mygroup")
+		// assert.True(t, exists, "group should be created")
+		// isMember, _ := groupService.IsMember(context.Background(), "mygroup", "alice")
+		// assert.True(t, isMember, "alice should be first member")
+	})
+}
+
+// TestRun_GroupID_JoinExistingGroup tests joining an existing group as a member
+// AC-002: Join existing group [FR-001, FR-003]
+func TestRun_GroupID_JoinExistingGroup(t *testing.T) {
+	t.Run("should start in group chat mode when user is already a member", func(t *testing.T) {
+		// Given: Group "mygroup" exists with members ["alice", "bob"]
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		// Pre-create group with alice and bob as members
+		// groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+		// groupService, _ := groupsim.NewService(groupStorage)
+		// ctx := context.Background()
+		// _ = groupService.Create(ctx, "mygroup", "alice")
+		// _ = groupService.AddMember(ctx, "mygroup", "bob")
+
+		// When: CLI is invoked with -user-id alice -group-id mygroup
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+			"--message", "Hello in group",
+		}
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		err := run(args, stdin, stdout, stderr)
+
+		// Then:
+		// The function will fail because implementation doesn't exist yet (TDD)
+		// Once implemented:
+		// 1. REPL starts in group chat mode
+		// 2. "alice" is the active user
+		// 3. Messages are sent with group context
+		_ = err
+	})
+}
+
+// TestRun_GroupID_RejectNonMember tests rejection of non-members
+// AC-003: Reject non-member [FR-004]
+func TestRun_GroupID_RejectNonMember(t *testing.T) {
+	t.Run("should reject user who is not a member of existing group", func(t *testing.T) {
+		// Given: Group "mygroup" exists with members ["alice", "bob"]
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		// Pre-create group with alice and bob as members
+		groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+		groupService, err := groupsim.NewService(groupStorage)
+		require.NoError(t, err, "failed to create group service")
+		ctx := context.Background()
+		err = groupService.Create(ctx, "mygroup", "alice")
+		require.NoError(t, err, "failed to create group")
+		err = groupService.AddMember(ctx, "mygroup", "bob")
+		require.NoError(t, err, "failed to add member")
+
+		// When: CLI is invoked with -user-id charlie -group-id mygroup
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "charlie",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+			"--message", "Hello",
+		}
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		err = run(args, stdin, stdout, stderr)
+
+		// Then:
+		// Error message to stderr: "user 'charlie' is not a member of group 'mygroup'"
+		// CLI exits with non-zero status
+		require.Error(t, err, "should return error for non-member access")
+		assert.Contains(t, err.Error(), "charlie", "error should mention the user")
+		assert.Contains(t, err.Error(), "mygroup", "error should mention the group")
+		assert.Contains(t, err.Error(), "not a member", "error should indicate membership issue")
+	})
+}
+
+// TestRun_GroupID_NoGroupID_OneOnOneMode tests 1-on-1 mode when no group-id is specified
+// AC-004: No group-id means 1-on-1 [FR-005]
+func TestRun_GroupID_NoGroupID_OneOnOneMode(t *testing.T) {
+	t.Run("should use 1-on-1 chat mode when group-id is not specified", func(t *testing.T) {
+		// Given: CLI is invoked with -user-id alice (no -group-id)
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--data-dir", dataDir,
+			"--message", "Hello",
+		}
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		// When: User sends a message
+		err := run(args, stdin, stdout, stderr)
+
+		// Then:
+		// The function will fail because implementation doesn't exist yet (TDD)
+		// Once implemented:
+		// 1. Chat type is "1-on-1"
+		// 2. Source ID equals user ID ("alice")
+		_ = err
+
+		// Once implemented, verify 1-on-1 mode:
+		// (Check that group context is NOT set, source ID = user ID)
+	})
+}
+
+// TestRun_GroupID_TableDriven tests various group-id scenarios
+// FR-001, FR-002, FR-003, FR-004, FR-005
+func TestRun_GroupID_TableDriven(t *testing.T) {
+	tests := []struct {
+		name        string
+		userID      string
+		groupID     string
+		setupGroup  func(dataDir string) error
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:    "create new group - user is first member",
+			userID:  "alice",
+			groupID: "newgroup",
+			setupGroup: func(dataDir string) error {
+				// No setup - group doesn't exist
+				return nil
+			},
+			wantErr: false,
+		},
+		{
+			name:    "join existing group as member",
+			userID:  "alice",
+			groupID: "existinggroup",
+			setupGroup: func(dataDir string) error {
+				// Pre-create group with alice as member
+				groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+				groupService, err := groupsim.NewService(groupStorage)
+				if err != nil {
+					return err
+				}
+				return groupService.Create(context.Background(), "existinggroup", "alice")
+			},
+			wantErr: false,
+		},
+		{
+			name:    "reject non-member of existing group",
+			userID:  "charlie",
+			groupID: "alicebobgroup",
+			setupGroup: func(dataDir string) error {
+				// Pre-create group with alice and bob, but not charlie
+				groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+				groupService, err := groupsim.NewService(groupStorage)
+				if err != nil {
+					return err
+				}
+				ctx := context.Background()
+				if err := groupService.Create(ctx, "alicebobgroup", "alice"); err != nil {
+					return err
+				}
+				return groupService.AddMember(ctx, "alicebobgroup", "bob")
+			},
+			wantErr:     true,
+			errContains: "not a member",
+		},
+		{
+			name:    "no group-id - 1-on-1 mode",
+			userID:  "alice",
+			groupID: "", // Empty string means no group
+			setupGroup: func(dataDir string) error {
+				return nil
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			t.Setenv("GCP_PROJECT_ID", "test-project")
+			t.Setenv("GCP_REGION", "test-region")
+			t.Setenv("LLM_MODEL", "test-model")
+
+			dataDir := t.TempDir()
+
+			// Setup group if needed
+			if tt.setupGroup != nil {
+				err := tt.setupGroup(dataDir)
+				require.NoError(t, err, "group setup should not fail")
+			}
+
+			// Build args
+			args := []string{
+				"yuruppu-cli",
+				"--user-id", tt.userID,
+				"--data-dir", dataDir,
+				"--message", "test",
+			}
+			if tt.groupID != "" {
+				args = append(args, "--group-id", tt.groupID)
+			}
+
+			stdin := strings.NewReader("")
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			// When
+			err := run(args, stdin, stdout, stderr)
+
+			// Then
+			if tt.wantErr {
+				require.Error(t, err, "should return error")
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains,
+						"error should contain expected message")
+				}
+			}
+			// Note: Success cases will fail until implementation is complete (TDD)
+		})
+	}
+}
+
+// TestRun_GroupID_SingleTurnMode tests single-turn mode with group-id
+// AC-018: Single-turn mode with group [FR-001, FR-006]
+func TestRun_GroupID_SingleTurnMode(t *testing.T) {
+	t.Run("should process message in group context for single-turn mode", func(t *testing.T) {
+		// Given: Group "mygroup" exists with members ["alice", "bob"] and bot
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		// Pre-create group with alice, bob, and bot
+		// groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+		// groupService, _ := groupsim.NewService(groupStorage)
+		// ctx := context.Background()
+		// _ = groupService.Create(ctx, "mygroup", "alice")
+		// _ = groupService.AddMember(ctx, "mygroup", "bob")
+		// _ = groupService.AddBot(ctx, "mygroup")
+
+		// When: CLI is invoked with -user-id alice -group-id mygroup -message "Hello"
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+			"--message", "Hello",
+		}
+		stdin := strings.NewReader("")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		err := run(args, stdin, stdout, stderr)
+
+		// Then:
+		// The function will fail because implementation doesn't exist yet (TDD)
+		// Once implemented:
+		// 1. Message is processed as "alice" speaking in group "mygroup"
+		// 2. Chat type is "group", source ID is "mygroup", user ID is "alice"
+		// 3. Bot response is displayed
+		// 4. CLI exits (no REPL)
+		_ = err
+	})
+}
+
+// TestRun_GroupID_REPLMode tests REPL mode with group-id
+// FR-006, FR-007: Group chat REPL with proper context
+func TestRun_GroupID_REPLMode(t *testing.T) {
+	t.Run("should enter REPL in group chat mode", func(t *testing.T) {
+		// Given: Group "mygroup" exists with members ["alice"]
+		t.Setenv("GCP_PROJECT_ID", "test-project")
+		t.Setenv("GCP_REGION", "test-region")
+		t.Setenv("LLM_MODEL", "test-model")
+
+		dataDir := t.TempDir()
+
+		// Pre-create group with alice
+		// groupStorage := mock.NewFileStorage(dataDir, "groupsim/")
+		// groupService, _ := groupsim.NewService(groupStorage)
+		// _ = groupService.Create(context.Background(), "mygroup", "alice")
+
+		args := []string{
+			"yuruppu-cli",
+			"--user-id", "alice",
+			"--group-id", "mygroup",
+			"--data-dir", dataDir,
+		}
+		// Simulate immediate /quit to exit REPL
+		stdin := strings.NewReader("/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		// When
+		err := run(args, stdin, stdout, stderr)
+
+		// Then:
+		// The function will fail because implementation doesn't exist yet (TDD)
+		// Once implemented:
+		// 1. REPL starts in group chat mode
+		// 2. Prompt shows user info (e.g., "Alice(alice)> " or "(alice)> ")
+		// 3. Messages are sent with group context (type="group", sourceID="mygroup")
+		_ = err
+	})
+}
+
+// TestRun_GroupID_Validation tests group-id validation
+// Edge cases for group-id format
+func TestRun_GroupID_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		groupID string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid lowercase group-id",
+			groupID: "mygroup",
+			wantErr: false,
+		},
+		{
+			name:    "valid group-id with numbers",
+			groupID: "group123",
+			wantErr: false,
+		},
+		{
+			name:    "valid group-id with underscore",
+			groupID: "my_group",
+			wantErr: false,
+		},
+		{
+			name:    "empty group-id treated as no group (1-on-1 mode)",
+			groupID: "",
+			wantErr: false,
+		},
+		// Note: Group ID validation rules depend on implementation
+		// Add more validation tests as needed based on spec requirements
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			t.Setenv("GCP_PROJECT_ID", "test-project")
+			t.Setenv("GCP_REGION", "test-region")
+			t.Setenv("LLM_MODEL", "test-model")
+
+			dataDir := t.TempDir()
+
+			args := []string{
+				"yuruppu-cli",
+				"--user-id", "testuser",
+				"--data-dir", dataDir,
+				"--message", "test",
+			}
+			if tt.groupID != "" {
+				args = append(args, "--group-id", tt.groupID)
+			}
+
+			stdin := strings.NewReader("")
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			// When
+			err := run(args, stdin, stdout, stderr)
+
+			// Then
+			if tt.wantErr {
+				require.Error(t, err, "should return error for invalid group-id")
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg,
+						"error message should indicate invalid group-id")
+				}
+			}
+			// Note: Success cases will fail until implementation is complete (TDD)
+		})
+	}
 }

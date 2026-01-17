@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"time"
+	"yuruppu/cmd/cli/groupsim"
 	"yuruppu/cmd/cli/mock"
 	cliprofile "yuruppu/cmd/cli/profile"
 	"yuruppu/cmd/cli/repl"
@@ -31,6 +32,47 @@ import (
 
 // userIDPattern validates user ID format: [0-9a-z_]+
 var userIDPattern = regexp.MustCompile(`^[0-9a-z_]+$`)
+
+// handleGroupMode handles group creation and membership validation.
+// Returns nil if group mode is not enabled or validation passes.
+func handleGroupMode(ctx context.Context, dataDir, groupID, userID string) error {
+	if groupID == "" {
+		return nil
+	}
+
+	// Create GroupSimService
+	groupSimStorage := mock.NewFileStorage(dataDir, "groupsim/")
+	groupService, err := groupsim.NewService(groupSimStorage)
+	if err != nil {
+		return fmt.Errorf("failed to create group service: %w", err)
+	}
+
+	// Check if group exists
+	exists, err := groupService.Exists(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to check group existence: %w", err)
+	}
+
+	if !exists {
+		// Create new group with current user as first member
+		if err := groupService.Create(ctx, groupID, userID); err != nil {
+			return fmt.Errorf("failed to create group: %w", err)
+		}
+		return nil
+	}
+
+	// Group exists, check if user is a member
+	isMember, err := groupService.IsMember(ctx, groupID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check group membership: %w", err)
+	}
+
+	if !isMember {
+		return fmt.Errorf("user '%s' is not a member of group '%s'", userID, groupID)
+	}
+
+	return nil
+}
 
 func main() {
 	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
@@ -59,6 +101,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	userID := fs.String("user-id", "default", "User ID for the conversation")
 	dataDir := fs.String("data-dir", ".yuruppu/", "Data directory for storage")
 	message := fs.String("message", "", "Single message to send (single-turn mode)")
+	groupID := fs.String("group-id", "", "Group ID for group chat simulation")
 
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -100,13 +143,17 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	historyStorage := mock.NewFileStorage(*dataDir, "history/")
 	mediaStorage := mock.NewFileStorage(*dataDir, "media/")
 
+	// Handle group mode if -group-id is specified
+	ctx := context.Background()
+	if err := handleGroupMode(ctx, *dataDir, *groupID, *userID); err != nil {
+		return err
+	}
+
 	// Create profile service
 	profileService, err := profile.NewService(profileStorage, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create profile service: %w", err)
 	}
-
-	ctx := context.Background()
 
 	// Create mock LINE client with profile prompter
 	lineClient := mock.NewLineClient(stdout)
