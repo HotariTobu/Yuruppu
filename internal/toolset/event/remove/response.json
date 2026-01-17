@@ -3,7 +3,7 @@
   "properties": {
     "chat_room_id": {
       "type": "string",
-      "description": "ID of the chat room where the event was deleted"
+      "description": "ID of the chat room where the event was removed"
     }
   },
   "required": ["chat_room_id"],

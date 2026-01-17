@@ -288,9 +288,9 @@ func (s *Service) Update(ctx context.Context, chatRoomID string, description str
 	return nil
 }
 
-// Delete removes an event from storage.
+// Remove removes an event from storage.
 // Returns error if the event is not found or if storage operations fail.
-func (s *Service) Delete(ctx context.Context, chatRoomID string) error {
+func (s *Service) Remove(ctx context.Context, chatRoomID string) error {
 	if chatRoomID == "" {
 		return errors.New("chatRoomID cannot be empty")
 	}

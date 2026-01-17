@@ -36,7 +36,7 @@ func TestNew(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, tool)
-		assert.Equal(t, "delete_event", tool.Name())
+		assert.Equal(t, "remove_event", tool.Name())
 	})
 
 	t.Run("returns error when service is nil", func(t *testing.T) {
@@ -66,14 +66,14 @@ func TestTool_Metadata(t *testing.T) {
 	service := &mockEventService{}
 	tool, _ := remove.New(service, slog.New(slog.DiscardHandler))
 
-	t.Run("Name returns delete_event", func(t *testing.T) {
-		assert.Equal(t, "delete_event", tool.Name())
+	t.Run("Name returns remove_event", func(t *testing.T) {
+		assert.Equal(t, "remove_event", tool.Name())
 	})
 
 	t.Run("Description is meaningful", func(t *testing.T) {
 		desc := tool.Description()
 		assert.NotEmpty(t, desc)
-		assert.Contains(t, desc, "delete")
+		assert.Contains(t, desc, "remove")
 		assert.Contains(t, desc, "event")
 		assert.Contains(t, desc, "creator")
 	})
@@ -81,7 +81,7 @@ func TestTool_Metadata(t *testing.T) {
 	t.Run("ParametersJsonSchema is valid JSON", func(t *testing.T) {
 		schema := tool.ParametersJsonSchema()
 		assert.NotEmpty(t, schema)
-		// delete_event has no parameters
+		// remove_event has no parameters
 		assert.Contains(t, string(schema), "object")
 	})
 
@@ -120,8 +120,8 @@ func TestTool_Callback_Success(t *testing.T) {
 		require.Equal(t, 1, service.getCount)
 		assert.Equal(t, "group-123", service.lastGetChatRoomID)
 
-		require.Equal(t, 1, service.deleteCount)
-		assert.Equal(t, "group-123", service.lastDeleteChatRoomID)
+		require.Equal(t, 1, service.removeCount)
+		assert.Equal(t, "group-123", service.lastRemoveChatRoomID)
 	})
 
 	t.Run("deletes event with different chat room ID", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestTool_Callback_Success(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "group-999", result["chat_room_id"])
-		assert.Equal(t, "group-999", service.lastDeleteChatRoomID)
+		assert.Equal(t, "group-999", service.lastRemoveChatRoomID)
 	})
 }
 
@@ -169,12 +169,12 @@ func TestTool_Callback_AuthorizationError(t *testing.T) {
 		_, err := tool.Callback(ctx, args)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "only the event creator can delete the event")
+		assert.Contains(t, err.Error(), "only the event creator can remove the event")
 
 		// Get should be called to check authorization
 		assert.Equal(t, 1, service.getCount)
 		// Delete should NOT be called
-		assert.Equal(t, 0, service.deleteCount)
+		assert.Equal(t, 0, service.removeCount)
 	})
 }
 
@@ -196,7 +196,7 @@ func TestTool_Callback_ContextErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "internal error")
 		assert.Equal(t, 0, service.getCount)
-		assert.Equal(t, 0, service.deleteCount)
+		assert.Equal(t, 0, service.removeCount)
 	})
 
 	t.Run("returns error when userID not in context", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestTool_Callback_ContextErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "internal error")
 		assert.Equal(t, 0, service.getCount)
-		assert.Equal(t, 0, service.deleteCount)
+		assert.Equal(t, 0, service.removeCount)
 	})
 }
 
@@ -238,7 +238,7 @@ func TestTool_Callback_NotFoundError(t *testing.T) {
 		// Get should be called
 		assert.Equal(t, 1, service.getCount)
 		// Delete should NOT be called
-		assert.Equal(t, 0, service.deleteCount)
+		assert.Equal(t, 0, service.removeCount)
 	})
 }
 
@@ -261,7 +261,7 @@ func TestTool_Callback_ServiceErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "event not found")
 		assert.Equal(t, 1, service.getCount)
-		assert.Equal(t, 0, service.deleteCount)
+		assert.Equal(t, 0, service.removeCount)
 	})
 
 	t.Run("returns error when service Delete fails", func(t *testing.T) {
@@ -272,7 +272,7 @@ func TestTool_Callback_ServiceErrors(t *testing.T) {
 				Title:       "Team Meeting",
 				Description: "Some description",
 			},
-			deleteErr: errors.New("storage write error"),
+			removeErr: errors.New("storage write error"),
 		}
 		tool, _ := remove.New(service, slog.New(slog.DiscardHandler))
 
@@ -282,9 +282,9 @@ func TestTool_Callback_ServiceErrors(t *testing.T) {
 		_, err := tool.Callback(ctx, args)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to delete event")
+		assert.Contains(t, err.Error(), "failed to remove event")
 		assert.Equal(t, 1, service.getCount)
-		assert.Equal(t, 1, service.deleteCount)
+		assert.Equal(t, 1, service.removeCount)
 	})
 }
 
@@ -299,10 +299,10 @@ type mockEventService struct {
 	getCount          int
 	lastGetChatRoomID string
 
-	// Delete method
-	deleteErr            error
-	deleteCount          int
-	lastDeleteChatRoomID string
+	// Remove method
+	removeErr            error
+	removeCount          int
+	lastRemoveChatRoomID string
 }
 
 func (m *mockEventService) Get(ctx context.Context, chatRoomID string) (*event.Event, error) {
@@ -311,8 +311,8 @@ func (m *mockEventService) Get(ctx context.Context, chatRoomID string) (*event.E
 	return m.getEvent, m.getErr
 }
 
-func (m *mockEventService) Delete(ctx context.Context, chatRoomID string) error {
-	m.deleteCount++
-	m.lastDeleteChatRoomID = chatRoomID
-	return m.deleteErr
+func (m *mockEventService) Remove(ctx context.Context, chatRoomID string) error {
+	m.removeCount++
+	m.lastRemoveChatRoomID = chatRoomID
+	return m.removeErr
 }
