@@ -43,7 +43,11 @@ func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) 
 // GetUserProfile retrieves user profile from cache or storage.
 func (s *Service) GetUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
 	if cached, ok := s.cache.Load(userID); ok {
-		return cached.(*UserProfile), nil
+		if profile, ok := cached.(*UserProfile); ok {
+			return profile, nil
+		}
+		// Cache contains wrong type, delete and continue to storage
+		s.cache.Delete(userID)
 	}
 
 	data, _, err := s.storage.Read(ctx, userID)
@@ -65,8 +69,6 @@ func (s *Service) GetUserProfile(ctx context.Context, userID string) (*UserProfi
 
 // SetUserProfile stores user profile to cache and storage.
 func (s *Service) SetUserProfile(ctx context.Context, userID string, profile *UserProfile) error {
-	s.cache.Store(userID, profile)
-
 	data, err := json.Marshal(profile)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user profile: %w", err)
@@ -77,5 +79,7 @@ func (s *Service) SetUserProfile(ctx context.Context, userID string, profile *Us
 		return fmt.Errorf("failed to write user profile: %w", err)
 	}
 
+	// Update cache only after successful storage write
+	s.cache.Store(userID, profile)
 	return nil
 }

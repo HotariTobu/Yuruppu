@@ -20,11 +20,11 @@ import (
 	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/media"
 	"yuruppu/internal/storage"
-	"yuruppu/internal/userprofile"
 	"yuruppu/internal/toolset/event"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
+	"yuruppu/internal/userprofile"
 	"yuruppu/internal/yuruppu"
 
 	eventdomain "yuruppu/internal/event"

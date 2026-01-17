@@ -5,7 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"yuruppu/cmd/cli/profile"
+	"yuruppu/cmd/cli/prompter"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,10 +18,10 @@ func TestNewPrompter(t *testing.T) {
 		var writer bytes.Buffer
 
 		// When
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 
 		// Then
-		require.NotNil(t, prompter)
+		require.NotNil(t, p)
 	})
 
 	t.Run("should panic when reader is nil", func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestNewPrompter(t *testing.T) {
 
 		// When/Then
 		assert.Panics(t, func() {
-			profile.NewPrompter(nil, &writer)
+			prompter.NewPrompter(nil, &writer)
 		})
 	})
 
@@ -40,29 +40,29 @@ func TestNewPrompter(t *testing.T) {
 
 		// When/Then
 		assert.Panics(t, func() {
-			profile.NewPrompter(reader, nil)
+			prompter.NewPrompter(reader, nil)
 		})
 	})
 }
 
-func TestPrompter_FetchProfile(t *testing.T) {
+func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should prompt for profile and return it", func(t *testing.T) {
 		// Given
 		input := "Test User\nhttps://example.com/pic.jpg\nHello world\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.NoError(t, err)
-		require.NotNil(t, p)
-		assert.Equal(t, "Test User", p.DisplayName)
-		assert.Equal(t, "https://example.com/pic.jpg", p.PictureURL)
-		assert.Equal(t, "Hello world", p.StatusMessage)
+		require.NotNil(t, profile)
+		assert.Equal(t, "Test User", profile.DisplayName)
+		assert.Equal(t, "https://example.com/pic.jpg", profile.PictureURL)
+		assert.Equal(t, "Hello world", profile.StatusMessage)
 	})
 
 	t.Run("should re-prompt if display name is empty", func(t *testing.T) {
@@ -70,16 +70,16 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "\n\nValid Name\n\n\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.NoError(t, err)
-		require.NotNil(t, p)
-		assert.Equal(t, "Valid Name", p.DisplayName)
+		require.NotNil(t, profile)
+		assert.Equal(t, "Valid Name", profile.DisplayName)
 	})
 
 	t.Run("should allow empty optional fields", func(t *testing.T) {
@@ -87,18 +87,18 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "Test User\n\n\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.NoError(t, err)
-		require.NotNil(t, p)
-		assert.Equal(t, "Test User", p.DisplayName)
-		assert.Empty(t, p.PictureURL)
-		assert.Empty(t, p.StatusMessage)
+		require.NotNil(t, profile)
+		assert.Equal(t, "Test User", profile.DisplayName)
+		assert.Empty(t, profile.PictureURL)
+		assert.Empty(t, profile.StatusMessage)
 	})
 
 	t.Run("should return EOF if input ends early", func(t *testing.T) {
@@ -106,15 +106,15 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "Test User\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.Error(t, err)
-		assert.Nil(t, p)
+		assert.Nil(t, profile)
 	})
 
 	t.Run("should display prompts to writer", func(t *testing.T) {
@@ -122,11 +122,11 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "Test User\n\n\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		_, _ = prompter.FetchProfile(ctx, "user123")
+		_, _ = p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		output := writer.String()
@@ -140,17 +140,17 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "  Test User  \n  https://example.com  \n  Hello  \n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx := context.Background()
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.NoError(t, err)
-		assert.Equal(t, "Test User", p.DisplayName)
-		assert.Equal(t, "https://example.com", p.PictureURL)
-		assert.Equal(t, "Hello", p.StatusMessage)
+		assert.Equal(t, "Test User", profile.DisplayName)
+		assert.Equal(t, "https://example.com", profile.PictureURL)
+		assert.Equal(t, "Hello", profile.StatusMessage)
 	})
 
 	t.Run("should return error when context is cancelled", func(t *testing.T) {
@@ -158,16 +158,16 @@ func TestPrompter_FetchProfile(t *testing.T) {
 		input := "Test User\n\n\n"
 		reader := strings.NewReader(input)
 		var writer bytes.Buffer
-		prompter := profile.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(reader, &writer)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
 		// When
-		p, err := prompter.FetchProfile(ctx, "user123")
+		profile, err := p.FetchUserProfile(ctx, "user123")
 
 		// Then
 		require.Error(t, err)
-		assert.Nil(t, p)
+		assert.Nil(t, profile)
 		assert.Equal(t, context.Canceled, err)
 	})
 }
