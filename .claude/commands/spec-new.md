@@ -39,8 +39,8 @@ Feature name: $ARGUMENTS
 
 6. **Run spec-reviewer to validate the specification**:
    - Launch spec-reviewer agent with the spec name
-   - Review the output with the user
-   - If "Needs revision": work with user to fix issues, then re-run spec-reviewer
+   - Report the results to the user and **wait for instructions** (do NOT start fixing issues on your own)
+   - If "Needs revision": fix issues **only when user explicitly requests**, then re-run spec-reviewer
    - Repeat until spec-reviewer returns "Requirements are clear and complete"
 
 7. **Get user confirmation** and generate progress.json:
