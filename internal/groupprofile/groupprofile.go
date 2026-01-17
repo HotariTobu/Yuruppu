@@ -12,8 +12,9 @@ import (
 
 // GroupProfile contains LINE group profile information.
 type GroupProfile struct {
-	DisplayName string `json:"displayName"`
-	PictureURL  string `json:"pictureUrl,omitempty"`
+	DisplayName     string `json:"displayName"`
+	PictureURL      string `json:"pictureUrl,omitempty"`
+	PictureMIMEType string `json:"pictureMimeType,omitempty"`
 }
 
 // Service provides group profile management with caching and persistence.
@@ -41,7 +42,11 @@ func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) 
 // GetGroupProfile retrieves group profile from cache or storage.
 func (s *Service) GetGroupProfile(ctx context.Context, groupID string) (*GroupProfile, error) {
 	if cached, ok := s.cache.Load(groupID); ok {
-		return cached.(*GroupProfile), nil
+		if profile, ok := cached.(*GroupProfile); ok {
+			return profile, nil
+		}
+		// Cache contains wrong type, delete and continue to storage
+		s.cache.Delete(groupID)
 	}
 
 	data, _, err := s.storage.Read(ctx, groupID)
@@ -63,8 +68,6 @@ func (s *Service) GetGroupProfile(ctx context.Context, groupID string) (*GroupPr
 
 // SetGroupProfile stores group profile to cache and storage.
 func (s *Service) SetGroupProfile(ctx context.Context, groupID string, profile *GroupProfile) error {
-	s.cache.Store(groupID, profile)
-
 	data, err := json.Marshal(profile)
 	if err != nil {
 		return fmt.Errorf("failed to marshal group profile: %w", err)
@@ -75,5 +78,7 @@ func (s *Service) SetGroupProfile(ctx context.Context, groupID string, profile *
 		return fmt.Errorf("failed to write group profile: %w", err)
 	}
 
+	// Update cache only after successful storage write
+	s.cache.Store(groupID, profile)
 	return nil
 }

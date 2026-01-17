@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"yuruppu/internal/groupprofile"
@@ -12,11 +13,11 @@ import (
 func (h *Handler) HandleJoin(ctx context.Context) error {
 	chatType, ok := line.ChatTypeFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("chatType not found in context")
+		return errors.New("chatType not found in context")
 	}
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("sourceID not found in context")
+		return errors.New("sourceID not found in context")
 	}
 
 	h.logger.InfoContext(ctx, "bot joined group",
@@ -34,6 +35,18 @@ func (h *Handler) HandleJoin(ctx context.Context) error {
 		PictureURL:  summary.PictureURL,
 	}
 
+	if profile.PictureURL != "" {
+		if mimeType, err := h.fetchPictureMIMEType(ctx, profile.PictureURL); err != nil {
+			h.logger.WarnContext(ctx, "failed to fetch group picture MIME type",
+				slog.String("sourceID", sourceID),
+				slog.Any("error", err),
+			)
+			profile.PictureURL = ""
+		} else {
+			profile.PictureMIMEType = mimeType
+		}
+	}
+
 	if err := h.groupProfileService.SetGroupProfile(ctx, sourceID, profile); err != nil {
 		return fmt.Errorf("failed to save group profile: %w", err)
 	}
@@ -46,11 +59,11 @@ func (h *Handler) HandleJoin(ctx context.Context) error {
 func (h *Handler) HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error {
 	chatType, ok := line.ChatTypeFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("chatType not found in context")
+		return errors.New("chatType not found in context")
 	}
 	sourceID, ok := line.SourceIDFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("sourceID not found in context")
+		return errors.New("sourceID not found in context")
 	}
 
 	h.logger.InfoContext(ctx, "members joined group",

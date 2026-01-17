@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetProfile_Integration tests that GetProfile returns user profile from LINE API.
+// TestGetUserProfile_Integration tests that GetUserProfile returns user profile from LINE API.
 // FR-001: Fetch user profile from LINE when processing a message.
-func TestGetProfile_Integration(t *testing.T) {
+func TestGetUserProfile_Integration(t *testing.T) {
 	_, channelAccessToken := requireLINECredentials(t)
 
 	c, err := client.NewClient(channelAccessToken, slog.New(slog.DiscardHandler))
@@ -28,9 +28,9 @@ func TestGetProfile_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use the bot's own user ID for testing
-	profile, err := c.GetProfile(context.Background(), botInfo.UserId)
+	profile, err := c.GetUserProfile(context.Background(), botInfo.UserId)
 
-	require.NoError(t, err, "GetProfile should succeed for bot's own user ID")
+	require.NoError(t, err, "GetUserProfile should succeed for bot's own user ID")
 	assert.NotNil(t, profile, "profile should not be nil")
 	assert.NotEmpty(t, profile.DisplayName, "display name should not be empty")
 	assert.Equal(t, botInfo.DisplayName, profile.DisplayName, "display name should match bot info")

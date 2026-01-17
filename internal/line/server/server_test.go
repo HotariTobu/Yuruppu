@@ -167,6 +167,14 @@ func (m *mockHandler) HandleFollow(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockHandler) HandleJoin(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockHandler) HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error {
+	return nil
+}
+
 // =============================================================================
 // New Tests
 // =============================================================================

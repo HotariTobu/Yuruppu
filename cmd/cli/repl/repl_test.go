@@ -13,7 +13,7 @@ import (
 	"time"
 	"yuruppu/cmd/cli/repl"
 	"yuruppu/internal/line"
-	"yuruppu/internal/profile"
+	"yuruppu/internal/userprofile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -134,11 +134,11 @@ func (m *mockHandler) memberJoinedCallCount() int {
 }
 
 type mockProfileService struct {
-	profiles map[string]*profile.UserProfile
+	profiles map[string]*userprofile.UserProfile
 	err      error
 }
 
-func (m *mockProfileService) GetUserProfile(_ context.Context, userID string) (*profile.UserProfile, error) {
+func (m *mockProfileService) GetUserProfile(_ context.Context, userID string) (*userprofile.UserProfile, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -719,7 +719,7 @@ func TestRun_Prompt_WithProfile(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{
+			profiles: map[string]*userprofile.UserProfile{
 				"alice": {DisplayName: "Alice"},
 			},
 		}
@@ -754,7 +754,7 @@ func TestRun_Prompt_WithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{},
+			profiles: map[string]*userprofile.UserProfile{},
 		}
 
 		groupSim := newMockGroupSimService()
@@ -816,7 +816,7 @@ func TestRun_SwitchCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{
+			profiles: map[string]*userprofile.UserProfile{
 				"alice":   {DisplayName: "Alice"},
 				"charlie": {DisplayName: "Charlie"},
 			},
@@ -855,7 +855,7 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{
+			profiles: map[string]*userprofile.UserProfile{
 				"alice": {DisplayName: "Alice"},
 			},
 		}
@@ -922,7 +922,7 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{
+			profiles: map[string]*userprofile.UserProfile{
 				"alice":   {DisplayName: "Alice"},
 				"bob":     {DisplayName: "Bob"},
 				"charlie": {DisplayName: "Charlie"},
@@ -961,7 +961,7 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 		handler := &mockHandler{}
 
 		profileService := &mockProfileService{
-			profiles: map[string]*profile.UserProfile{
+			profiles: map[string]*userprofile.UserProfile{
 				"alice":   {DisplayName: "Alice"},
 				"charlie": {DisplayName: "Charlie"},
 			},

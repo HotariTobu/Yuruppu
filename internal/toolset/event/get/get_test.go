@@ -8,8 +8,8 @@ import (
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
-	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/get"
+	"yuruppu/internal/userprofile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +79,7 @@ func TestNew(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, tool)
-		assert.Contains(t, err.Error(), "profileService cannot be nil")
+		assert.Contains(t, err.Error(), "userProfileService cannot be nil")
 	})
 
 	t.Run("returns error when logger is nil", func(t *testing.T) {
@@ -394,11 +394,11 @@ type mockProfileService struct {
 	lastUserID  string
 }
 
-func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error) {
+func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error) {
 	m.getCount++
 	m.lastUserID = userID
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
-	return &profile.UserProfile{DisplayName: m.displayName}, nil
+	return &userprofile.UserProfile{DisplayName: m.displayName}, nil
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 	"yuruppu/cmd/cli/groupsim"
 	"yuruppu/cmd/cli/mock"
+	"yuruppu/cmd/cli/prompter"
 	"yuruppu/cmd/cli/repl"
 	"yuruppu/cmd/cli/setup"
 	"yuruppu/internal/agent"
@@ -22,13 +23,11 @@ import (
 	"yuruppu/internal/line"
 	"yuruppu/internal/media"
 	"yuruppu/internal/toolset/event"
-	"yuruppu/internal/userprofile"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
+	"yuruppu/internal/userprofile"
 	"yuruppu/internal/yuruppu"
-
-	"yuruppu/cmd/cli/prompter"
 
 	eventdomain "yuruppu/internal/event"
 )

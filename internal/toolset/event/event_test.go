@@ -6,8 +6,8 @@ import (
 	"testing"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
-	"yuruppu/internal/profile"
 	eventtoolset "yuruppu/internal/toolset/event"
+	"yuruppu/internal/userprofile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,8 +43,8 @@ func (m *mockEventService) Remove(ctx context.Context, chatRoomID string) error 
 // mockProfileService is a test double for ProfileService interface.
 type mockProfileService struct{}
 
-func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error) {
-	return &profile.UserProfile{DisplayName: "Test User"}, nil
+func (m *mockProfileService) GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error) {
+	return &userprofile.UserProfile{DisplayName: "Test User"}, nil
 }
 
 // =============================================================================
@@ -110,7 +110,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name              string
 		eventService      eventtoolset.EventService
-		profileService    eventtoolset.ProfileService
+		profileService    eventtoolset.UserProfileService
 		listMaxPeriodDays int
 		listLimit         int
 		expectError       string
@@ -129,7 +129,7 @@ func TestNewTools_ErrorCases(t *testing.T) {
 			profileService:    nil,
 			listMaxPeriodDays: 366,
 			listLimit:         5,
-			expectError:       "profileService",
+			expectError:       "userProfileService",
 		},
 		{
 			name:              "returns error when listMaxPeriodDays is zero",
