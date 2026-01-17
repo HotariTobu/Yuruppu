@@ -169,11 +169,7 @@ func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
 
 	err := r.groupSimService.AddMember(ctx, r.groupID, invitedUserID)
 	if err != nil {
-		if strings.Contains(err.Error(), "already a member") {
-			_, _ = fmt.Fprintf(r.stderr, "%s is already a member of this group\n", invitedUserID)
-			return
-		}
-		r.logger.ErrorContext(ctx, "failed to add member", "error", err)
+		_, _ = fmt.Fprintln(r.stderr, err)
 		return
 	}
 
@@ -202,11 +198,7 @@ func (r *Runner) handleInviteBot(ctx context.Context) {
 
 	err := r.groupSimService.AddBot(ctx, r.groupID)
 	if err != nil {
-		if strings.Contains(err.Error(), "already in the group") {
-			_, _ = fmt.Fprintln(r.stderr, "bot is already in the group")
-			return
-		}
-		r.logger.ErrorContext(ctx, "failed to add bot to group", "error", err)
+		_, _ = fmt.Fprintln(r.stderr, err)
 		return
 	}
 

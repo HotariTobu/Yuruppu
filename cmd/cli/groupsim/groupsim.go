@@ -9,12 +9,6 @@ import (
 	"yuruppu/internal/storage"
 )
 
-// Sentinel errors.
-var (
-	ErrGroupNotFound     = errors.New("group not found")
-	ErrAlreadyMember     = errors.New("already a member")
-	ErrBotAlreadyInGroup = errors.New("bot is already in the group")
-)
 
 // groupSim is internal storage structure.
 type groupSim struct {
@@ -92,7 +86,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
 
 	// Check if user is already a member
 	if slices.Contains(group.Members, userID) {
-		return ErrAlreadyMember
+		return fmt.Errorf("%s is already a member of this group", userID)
 	}
 
 	// Add member
@@ -130,7 +124,7 @@ func (s *Service) AddBot(ctx context.Context, groupID string) error {
 
 	// Check if bot is already in group
 	if group.BotInGroup {
-		return ErrBotAlreadyInGroup
+		return fmt.Errorf("bot is already in group '%s'", groupID)
 	}
 
 	// Add bot
@@ -157,7 +151,7 @@ func (s *Service) readGroup(ctx context.Context, groupID string) (*groupSim, int
 		return nil, 0, fmt.Errorf("failed to read group: %w", err)
 	}
 	if data == nil {
-		return nil, 0, ErrGroupNotFound
+		return nil, 0, fmt.Errorf("group '%s' not found", groupID)
 	}
 
 	var group groupSim
