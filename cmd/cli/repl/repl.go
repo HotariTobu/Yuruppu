@@ -12,28 +12,19 @@ import (
 	"strings"
 	"syscall"
 	"yuruppu/internal/line"
+	"yuruppu/internal/profile"
 )
 
-// MessageHandler defines the interface for handling text messages and join events.
-// This allows the REPL to work with bot.Handler without direct coupling.
 type MessageHandler interface {
 	HandleText(ctx context.Context, text string) error
 	HandleJoin(ctx context.Context) error
 	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
 }
 
-// UserProfile is the minimal interface for user profile with display name.
-// This interface is satisfied by both real profile.UserProfile and test mocks.
-type UserProfile interface {
-	GetDisplayName() string
+type ProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
 }
 
-// ProfileGetter retrieves user profiles for display name lookup.
-type ProfileGetter interface {
-	GetUserProfile(ctx context.Context, userID string) (UserProfile, error)
-}
-
-// GroupSimService provides group simulation operations.
 type GroupSimService interface {
 	GetMembers(ctx context.Context, groupID string) ([]string, error)
 	IsMember(ctx context.Context, groupID, userID string) (bool, error)
@@ -42,27 +33,32 @@ type GroupSimService interface {
 	AddBot(ctx context.Context, groupID string) error
 }
 
-// Config holds REPL configuration.
 type Config struct {
 	UserID  string
-	Handler MessageHandler
-	Logger  *slog.Logger
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer // If nil, defaults to os.Stderr
-
-	// Group mode (optional)
-	GroupID         string          // If set, REPL runs in group chat mode
-	ProfileGetter   ProfileGetter   // If set, displays user's display name in prompt
-	GroupSimService GroupSimService // If set, enables group commands (/switch, /users)
+	GroupID *string
+	ProfileService
+	GroupSimService GroupSimService
+	Handler         MessageHandler
+	Logger          *slog.Logger
+	Stdin           io.Reader
+	Stdout          io.Writer
+	Stderr          io.Writer
 }
 
-// buildMessageContext creates context with LINE context values for message handling.
+func formatUser(ctx context.Context, cfg Config, userID string) string {
+	if cfg.ProfileService != nil {
+		if p, err := cfg.GetUserProfile(ctx, userID); err == nil {
+			return fmt.Sprintf("%s(%s)", p.DisplayName, userID)
+		}
+	}
+	return fmt.Sprintf("(%s)", userID)
+}
+
 func buildMessageContext(ctx context.Context, cfg Config, currentUserID string) context.Context {
 	var msgCtx context.Context
-	if cfg.GroupID != "" {
+	if cfg.GroupID != nil {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-		msgCtx = line.WithSourceID(msgCtx, cfg.GroupID)
+		msgCtx = line.WithSourceID(msgCtx, *cfg.GroupID)
 	} else {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
 		msgCtx = line.WithSourceID(msgCtx, currentUserID)
@@ -72,20 +68,8 @@ func buildMessageContext(ctx context.Context, cfg Config, currentUserID string) 
 	return msgCtx
 }
 
-// buildPrompt constructs the REPL prompt based on current user and profile.
-// Returns "DisplayName(user-id)> " if profile exists, or "(user-id)> " otherwise.
 func buildPrompt(ctx context.Context, cfg Config, currentUserID string) string {
-	displayName := ""
-	if cfg.ProfileGetter != nil {
-		if profile, err := cfg.ProfileGetter.GetUserProfile(ctx, currentUserID); err == nil {
-			displayName = profile.GetDisplayName()
-		}
-	}
-
-	if displayName != "" {
-		return fmt.Sprintf("%s(%s)> ", displayName, currentUserID)
-	}
-	return fmt.Sprintf("(%s)> ", currentUserID)
+	return formatUser(ctx, cfg, currentUserID) + "> "
 }
 
 // handleSwitchCommand handles the /switch <user-id> command.
@@ -94,13 +78,13 @@ func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetU
 	stderr := cfg.Stderr
 
 	// Check if in group mode
-	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+	if cfg.GroupID == nil || cfg.GroupSimService == nil {
 		_, _ = fmt.Fprintln(stderr, "/switch is not available")
 		return currentUserID
 	}
 
 	// Check if target user is a member
-	isMember, err := cfg.GroupSimService.IsMember(ctx, cfg.GroupID, targetUserID)
+	isMember, err := cfg.GroupSimService.IsMember(ctx, *cfg.GroupID, targetUserID)
 	if err != nil {
 		cfg.Logger.ErrorContext(ctx, "failed to check membership", "error", err)
 		return currentUserID
@@ -118,33 +102,21 @@ func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetU
 // Lists all group members in the format: DisplayName(user-id), ...
 func handleUsersCommand(ctx context.Context, cfg Config) {
 	// Check if in group mode
-	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+	if cfg.GroupID == nil || cfg.GroupSimService == nil {
 		_, _ = fmt.Fprintln(cfg.Stderr, "/users is not available")
 		return
 	}
 
 	// Get all members
-	members, err := cfg.GroupSimService.GetMembers(ctx, cfg.GroupID)
+	members, err := cfg.GroupSimService.GetMembers(ctx, *cfg.GroupID)
 	if err != nil {
 		cfg.Logger.ErrorContext(ctx, "failed to get members", "error", err)
 		return
 	}
 
-	// Build output string
-	var memberStrings []string
+	memberStrings := make([]string, 0, len(members))
 	for _, memberID := range members {
-		displayName := ""
-		if cfg.ProfileGetter != nil {
-			if profile, err := cfg.ProfileGetter.GetUserProfile(ctx, memberID); err == nil {
-				displayName = profile.GetDisplayName()
-			}
-		}
-
-		if displayName != "" {
-			memberStrings = append(memberStrings, fmt.Sprintf("%s(%s)", displayName, memberID))
-		} else {
-			memberStrings = append(memberStrings, fmt.Sprintf("(%s)", memberID))
-		}
+		memberStrings = append(memberStrings, formatUser(ctx, cfg, memberID))
 	}
 
 	// Print to stdout
@@ -157,7 +129,7 @@ func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invited
 	stderr := cfg.Stderr
 
 	// Check if in group mode
-	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+	if cfg.GroupID == nil || cfg.GroupSimService == nil {
 		_, _ = fmt.Fprintln(stderr, "/invite is not available")
 		return
 	}
@@ -170,7 +142,7 @@ func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invited
 	}
 
 	// Add member to group
-	err := cfg.GroupSimService.AddMember(ctx, cfg.GroupID, invitedUserID)
+	err := cfg.GroupSimService.AddMember(ctx, *cfg.GroupID, invitedUserID)
 	if err != nil {
 		// Check if error is because user is already a member
 		if strings.Contains(err.Error(), "already a member") {
@@ -182,7 +154,7 @@ func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invited
 	}
 
 	// Check if bot is in group - if yes, trigger HandleMemberJoined
-	botInGroup, err := cfg.GroupSimService.IsBotInGroup(ctx, cfg.GroupID)
+	botInGroup, err := cfg.GroupSimService.IsBotInGroup(ctx, *cfg.GroupID)
 	if err != nil {
 		cfg.Logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
 		// Continue even if check fails - user was still added
@@ -190,7 +162,7 @@ func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invited
 		// Bot is in group - trigger HandleMemberJoined event
 		// Build context with group chat context
 		memberJoinedCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, cfg.GroupID)
+		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, *cfg.GroupID)
 		memberJoinedCtx = line.WithUserID(memberJoinedCtx, currentUserID)
 		memberJoinedCtx = line.WithReplyToken(memberJoinedCtx, "cli-reply-token")
 
@@ -211,13 +183,13 @@ func handleInviteBotCommand(ctx context.Context, cfg Config, currentUserID strin
 	stderr := cfg.Stderr
 
 	// Check if in group mode
-	if cfg.GroupID == "" || cfg.GroupSimService == nil {
+	if cfg.GroupID == nil || cfg.GroupSimService == nil {
 		_, _ = fmt.Fprintln(stderr, "/invite-bot is not available")
 		return
 	}
 
 	// Add bot to group
-	err := cfg.GroupSimService.AddBot(ctx, cfg.GroupID)
+	err := cfg.GroupSimService.AddBot(ctx, *cfg.GroupID)
 	if err != nil {
 		// Check if error is because bot is already in group
 		if strings.Contains(err.Error(), "already in the group") {
@@ -230,7 +202,7 @@ func handleInviteBotCommand(ctx context.Context, cfg Config, currentUserID strin
 
 	// Build context for HandleJoin with group chat context
 	joinCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-	joinCtx = line.WithSourceID(joinCtx, cfg.GroupID)
+	joinCtx = line.WithSourceID(joinCtx, *cfg.GroupID)
 	joinCtx = line.WithUserID(joinCtx, currentUserID)
 	joinCtx = line.WithReplyToken(joinCtx, "cli-reply-token")
 
@@ -384,9 +356,8 @@ func Run(ctx context.Context, cfg Config) error {
 			// Prepare context with LINE context values
 			msgCtx := buildMessageContext(ctx, cfg, currentUserID)
 
-			// Check bot presence in group mode
-			if cfg.GroupID != "" && cfg.GroupSimService != nil {
-				botInGroup, err := cfg.GroupSimService.IsBotInGroup(msgCtx, cfg.GroupID)
+			if cfg.GroupID != nil && cfg.GroupSimService != nil {
+				botInGroup, err := cfg.GroupSimService.IsBotInGroup(msgCtx, *cfg.GroupID)
 				if err != nil {
 					cfg.Logger.ErrorContext(msgCtx, "failed to check bot presence", "error", err)
 					continue
