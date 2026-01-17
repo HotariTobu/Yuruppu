@@ -22,16 +22,29 @@ import (
 
 // mockHandler implements a test handler for HandleText calls.
 type mockHandler struct {
-	mu         sync.Mutex
-	calls      []handleTextCall
-	returnErr  error
-	callDelay  time.Duration // Simulates processing delay
-	ctxChecker func(context.Context) error
+	mu                sync.Mutex
+	calls             []handleTextCall
+	joinCalls         []handleJoinCall
+	memberJoinedCalls []handleMemberJoinedCall
+	returnErr         error
+	callDelay         time.Duration // Simulates processing delay
+	ctxChecker        func(context.Context) error
 }
 
 type handleTextCall struct {
 	text   string
 	userID string
+}
+
+type handleJoinCall struct {
+	chatType line.ChatType
+	sourceID string
+}
+
+type handleMemberJoinedCall struct {
+	chatType      line.ChatType
+	sourceID      string
+	joinedUserIDs []string
 }
 
 func (m *mockHandler) HandleText(ctx context.Context, text string) error {
@@ -64,6 +77,37 @@ func (m *mockHandler) HandleText(ctx context.Context, text string) error {
 	return m.returnErr
 }
 
+func (m *mockHandler) HandleJoin(ctx context.Context) error {
+	// Extract chat type and source ID from context
+	chatType, _ := line.ChatTypeFromContext(ctx)
+	sourceID, _ := line.SourceIDFromContext(ctx)
+
+	m.mu.Lock()
+	m.joinCalls = append(m.joinCalls, handleJoinCall{
+		chatType: chatType,
+		sourceID: sourceID,
+	})
+	m.mu.Unlock()
+
+	return m.returnErr
+}
+
+func (m *mockHandler) HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error {
+	// Extract chat type and source ID from context
+	chatType, _ := line.ChatTypeFromContext(ctx)
+	sourceID, _ := line.SourceIDFromContext(ctx)
+
+	m.mu.Lock()
+	m.memberJoinedCalls = append(m.memberJoinedCalls, handleMemberJoinedCall{
+		chatType:      chatType,
+		sourceID:      sourceID,
+		joinedUserIDs: append([]string{}, joinedUserIDs...), // Copy slice
+	})
+	m.mu.Unlock()
+
+	return m.returnErr
+}
+
 func (m *mockHandler) getCalls() []handleTextCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -74,6 +118,30 @@ func (m *mockHandler) callCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.calls)
+}
+
+func (m *mockHandler) getJoinCalls() []handleJoinCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]handleJoinCall{}, m.joinCalls...)
+}
+
+func (m *mockHandler) joinCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.joinCalls)
+}
+
+func (m *mockHandler) getMemberJoinedCalls() []handleMemberJoinedCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]handleMemberJoinedCall{}, m.memberJoinedCalls...)
+}
+
+func (m *mockHandler) memberJoinedCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.memberJoinedCalls)
 }
 
 // TestRun_QuitCommand tests /quit command exits cleanly
@@ -1715,5 +1783,601 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 		members, err := groupSim.GetMembers(ctx, "mygroup")
 		require.NoError(t, err)
 		assert.Contains(t, members, "bob", "bob should be added to group members")
+	})
+}
+
+// TestRun_BotNotInGroup_NoLLMCall tests that when bot is not in group, messages are not sent to LLM
+// AC-013: Bot not in group by default [FR-014, FR-016]
+func TestRun_BotNotInGroup_NoLLMCall(t *testing.T) {
+	t.Run("should not call HandleText when bot is not in group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello\nAnother message\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false // Bot is NOT in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		assert.Equal(t, 0, handler.callCount(), "HandleText should NOT be called when bot is not in group")
+	})
+}
+
+// TestRun_BotInGroup_LLMCalled tests that when bot is in group, messages are processed by LLM
+// AC-014: Invite bot to group [FR-015, FR-017]
+func TestRun_BotInGroup_LLMCalled(t *testing.T) {
+	t.Run("should call HandleText when bot is in group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello\nHow are you?\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = true // Bot IS in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		require.Equal(t, 2, handler.callCount(), "HandleText should be called for each message")
+		calls := handler.getCalls()
+		assert.Equal(t, "Hello", calls[0].text)
+		assert.Equal(t, "How are you?", calls[1].text)
+		assert.Equal(t, "alice", calls[0].userID)
+		assert.Equal(t, "alice", calls[1].userID)
+	})
+}
+
+// TestRun_OneOnOneMode_AlwaysProcessed tests that in 1-on-1 mode, messages are always processed
+// FR-005, NFR-002: Existing single-user CLI behavior must not break
+func TestRun_OneOnOneMode_AlwaysProcessed(t *testing.T) {
+	t.Run("should always call HandleText in 1-on-1 mode regardless of bot status", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:  "alice",
+			Handler: handler,
+			Logger:  logger,
+			Stdin:   stdin,
+			Stdout:  stdout,
+			Stderr:  stderr,
+			// GroupID is empty (1-on-1 mode)
+			// GroupSimService is nil
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		require.Equal(t, 1, handler.callCount(), "HandleText should be called in 1-on-1 mode")
+		calls := handler.getCalls()
+		assert.Equal(t, "Hello", calls[0].text)
+		assert.Equal(t, "alice", calls[0].userID)
+	})
+}
+
+// TestRun_BotStatusCheck_ErrorHandling tests handling of IsBotInGroup errors
+func TestRun_BotStatusCheck_ErrorHandling(t *testing.T) {
+	t.Run("should not call HandleText when IsBotInGroup returns error", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("Hello\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.err = errors.New("database connection failed")
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err, "REPL should continue even if bot status check fails")
+		assert.Equal(t, 0, handler.callCount(), "HandleText should NOT be called when bot status check fails")
+	})
+}
+
+// TestRun_InviteBotCommand_Success tests /invite-bot successfully adds bot and calls HandleJoin
+// AC-014: Invite bot to group [FR-015, FR-017]
+func TestRun_InviteBotCommand_Success(t *testing.T) {
+	t.Run("should add bot to group, call HandleJoin, and display success message", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite-bot\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false // Bot is NOT in group initially
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "Bot has been invited to the group", "should display success message")
+
+		// Verify bot was added
+		botInGroup, err := groupSim.IsBotInGroup(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.True(t, botInGroup, "bot should be added to group")
+
+		// Verify HandleJoin was called with correct context
+		require.Equal(t, 1, handler.joinCallCount(), "HandleJoin should be called once")
+		joinCalls := handler.getJoinCalls()
+		assert.Equal(t, line.ChatTypeGroup, joinCalls[0].chatType, "chat type should be 'group'")
+		assert.Equal(t, "mygroup", joinCalls[0].sourceID, "source ID should be group ID")
+	})
+}
+
+// TestRun_InviteBotCommand_AlreadyInGroup tests /invite-bot when bot is already in group
+// AC-014: Error handling [FR-015]
+func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
+	t.Run("should show error message when bot is already in group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite-bot\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = true // Bot IS already in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "bot is already in the group", "should display error message to stderr")
+
+		// Verify HandleJoin was NOT called
+		assert.Equal(t, 0, handler.joinCallCount(), "HandleJoin should NOT be called when bot is already in group")
+	})
+}
+
+// TestRun_InviteBotCommand_NotInGroupMode tests /invite-bot in 1-on-1 mode
+func TestRun_InviteBotCommand_NotInGroupMode(t *testing.T) {
+	t.Run("should show error when /invite-bot is used in 1-on-1 mode", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite-bot\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:        "alice",
+			Handler:       handler,
+			Logger:        logger,
+			Stdin:         stdin,
+			Stdout:        stdout,
+			Stderr:        stderr,
+			ProfileGetter: profileGetter,
+			// GroupID is empty (1-on-1 mode)
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "/invite-bot is not available", "should display unavailable command error")
+
+		// Verify HandleJoin was NOT called
+		assert.Equal(t, 0, handler.joinCallCount(), "HandleJoin should NOT be called in 1-on-1 mode")
+	})
+}
+
+// TestRun_InviteBotCommand_EnablesMessageProcessing tests that messages are processed after bot is invited
+// AC-014: Invite bot to group [FR-015, FR-017]
+func TestRun_InviteBotCommand_EnablesMessageProcessing(t *testing.T) {
+	t.Run("should process messages after bot is invited to group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite-bot\nHello bot!\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false // Bot is NOT in group initially
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+
+		// Verify HandleJoin was called
+		require.Equal(t, 1, handler.joinCallCount(), "HandleJoin should be called once")
+
+		// Verify message was processed after bot was invited
+		require.Equal(t, 1, handler.callCount(), "HandleText should be called for message sent after bot invitation")
+		calls := handler.getCalls()
+		assert.Equal(t, "Hello bot!", calls[0].text, "message should be processed by handler")
+		assert.Equal(t, "alice", calls[0].userID, "message should be from alice")
+	})
+}
+
+// TestRun_InviteCommand_TriggersHandleMemberJoined tests /invite triggers HandleMemberJoined when bot is in group
+// AC-015: Invite user triggers HandleMemberJoined [FR-018, FR-019]
+func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
+	t.Run("should call HandleMemberJoined with invited user ID when bot is in group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = true // Bot IS in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "bob has been invited to the group", "should display success message")
+
+		// Verify bob was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "bob", "bob should be added to group members")
+
+		// Verify HandleMemberJoined was called
+		require.Equal(t, 1, handler.memberJoinedCallCount(), "HandleMemberJoined should be called once")
+		memberJoinedCalls := handler.getMemberJoinedCalls()
+
+		// Verify context values
+		assert.Equal(t, line.ChatTypeGroup, memberJoinedCalls[0].chatType, "chat type should be 'group'")
+		assert.Equal(t, "mygroup", memberJoinedCalls[0].sourceID, "source ID should be group ID")
+
+		// Verify joined user IDs
+		require.Len(t, memberJoinedCalls[0].joinedUserIDs, 1, "should have one joined user")
+		assert.Equal(t, "bob", memberJoinedCalls[0].joinedUserIDs[0], "joined user should be 'bob'")
+	})
+}
+
+// TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined tests /invite does not trigger HandleMemberJoined when bot is not in group
+// AC-016: Invite user without bot does not trigger event [FR-018]
+func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
+	t.Run("should NOT call HandleMemberJoined when bot is not in group", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = false // Bot is NOT in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "bob has been invited to the group", "should display success message")
+
+		// Verify bob was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "bob", "bob should be added to group members")
+
+		// Verify HandleMemberJoined was NOT called
+		assert.Equal(t, 0, handler.memberJoinedCallCount(), "HandleMemberJoined should NOT be called when bot is not in group")
+	})
+}
+
+// TestRun_InviteCommand_UserWithoutProfile_TriggersHandleMemberJoined tests /invite for user without profile still triggers HandleMemberJoined
+// FR-019: HandleMemberJoined is called with the invited user's ID (always included, regardless of profile existence)
+func TestRun_InviteCommand_UserWithoutProfile_TriggersHandleMemberJoined(t *testing.T) {
+	t.Run("should call HandleMemberJoined with user ID even when user has no profile", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite newuser\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+				// "newuser" has no profile
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = true // Bot IS in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err)
+		output := stdout.String()
+		assert.Contains(t, output, "newuser has been invited to the group", "should display success message")
+
+		// Verify newuser was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "newuser", "newuser should be added to group members")
+
+		// Verify HandleMemberJoined was called with newuser's ID
+		require.Equal(t, 1, handler.memberJoinedCallCount(), "HandleMemberJoined should be called once")
+		memberJoinedCalls := handler.getMemberJoinedCalls()
+
+		// Verify context values
+		assert.Equal(t, line.ChatTypeGroup, memberJoinedCalls[0].chatType, "chat type should be 'group'")
+		assert.Equal(t, "mygroup", memberJoinedCalls[0].sourceID, "source ID should be group ID")
+
+		// Verify joined user IDs (user ID is included regardless of profile existence)
+		require.Len(t, memberJoinedCalls[0].joinedUserIDs, 1, "should have one joined user")
+		assert.Equal(t, "newuser", memberJoinedCalls[0].joinedUserIDs[0], "joined user should be 'newuser' regardless of profile")
+	})
+}
+
+// TestRun_InviteCommand_HandleMemberJoinedError tests /invite continues even if HandleMemberJoined returns error
+func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
+	t.Run("should continue and show success message even if HandleMemberJoined returns error", func(t *testing.T) {
+		// Given
+		stdin := strings.NewReader("/invite bob\n/quit\n")
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		handler := &mockHandler{
+			returnErr: errors.New("HandleMemberJoined processing error"),
+		}
+		logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+		profileGetter := &mockProfileGetter{
+			profiles: map[string]*mockProfile{
+				"alice": {displayName: "Alice"},
+			},
+		}
+
+		groupSim := newMockGroupSimService()
+		groupSim.members["mygroup"] = []string{"alice"}
+		groupSim.botInGroup["mygroup"] = true // Bot IS in group
+
+		ctx := context.Background()
+		cfg := repl.Config{
+			UserID:          "alice",
+			Handler:         handler,
+			Logger:          logger,
+			Stdin:           stdin,
+			Stdout:          stdout,
+			Stderr:          stderr,
+			GroupID:         "mygroup",
+			ProfileGetter:   profileGetter,
+			GroupSimService: groupSim,
+		}
+
+		// When
+		err := repl.Run(ctx, cfg)
+
+		// Then
+		require.NoError(t, err, "REPL should not exit on HandleMemberJoined error")
+
+		// Verify success message is still shown
+		output := stdout.String()
+		assert.Contains(t, output, "bob has been invited to the group", "should display success message even if handler fails")
+
+		// Verify bob was added to members
+		members, err := groupSim.GetMembers(ctx, "mygroup")
+		require.NoError(t, err)
+		assert.Contains(t, members, "bob", "bob should be added to group members")
+
+		// Verify HandleMemberJoined was called
+		require.Equal(t, 1, handler.memberJoinedCallCount(), "HandleMemberJoined should be called")
+
+		// Verify error was logged
+		stderrOutput := stderr.String()
+		assert.Contains(t, stderrOutput, "HandleMemberJoined processing error", "error should be logged to stderr")
 	})
 }
