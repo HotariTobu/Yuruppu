@@ -9,8 +9,8 @@
     { "id": "FR-005", "passes": true },
     { "id": "FR-006", "passes": true },
     { "id": "FR-007", "passes": true },
-    { "id": "FR-008", "passes": false },
-    { "id": "FR-009", "passes": false },
+    { "id": "FR-008", "passes": true },
+    { "id": "FR-009", "passes": true },
     { "id": "FR-010", "passes": false },
     { "id": "FR-011", "passes": false },
     { "id": "FR-012", "passes": false },
@@ -22,9 +22,9 @@
     { "id": "FR-018", "passes": false },
     { "id": "FR-019", "passes": false },
     { "id": "FR-020", "passes": false },
-    { "id": "NFR-001", "passes": false },
+    { "id": "NFR-001", "passes": true },
     { "id": "NFR-002", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 3 complete: Implemented FR-006 (group chat context) and FR-007 (REPL prompt format). Changes: (1) Added GroupID and ProfileGetter fields to repl.Config, (2) Updated context building to use ChatTypeGroup when GroupID is set with SourceID=GroupID, (3) Added buildPrompt() function to display DisplayName(user-id)> or (user-id)> based on profile lookup, (4) Created UserProfile and ProfileGetter interfaces for profile display name lookup. Tests added for AC-005 (group chat context), AC-006/AC-006b (prompt format with/without profile), and backward compatibility. All preflight checks pass. Next session should focus on FR-008/FR-009 (/switch and /users REPL commands) or FR-010-FR-012 (/invite command)."
+  "notes": "Session 4 complete: Implemented FR-008 (/switch command) and FR-009 (/users command). Changes: (1) Added GroupSimService interface to repl.Config for group member operations, (2) Added Stderr field to Config for testable error output, (3) Implemented handleSwitchCommand() to switch active user within group members, (4) Implemented handleUsersCommand() to list all group members with display names, (5) Added getStderr() helper for configurable stderr, (6) Used strings.CutPrefix for cleaner command parsing. Tests added for AC-007 (/switch success), AC-008 (/switch invalid user), AC-009 (/users listing), and unavailable command errors in 1-on-1 mode. NFR-001 (instant switching) verified - no network calls for /switch. All preflight checks pass. All 7 reviewers run: spec-compliance APPROVE, correctness minor issues (silent failures), architecture scope for future, readability Run() complexity noted, testing future scope, security path traversal in groupsim.go (not this PR), performance APPROVE. Next session should focus on FR-010-FR-012 (/invite command for user invitation)."
 }
