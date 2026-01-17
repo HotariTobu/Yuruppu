@@ -31,6 +31,10 @@ func NewService(s storage.Storage) (*Service, error) {
 
 // Exists checks if a group exists.
 func (s *Service) Exists(ctx context.Context, groupID string) (bool, error) {
+	if groupID == "" {
+		return false, errors.New("groupID must not be empty")
+	}
+
 	data, _, err := s.storage.Read(ctx, groupID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check group existence: %w", err)
@@ -40,6 +44,13 @@ func (s *Service) Exists(ctx context.Context, groupID string) (bool, error) {
 
 // Create creates a new group with the first member.
 func (s *Service) Create(ctx context.Context, groupID, firstMemberID string) error {
+	if groupID == "" {
+		return errors.New("groupID must not be empty")
+	}
+	if firstMemberID == "" {
+		return errors.New("firstMemberID must not be empty")
+	}
+
 	group := groupSim{
 		Members:    []string{firstMemberID},
 		BotInGroup: false,
@@ -60,6 +71,10 @@ func (s *Service) Create(ctx context.Context, groupID, firstMemberID string) err
 
 // GetMembers returns the list of members in a group.
 func (s *Service) GetMembers(ctx context.Context, groupID string) ([]string, error) {
+	if groupID == "" {
+		return nil, errors.New("groupID must not be empty")
+	}
+
 	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return nil, err
@@ -69,6 +84,13 @@ func (s *Service) GetMembers(ctx context.Context, groupID string) ([]string, err
 
 // IsMember checks if a user is a member of a group.
 func (s *Service) IsMember(ctx context.Context, groupID, userID string) (bool, error) {
+	if groupID == "" {
+		return false, errors.New("groupID must not be empty")
+	}
+	if userID == "" {
+		return false, errors.New("userID must not be empty")
+	}
+
 	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return false, err
@@ -79,6 +101,13 @@ func (s *Service) IsMember(ctx context.Context, groupID, userID string) (bool, e
 
 // AddMember adds a new member to a group.
 func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
+	if groupID == "" {
+		return errors.New("groupID must not be empty")
+	}
+	if userID == "" {
+		return errors.New("userID must not be empty")
+	}
+
 	group, gen, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return err
@@ -108,6 +137,10 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
 
 // IsBotInGroup checks if the bot is in a group.
 func (s *Service) IsBotInGroup(ctx context.Context, groupID string) (bool, error) {
+	if groupID == "" {
+		return false, errors.New("groupID must not be empty")
+	}
+
 	group, _, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return false, err
@@ -117,6 +150,10 @@ func (s *Service) IsBotInGroup(ctx context.Context, groupID string) (bool, error
 
 // AddBot adds the bot to a group.
 func (s *Service) AddBot(ctx context.Context, groupID string) error {
+	if groupID == "" {
+		return errors.New("groupID must not be empty")
+	}
+
 	group, gen, err := s.readGroup(ctx, groupID)
 	if err != nil {
 		return err
