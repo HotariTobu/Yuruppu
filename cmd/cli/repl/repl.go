@@ -33,7 +33,7 @@ type GroupSimService interface {
 	AddBot(ctx context.Context, groupID string) error
 }
 
-type Config struct {
+type Runner struct {
 	UserID          string
 	GroupID         *string
 	ProfileService  ProfileService
@@ -43,243 +43,239 @@ type Config struct {
 	Stdin           io.Reader
 	Stdout          io.Writer
 	Stderr          io.Writer
+	currentUserID   string
 }
 
-func formatUser(ctx context.Context, cfg Config, userID string) string {
-	if cfg.ProfileService != nil {
-		if p, err := cfg.ProfileService.GetUserProfile(ctx, userID); err == nil {
+func NewRunner(
+	userID string,
+	groupID *string,
+	profileService ProfileService,
+	groupSimService GroupSimService,
+	handler MessageHandler,
+	logger *slog.Logger,
+	stdin io.Reader,
+	stdout io.Writer,
+	stderr io.Writer,
+) (*Runner, error) {
+	if userID == "" {
+		return nil, errors.New("userID must not be empty")
+	}
+	if handler == nil {
+		return nil, errors.New("handler must not be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger must not be nil")
+	}
+	if stdin == nil {
+		return nil, errors.New("stdin must not be nil")
+	}
+	if stdout == nil {
+		return nil, errors.New("stdout must not be nil")
+	}
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	return &Runner{
+		UserID:          userID,
+		GroupID:         groupID,
+		ProfileService:  profileService,
+		GroupSimService: groupSimService,
+		Handler:         handler,
+		Logger:          logger,
+		Stdin:           stdin,
+		Stdout:          stdout,
+		Stderr:          stderr,
+		currentUserID:   userID,
+	}, nil
+}
+
+func (r *Runner) formatUser(ctx context.Context, userID string) string {
+	if r.ProfileService != nil {
+		if p, err := r.ProfileService.GetUserProfile(ctx, userID); err == nil {
 			return fmt.Sprintf("%s(%s)", p.DisplayName, userID)
 		}
 	}
 	return fmt.Sprintf("(%s)", userID)
 }
 
-func buildMessageContext(ctx context.Context, cfg Config, currentUserID string) context.Context {
+func (r *Runner) buildMessageContext(ctx context.Context) context.Context {
 	var msgCtx context.Context
-	if cfg.GroupID != nil {
+	if r.GroupID != nil {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-		msgCtx = line.WithSourceID(msgCtx, *cfg.GroupID)
+		msgCtx = line.WithSourceID(msgCtx, *r.GroupID)
 	} else {
 		msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
-		msgCtx = line.WithSourceID(msgCtx, currentUserID)
+		msgCtx = line.WithSourceID(msgCtx, r.currentUserID)
 	}
-	msgCtx = line.WithUserID(msgCtx, currentUserID)
+	msgCtx = line.WithUserID(msgCtx, r.currentUserID)
 	msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
 	return msgCtx
 }
 
-func buildPrompt(ctx context.Context, cfg Config, currentUserID string) string {
-	return formatUser(ctx, cfg, currentUserID) + "> "
+func (r *Runner) buildPrompt(ctx context.Context) string {
+	return r.formatUser(ctx, r.currentUserID) + "> "
 }
 
-// handleSwitchCommand handles the /switch <user-id> command.
-// Returns the new user ID on success, or the current user ID on error.
-func handleSwitchCommand(ctx context.Context, cfg Config, currentUserID, targetUserID string) string {
-	stderr := cfg.Stderr
-
-	// Check if in group mode
-	if cfg.GroupID == nil || cfg.GroupSimService == nil {
-		_, _ = fmt.Fprintln(stderr, "/switch is not available")
-		return currentUserID
-	}
-
-	// Check if target user is a member
-	isMember, err := cfg.GroupSimService.IsMember(ctx, *cfg.GroupID, targetUserID)
-	if err != nil {
-		cfg.Logger.ErrorContext(ctx, "failed to check membership", "error", err)
-		return currentUserID
-	}
-
-	if !isMember {
-		_, _ = fmt.Fprintf(stderr, "'%s' is not a member of this group\n", targetUserID)
-		return currentUserID
-	}
-
-	return targetUserID
-}
-
-// handleUsersCommand handles the /users command.
-// Lists all group members in the format: DisplayName(user-id), ...
-func handleUsersCommand(ctx context.Context, cfg Config) {
-	// Check if in group mode
-	if cfg.GroupID == nil || cfg.GroupSimService == nil {
-		_, _ = fmt.Fprintln(cfg.Stderr, "/users is not available")
+func (r *Runner) handleSwitch(ctx context.Context, targetUserID string) {
+	if r.GroupID == nil || r.GroupSimService == nil {
+		_, _ = fmt.Fprintln(r.Stderr, "/switch is not available")
 		return
 	}
 
-	// Get all members
-	members, err := cfg.GroupSimService.GetMembers(ctx, *cfg.GroupID)
+	isMember, err := r.GroupSimService.IsMember(ctx, *r.GroupID, targetUserID)
 	if err != nil {
-		cfg.Logger.ErrorContext(ctx, "failed to get members", "error", err)
+		r.Logger.ErrorContext(ctx, "failed to check membership", "error", err)
+		return
+	}
+
+	if !isMember {
+		_, _ = fmt.Fprintf(r.Stderr, "'%s' is not a member of this group\n", targetUserID)
+		return
+	}
+
+	r.currentUserID = targetUserID
+}
+
+func (r *Runner) handleUsers(ctx context.Context) {
+	if r.GroupID == nil || r.GroupSimService == nil {
+		_, _ = fmt.Fprintln(r.Stderr, "/users is not available")
+		return
+	}
+
+	members, err := r.GroupSimService.GetMembers(ctx, *r.GroupID)
+	if err != nil {
+		r.Logger.ErrorContext(ctx, "failed to get members", "error", err)
 		return
 	}
 
 	memberStrings := make([]string, 0, len(members))
 	for _, memberID := range members {
-		memberStrings = append(memberStrings, formatUser(ctx, cfg, memberID))
+		memberStrings = append(memberStrings, r.formatUser(ctx, memberID))
 	}
 
-	// Print to stdout
-	_, _ = fmt.Fprintln(cfg.Stdout, strings.Join(memberStrings, ", "))
+	_, _ = fmt.Fprintln(r.Stdout, strings.Join(memberStrings, ", "))
 }
 
-// handleInviteCommand handles the /invite <user-id> command.
-// Adds a new user to the group.
-func handleInviteCommand(ctx context.Context, cfg Config, currentUserID, invitedUserID string) {
-	stderr := cfg.Stderr
-
-	// Check if in group mode
-	if cfg.GroupID == nil || cfg.GroupSimService == nil {
-		_, _ = fmt.Fprintln(stderr, "/invite is not available")
+func (r *Runner) handleInvite(ctx context.Context, invitedUserID string) {
+	if r.GroupID == nil || r.GroupSimService == nil {
+		_, _ = fmt.Fprintln(r.Stderr, "/invite is not available")
 		return
 	}
 
-	// Validate user ID is not empty
 	invitedUserID = strings.TrimSpace(invitedUserID)
 	if invitedUserID == "" {
-		_, _ = fmt.Fprintln(stderr, "usage: /invite <user-id>")
+		_, _ = fmt.Fprintln(r.Stderr, "usage: /invite <user-id>")
 		return
 	}
 
-	// Add member to group
-	err := cfg.GroupSimService.AddMember(ctx, *cfg.GroupID, invitedUserID)
+	err := r.GroupSimService.AddMember(ctx, *r.GroupID, invitedUserID)
 	if err != nil {
-		// Check if error is because user is already a member
 		if strings.Contains(err.Error(), "already a member") {
-			_, _ = fmt.Fprintf(stderr, "%s is already a member of this group\n", invitedUserID)
+			_, _ = fmt.Fprintf(r.Stderr, "%s is already a member of this group\n", invitedUserID)
 			return
 		}
-		cfg.Logger.ErrorContext(ctx, "failed to add member", "error", err)
+		r.Logger.ErrorContext(ctx, "failed to add member", "error", err)
 		return
 	}
 
-	// Check if bot is in group - if yes, trigger HandleMemberJoined
-	botInGroup, err := cfg.GroupSimService.IsBotInGroup(ctx, *cfg.GroupID)
+	botInGroup, err := r.GroupSimService.IsBotInGroup(ctx, *r.GroupID)
 	if err != nil {
-		cfg.Logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
-		// Continue even if check fails - user was still added
+		r.Logger.ErrorContext(ctx, "failed to check bot presence", "error", err)
 	} else if botInGroup {
-		// Bot is in group - trigger HandleMemberJoined event
-		// Build context with group chat context
 		memberJoinedCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, *cfg.GroupID)
-		memberJoinedCtx = line.WithUserID(memberJoinedCtx, currentUserID)
+		memberJoinedCtx = line.WithSourceID(memberJoinedCtx, *r.GroupID)
+		memberJoinedCtx = line.WithUserID(memberJoinedCtx, r.currentUserID)
 		memberJoinedCtx = line.WithReplyToken(memberJoinedCtx, "cli-reply-token")
 
-		// Call HandleMemberJoined with the invited user's ID
-		if err := cfg.Handler.HandleMemberJoined(memberJoinedCtx, []string{invitedUserID}); err != nil {
-			cfg.Logger.ErrorContext(memberJoinedCtx, "HandleMemberJoined error", "error", err)
-			// Continue even if handler fails - user was still added to group
+		if err := r.Handler.HandleMemberJoined(memberJoinedCtx, []string{invitedUserID}); err != nil {
+			r.Logger.ErrorContext(memberJoinedCtx, "HandleMemberJoined error", "error", err)
 		}
 	}
 
-	// Success message to stdout
-	_, _ = fmt.Fprintf(cfg.Stdout, "%s has been invited to the group\n", invitedUserID)
+	_, _ = fmt.Fprintf(r.Stdout, "%s has been invited to the group\n", invitedUserID)
 }
 
-// handleInviteBotCommand handles the /invite-bot command.
-// Adds the bot to the group and triggers HandleJoin event.
-func handleInviteBotCommand(ctx context.Context, cfg Config, currentUserID string) {
-	stderr := cfg.Stderr
-
-	// Check if in group mode
-	if cfg.GroupID == nil || cfg.GroupSimService == nil {
-		_, _ = fmt.Fprintln(stderr, "/invite-bot is not available")
+func (r *Runner) handleInviteBot(ctx context.Context) {
+	if r.GroupID == nil || r.GroupSimService == nil {
+		_, _ = fmt.Fprintln(r.Stderr, "/invite-bot is not available")
 		return
 	}
 
-	// Add bot to group
-	err := cfg.GroupSimService.AddBot(ctx, *cfg.GroupID)
+	err := r.GroupSimService.AddBot(ctx, *r.GroupID)
 	if err != nil {
-		// Check if error is because bot is already in group
 		if strings.Contains(err.Error(), "already in the group") {
-			_, _ = fmt.Fprintln(stderr, "bot is already in the group")
+			_, _ = fmt.Fprintln(r.Stderr, "bot is already in the group")
 			return
 		}
-		cfg.Logger.ErrorContext(ctx, "failed to add bot to group", "error", err)
+		r.Logger.ErrorContext(ctx, "failed to add bot to group", "error", err)
 		return
 	}
 
-	// Build context for HandleJoin with group chat context
 	joinCtx := line.WithChatType(ctx, line.ChatTypeGroup)
-	joinCtx = line.WithSourceID(joinCtx, *cfg.GroupID)
-	joinCtx = line.WithUserID(joinCtx, currentUserID)
+	joinCtx = line.WithSourceID(joinCtx, *r.GroupID)
+	joinCtx = line.WithUserID(joinCtx, r.currentUserID)
 	joinCtx = line.WithReplyToken(joinCtx, "cli-reply-token")
 
-	// Call HandleJoin
-	if err := cfg.Handler.HandleJoin(joinCtx); err != nil {
-		cfg.Logger.ErrorContext(joinCtx, "HandleJoin error", "error", err)
-		// Continue even if handler fails - bot was still added to group
+	if err := r.Handler.HandleJoin(joinCtx); err != nil {
+		r.Logger.ErrorContext(joinCtx, "HandleJoin error", "error", err)
 	}
 
-	// Success message to stdout
-	_, _ = fmt.Fprintln(cfg.Stdout, "Bot has been invited to the group")
+	_, _ = fmt.Fprintln(r.Stdout, "Bot has been invited to the group")
+}
+
+func (r *Runner) handleText(ctx context.Context, text string) {
+	msgCtx := r.buildMessageContext(ctx)
+
+	if r.GroupID != nil && r.GroupSimService != nil {
+		botInGroup, err := r.GroupSimService.IsBotInGroup(msgCtx, *r.GroupID)
+		if err != nil {
+			r.Logger.ErrorContext(msgCtx, "failed to check bot presence", "error", err)
+			return
+		}
+		if !botInGroup {
+			return
+		}
+	}
+
+	if err := r.Handler.HandleText(msgCtx, text); err != nil {
+		r.Logger.ErrorContext(msgCtx, "handler error", "error", err)
+	}
 }
 
 // Run starts the REPL loop.
 // Exits on /quit, Ctrl+C twice, or context cancellation.
-func Run(ctx context.Context, cfg Config) error {
-	// Validate config
+func (r *Runner) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("context must not be nil")
 	}
-	if cfg.UserID == "" {
-		return errors.New("userID must not be empty")
-	}
-	if cfg.Handler == nil {
-		return errors.New("handler must not be nil")
-	}
-	if cfg.Logger == nil {
-		return errors.New("logger must not be nil")
-	}
-	if cfg.Stdin == nil {
-		return errors.New("stdin must not be nil")
-	}
-	if cfg.Stdout == nil {
-		return errors.New("stdout must not be nil")
-	}
-	if cfg.Stderr == nil {
-		cfg.Stderr = os.Stderr
-	}
 
-	// Setup signal handler for SIGINT (Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 	defer signal.Stop(sigChan)
 
-	// Track Ctrl+C count
 	ctrlCCount := 0
 
-	// Track current user (can be changed with /switch command)
-	currentUserID := cfg.UserID
+	scanner := bufio.NewScanner(r.Stdin)
 
-	// Create scanner for reading input
-	scanner := bufio.NewScanner(cfg.Stdin)
-
-	// Channel to signal when input is available
 	inputChan := make(chan string)
 	doneChan := make(chan error, 1)
 
-	// Start scanning goroutine
 	go func() {
 		for scanner.Scan() {
 			inputChan <- scanner.Text()
 		}
-		// Check for scanner error
 		if err := scanner.Err(); err != nil {
 			doneChan <- err
 		} else {
-			doneChan <- nil // EOF
+			doneChan <- nil
 		}
 		close(inputChan)
 	}()
 
 	for {
-		// Display prompt
-		prompt := buildPrompt(ctx, cfg, currentUserID)
-		_, _ = fmt.Fprint(cfg.Stdout, prompt)
+		_, _ = fmt.Fprint(r.Stdout, r.buildPrompt(ctx))
 
-		// Wait for input or signals
 		select {
 		case <-ctx.Done():
 			return context.Canceled
@@ -287,90 +283,61 @@ func Run(ctx context.Context, cfg Config) error {
 		case <-sigChan:
 			ctrlCCount++
 			if ctrlCCount == 1 {
-				// First Ctrl+C: show warning
-				_, _ = fmt.Fprintln(cfg.Stderr, "Press Ctrl+C again to exit")
+				_, _ = fmt.Fprintln(r.Stderr, "Press Ctrl+C again to exit")
 			} else {
-				// Second Ctrl+C: exit cleanly
 				return nil
 			}
 
 		case err := <-doneChan:
-			// Scanner finished (EOF or error)
 			return err
 
 		case text, ok := <-inputChan:
 			if !ok {
-				// Channel closed, wait for done signal
 				return <-doneChan
 			}
 
-			// Reset Ctrl+C count on user input
 			ctrlCCount = 0
 
-			// Trim whitespace
 			trimmed := strings.TrimSpace(text)
 
-			// Skip empty lines
 			if trimmed == "" {
 				continue
 			}
 
-			// Handle /quit command
 			if trimmed == "/quit" {
 				return nil
 			}
 
-			// Handle /switch command
 			if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
 				targetUserID = strings.TrimSpace(targetUserID)
 				if targetUserID == "" {
-					_, _ = fmt.Fprintln(cfg.Stderr, "usage: /switch <user-id>")
+					_, _ = fmt.Fprintln(r.Stderr, "usage: /switch <user-id>")
 					continue
 				}
-				currentUserID = handleSwitchCommand(ctx, cfg, currentUserID, targetUserID)
+				r.handleSwitch(ctx, targetUserID)
 				continue
 			}
 
-			// Handle /users command
 			if trimmed == "/users" {
-				handleUsersCommand(ctx, cfg)
+				r.handleUsers(ctx)
 				continue
 			}
 
-			// Handle /invite command
 			if targetUserID, ok := strings.CutPrefix(trimmed, "/invite "); ok {
-				handleInviteCommand(ctx, cfg, currentUserID, targetUserID)
+				r.handleInvite(ctx, targetUserID)
 				continue
 			}
 			if trimmed == "/invite" {
-				_, _ = fmt.Fprintln(cfg.Stderr, "usage: /invite <user-id>")
+				_, _ = fmt.Fprintln(r.Stderr, "usage: /invite <user-id>")
 				continue
 			}
 
-			// Handle /invite-bot command
 			if trimmed == "/invite-bot" {
-				handleInviteBotCommand(ctx, cfg, currentUserID)
+				r.handleInviteBot(ctx)
 				continue
 			}
 
-			// Prepare context with LINE context values
-			msgCtx := buildMessageContext(ctx, cfg, currentUserID)
-
-			if cfg.GroupID != nil && cfg.GroupSimService != nil {
-				botInGroup, err := cfg.GroupSimService.IsBotInGroup(msgCtx, *cfg.GroupID)
-				if err != nil {
-					cfg.Logger.ErrorContext(msgCtx, "failed to check bot presence", "error", err)
-					continue
-				}
-				if !botInGroup {
-					continue
-				}
-			}
-
-			// Call handler
-			if err := cfg.Handler.HandleText(msgCtx, trimmed); err != nil {
-				cfg.Logger.ErrorContext(msgCtx, "handler error", "error", err)
-			}
+			r.handleText(ctx, trimmed)
 		}
 	}
 }

@@ -13,12 +13,10 @@ import (
 	"time"
 	"yuruppu/cmd/cli/groupsim"
 	"yuruppu/cmd/cli/mock"
-	cliprofile "yuruppu/cmd/cli/profile"
 	"yuruppu/cmd/cli/repl"
 	"yuruppu/cmd/cli/setup"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
-	eventdomain "yuruppu/internal/event"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/media"
@@ -28,51 +26,14 @@ import (
 	"yuruppu/internal/toolset/skip"
 	"yuruppu/internal/toolset/weather"
 	"yuruppu/internal/yuruppu"
+
+	cliprofile "yuruppu/cmd/cli/profile"
+
+	eventdomain "yuruppu/internal/event"
 )
 
 // userIDPattern validates user ID format: [0-9a-z_]+
 var userIDPattern = regexp.MustCompile(`^[0-9a-z_]+$`)
-
-// handleGroupMode handles group creation and membership validation.
-// Returns nil if group mode is not enabled or validation passes.
-func handleGroupMode(ctx context.Context, dataDir, groupID, userID string) error {
-	if groupID == "" {
-		return nil
-	}
-
-	// Create GroupSimService
-	groupSimStorage := mock.NewFileStorage(dataDir, "groupsim/")
-	groupService, err := groupsim.NewService(groupSimStorage)
-	if err != nil {
-		return fmt.Errorf("failed to create group service: %w", err)
-	}
-
-	// Check if group exists
-	exists, err := groupService.Exists(ctx, groupID)
-	if err != nil {
-		return fmt.Errorf("failed to check group existence: %w", err)
-	}
-
-	if !exists {
-		// Create new group with current user as first member
-		if err := groupService.Create(ctx, groupID, userID); err != nil {
-			return fmt.Errorf("failed to create group: %w", err)
-		}
-		return nil
-	}
-
-	// Group exists, check if user is a member
-	isMember, err := groupService.IsMember(ctx, groupID, userID)
-	if err != nil {
-		return fmt.Errorf("failed to check group membership: %w", err)
-	}
-
-	if !isMember {
-		return fmt.Errorf("user '%s' is not a member of group '%s'", userID, groupID)
-	}
-
-	return nil
-}
 
 func main() {
 	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
@@ -145,8 +106,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	// Handle group mode if -group-id is specified
 	ctx := context.Background()
-	if err := handleGroupMode(ctx, *dataDir, *groupID, *userID); err != nil {
-		return err
+	var groupService *groupsim.Service
+	if *groupID != "" {
+		var err error
+		groupService, err = setup.EnsureGroup(ctx, *dataDir, *groupID, *userID)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create profile service
@@ -244,9 +210,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		logger.Info("profile created successfully", slog.String("userID", *userID))
 	}
 
-	// Single-turn mode or REPL mode
+	// Single-turn mode
 	if *message != "" {
-		// Single-turn mode (1-on-1 chat)
 		msgCtx := line.WithChatType(ctx, line.ChatTypeOneOnOne)
 		msgCtx = line.WithSourceID(msgCtx, *userID)
 		msgCtx = line.WithUserID(msgCtx, *userID)
@@ -255,18 +220,20 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		if err := handler.HandleText(msgCtx, *message); err != nil {
 			return fmt.Errorf("failed to handle message: %w", err)
 		}
-	} else {
-		// REPL mode
-		if err := repl.Run(ctx, repl.Config{
-			UserID:  *userID,
-			Handler: handler,
-			Logger:  logger,
-			Stdin:   stdin,
-			Stdout:  stdout,
-		}); err != nil {
-			return fmt.Errorf("REPL error: %w", err)
-		}
+		return nil
 	}
 
+	// REPL mode
+	var groupIDPtr *string
+	if *groupID != "" {
+		groupIDPtr = groupID
+	}
+	r, err := repl.NewRunner(*userID, groupIDPtr, profileService, groupService, handler, logger, stdin, stdout, stderr)
+	if err != nil {
+		return fmt.Errorf("failed to create REPL: %w", err)
+	}
+	if err := r.Run(ctx); err != nil {
+		return fmt.Errorf("REPL error: %w", err)
+	}
 	return nil
 }
