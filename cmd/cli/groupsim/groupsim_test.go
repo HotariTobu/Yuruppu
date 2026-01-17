@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 	"yuruppu/cmd/cli/groupsim"
@@ -182,7 +183,7 @@ func TestService_Create(t *testing.T) {
 
 		// Then
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "group already exists")
+		assert.Contains(t, err.Error(), "failed to create group")
 	})
 }
 
@@ -717,6 +718,11 @@ func (m *mockStorage) Write(ctx context.Context, key, mimeType string, data []by
 	m.lastWriteData = data
 	if m.writeErr != nil {
 		return 0, m.writeErr
+	}
+	if expectedGen == 0 {
+		if _, exists := m.data[key]; exists {
+			return 0, fmt.Errorf("precondition failed: object already exists")
+		}
 	}
 	m.data[key] = data
 	m.generation++
