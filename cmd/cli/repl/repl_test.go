@@ -230,8 +230,6 @@ func (m *mockGroupSimService) AddBot(_ context.Context, groupID string) error {
 	return nil
 }
 
-func ptr(s string) *string { return &s }
-
 func createBlockingPipe() (*os.File, *os.File) {
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -245,7 +243,7 @@ func TestNewRunner_Validation(t *testing.T) {
 	t.Run("empty userID", func(t *testing.T) {
 		_, err := repl.NewRunner(
 			"",
-			nil,
+			"",
 			nil,
 			nil,
 			&mockHandler{},
@@ -261,7 +259,7 @@ func TestNewRunner_Validation(t *testing.T) {
 	t.Run("nil handler", func(t *testing.T) {
 		_, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			nil,
@@ -277,7 +275,7 @@ func TestNewRunner_Validation(t *testing.T) {
 	t.Run("nil logger", func(t *testing.T) {
 		_, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			&mockHandler{},
@@ -293,7 +291,7 @@ func TestNewRunner_Validation(t *testing.T) {
 	t.Run("nil stdin", func(t *testing.T) {
 		_, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			&mockHandler{},
@@ -309,7 +307,7 @@ func TestNewRunner_Validation(t *testing.T) {
 	t.Run("nil stdout", func(t *testing.T) {
 		_, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			&mockHandler{},
@@ -327,7 +325,7 @@ func TestNewRunner_Valid(t *testing.T) {
 	t.Run("should create runner with valid inputs", func(t *testing.T) {
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			&mockHandler{},
@@ -350,7 +348,7 @@ func TestRun_QuitCommand(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -387,7 +385,7 @@ func TestRun_EmptyInput(t *testing.T) {
 
 			r, err := repl.NewRunner(
 				"test-user",
-				nil,
+				"",
 				nil,
 				nil,
 				handler,
@@ -414,7 +412,7 @@ func TestRun_TextInput(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -449,7 +447,7 @@ func TestRun_ContextValues(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user-123",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -490,7 +488,7 @@ func TestRun_HandlerError(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -519,7 +517,7 @@ func TestRun_ContextCancellation(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -559,7 +557,7 @@ func TestRun_MultipleMessages(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -592,7 +590,7 @@ func TestRun_PromptDisplay(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -620,7 +618,7 @@ func TestRun_StdinEOF(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"test-user",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -656,7 +654,7 @@ func TestRun_GroupMode_ChatContext(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -701,7 +699,7 @@ func TestRun_OneOnOneMode_ChatContext(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -749,7 +747,7 @@ func TestRun_Prompt_WithProfile(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -783,7 +781,7 @@ func TestRun_Prompt_WithoutProfile(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"bob",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -813,7 +811,7 @@ func TestRun_Prompt_NoProfileService(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -850,7 +848,7 @@ func TestRun_SwitchCommand_Success(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -889,7 +887,7 @@ func TestRun_SwitchCommand_InvalidUser(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -920,7 +918,7 @@ func TestRun_SwitchCommand_NotInGroupMode(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -958,7 +956,7 @@ func TestRun_UsersCommand_Success(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -996,7 +994,7 @@ func TestRun_UsersCommand_WithoutProfile(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			profileService,
 			groupSim,
 			handler,
@@ -1024,7 +1022,7 @@ func TestRun_UsersCommand_NotInGroupMode(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -1054,7 +1052,7 @@ func TestRun_InviteCommand_Success(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1089,7 +1087,7 @@ func TestRun_InviteCommand_ExistingMember(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1116,7 +1114,7 @@ func TestRun_InviteCommand_NotInGroupMode(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -1147,7 +1145,7 @@ func TestRun_InviteCommand_EmptyUserID(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1177,7 +1175,7 @@ func TestRun_InviteCommand_WithWhitespace(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1211,7 +1209,7 @@ func TestRun_BotNotInGroup_NoLLMCall(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1241,7 +1239,7 @@ func TestRun_BotInGroup_LLMCalled(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1270,7 +1268,7 @@ func TestRun_OneOnOneMode_AlwaysProcessed(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -1304,7 +1302,7 @@ func TestRun_BotStatusCheck_ErrorHandling(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1334,7 +1332,7 @@ func TestRun_InviteBotCommand_Success(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1374,7 +1372,7 @@ func TestRun_InviteBotCommand_AlreadyInGroup(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1402,7 +1400,7 @@ func TestRun_InviteBotCommand_NotInGroupMode(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			nil,
+			"",
 			nil,
 			nil,
 			handler,
@@ -1433,7 +1431,7 @@ func TestRun_InviteBotCommand_EnablesMessageProcessing(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1468,7 +1466,7 @@ func TestRun_InviteCommand_TriggersHandleMemberJoined(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1511,7 +1509,7 @@ func TestRun_InviteCommand_BotNotInGroup_NoHandleMemberJoined(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,
@@ -1550,7 +1548,7 @@ func TestRun_InviteCommand_HandleMemberJoinedError(t *testing.T) {
 
 		r, err := repl.NewRunner(
 			"alice",
-			ptr("mygroup"),
+			"mygroup",
 			nil,
 			groupSim,
 			handler,

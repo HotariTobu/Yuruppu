@@ -224,11 +224,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// REPL mode
-	var groupIDPtr *string
-	if *groupID != "" {
-		groupIDPtr = groupID
-	}
-	r, err := repl.NewRunner(*userID, groupIDPtr, profileService, groupService, handler, logger, stdin, stdout, stderr)
+	r, err := repl.NewRunner(*userID, *groupID, profileService, groupService, handler, logger, stdin, stdout, stderr)
 	if err != nil {
 		return fmt.Errorf("failed to create REPL: %w", err)
 	}
