@@ -34,9 +34,9 @@ type GroupSimService interface {
 }
 
 type Config struct {
-	UserID  string
-	GroupID *string
-	ProfileService
+	UserID          string
+	GroupID         *string
+	ProfileService  ProfileService
 	GroupSimService GroupSimService
 	Handler         MessageHandler
 	Logger          *slog.Logger
@@ -47,7 +47,7 @@ type Config struct {
 
 func formatUser(ctx context.Context, cfg Config, userID string) string {
 	if cfg.ProfileService != nil {
-		if p, err := cfg.GetUserProfile(ctx, userID); err == nil {
+		if p, err := cfg.ProfileService.GetUserProfile(ctx, userID); err == nil {
 			return fmt.Sprintf("%s(%s)", p.DisplayName, userID)
 		}
 	}
