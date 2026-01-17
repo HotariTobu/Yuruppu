@@ -204,7 +204,7 @@ func (h *Handler) handleMessage(ctx context.Context, userMsg *history.UserMessag
 			return name
 		}
 		var name string
-		if p, err := h.profileService.GetUserProfile(ctx, userID); err == nil {
+		if p, err := h.userProfileService.GetUserProfile(ctx, userID); err == nil {
 			name = p.DisplayName
 		} else {
 			name = "Unknown User"
@@ -270,7 +270,7 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 	}
 	parts := []agent.UserPart{&agent.UserTextPart{Text: buf.String()}}
 
-	p, err := h.profileService.GetUserProfile(ctx, userID)
+	p, err := h.userProfileService.GetUserProfile(ctx, userID)
 	if err != nil {
 		h.logger.WarnContext(ctx, "failed to get user profile",
 			slog.String("userID", userID),

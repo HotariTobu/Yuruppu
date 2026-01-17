@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"yuruppu/internal/line"
-	"yuruppu/internal/profile"
+	"yuruppu/internal/userprofile"
 )
 
 // CLIReplyToken is a dummy reply token used for CLI messages.
@@ -24,8 +24,8 @@ type MessageHandler interface {
 	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
 }
 
-type ProfileService interface {
-	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
+type UserProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
 }
 
 type GroupSimService interface {
@@ -37,20 +37,20 @@ type GroupSimService interface {
 }
 
 type Runner struct {
-	userID          string
-	groupID         string
-	profileService  ProfileService
-	groupSimService GroupSimService
-	handler         MessageHandler
-	logger          *slog.Logger
-	stdin           io.Reader
-	stdout          io.Writer
+	userID             string
+	groupID            string
+	userProfileService UserProfileService
+	groupSimService    GroupSimService
+	handler            MessageHandler
+	logger             *slog.Logger
+	stdin              io.Reader
+	stdout             io.Writer
 }
 
 func NewRunner(
 	userID string,
 	groupID string,
-	profileService ProfileService,
+	userProfileService UserProfileService,
 	groupSimService GroupSimService,
 	handler MessageHandler,
 	logger *slog.Logger,
@@ -74,20 +74,20 @@ func NewRunner(
 	}
 
 	return &Runner{
-		userID:          userID,
-		groupID:         groupID,
-		profileService:  profileService,
-		groupSimService: groupSimService,
-		handler:         handler,
-		logger:          logger,
-		stdin:           stdin,
-		stdout:          stdout,
+		userID:             userID,
+		groupID:            groupID,
+		userProfileService: userProfileService,
+		groupSimService:    groupSimService,
+		handler:            handler,
+		logger:             logger,
+		stdin:              stdin,
+		stdout:             stdout,
 	}, nil
 }
 
 func (r *Runner) formatUser(ctx context.Context, userID string) string {
-	if r.profileService != nil {
-		if p, err := r.profileService.GetUserProfile(ctx, userID); err == nil {
+	if r.userProfileService != nil {
+		if p, err := r.userProfileService.GetUserProfile(ctx, userID); err == nil {
 			return fmt.Sprintf("%s(%s)", p.DisplayName, userID)
 		}
 	}

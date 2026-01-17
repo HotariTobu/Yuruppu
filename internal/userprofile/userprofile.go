@@ -1,4 +1,4 @@
-package profile
+package userprofile
 
 import (
 	"context"

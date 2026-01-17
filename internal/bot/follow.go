@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"yuruppu/internal/line"
-	"yuruppu/internal/profile"
+	"yuruppu/internal/userprofile"
 )
 
 func (h *Handler) HandleFollow(ctx context.Context) error {
@@ -15,12 +15,12 @@ func (h *Handler) HandleFollow(ctx context.Context) error {
 		return fmt.Errorf("userID not found in context")
 	}
 
-	lineProfile, err := h.lineClient.GetProfile(ctx, userID)
+	lineProfile, err := h.lineClient.GetUserProfile(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch profile: %w", err)
 	}
 
-	p := &profile.UserProfile{
+	p := &userprofile.UserProfile{
 		DisplayName:   lineProfile.DisplayName,
 		PictureURL:    lineProfile.PictureURL,
 		StatusMessage: lineProfile.StatusMessage,
@@ -38,7 +38,7 @@ func (h *Handler) HandleFollow(ctx context.Context) error {
 		}
 	}
 
-	if err := h.profileService.SetUserProfile(ctx, userID, p); err != nil {
+	if err := h.userProfileService.SetUserProfile(ctx, userID, p); err != nil {
 		return fmt.Errorf("failed to store profile: %w", err)
 	}
 

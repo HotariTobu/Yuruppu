@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
-	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/create"
 	"yuruppu/internal/toolset/event/get"
 	"yuruppu/internal/toolset/event/list"
 	"yuruppu/internal/toolset/event/remove"
 	"yuruppu/internal/toolset/event/update"
+	"yuruppu/internal/userprofile"
 )
 
 // EventService provides access to event operations.
@@ -23,19 +23,19 @@ type EventService interface {
 	Remove(ctx context.Context, chatRoomID string) error
 }
 
-// ProfileService provides access to user profile operations.
-type ProfileService interface {
-	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
+// UserProfileService provides access to user profile operations.
+type UserProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
 }
 
 // NewTools creates all event management tools (create, get, list).
 // Returns error if any service is nil or configuration values are invalid.
-func NewTools(eventService EventService, profileService ProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
+func NewTools(eventService EventService, userProfileService UserProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
-	if profileService == nil {
-		return nil, errors.New("profileService cannot be nil")
+	if userProfileService == nil {
+		return nil, errors.New("userProfileService cannot be nil")
 	}
 	if listMaxPeriodDays <= 0 {
 		return nil, errors.New("listMaxPeriodDays must be positive")
@@ -54,7 +54,7 @@ func NewTools(eventService EventService, profileService ProfileService, listMaxP
 	}
 
 	// Create get_event tool
-	getTool, err := get.New(eventService, profileService, logger)
+	getTool, err := get.New(eventService, userProfileService, logger)
 	if err != nil {
 		return nil, err
 	}

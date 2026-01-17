@@ -14,12 +14,13 @@ import (
 	"time"
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
+	"yuruppu/internal/groupprofile"
 	"yuruppu/internal/history"
 	lineclient "yuruppu/internal/line/client"
 	lineserver "yuruppu/internal/line/server"
 	"yuruppu/internal/media"
-	"yuruppu/internal/profile"
 	"yuruppu/internal/storage"
+	"yuruppu/internal/userprofile"
 	"yuruppu/internal/toolset/event"
 	"yuruppu/internal/toolset/reply"
 	"yuruppu/internal/toolset/skip"
@@ -297,15 +298,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create profile service (needed by event tools and handler)
-	profileStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "profile/")
+	// Create user profile service (needed by event tools and handler)
+	userProfileStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "userprofile/")
 	if err != nil {
-		logger.Error("failed to create profile storage", slog.Any("error", err))
+		logger.Error("failed to create user profile storage", slog.Any("error", err))
 		os.Exit(1)
 	}
-	profileService, err := profile.NewService(profileStorage, logger)
+	userProfileService, err := userprofile.NewService(userProfileStorage, logger)
 	if err != nil {
-		logger.Error("failed to create profile service", slog.Any("error", err))
+		logger.Error("failed to create user profile service", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Create group profile service
+	groupProfileStorage, err := storage.NewGCSStorage(gcsClient, config.BucketName, "groupprofile/")
+	if err != nil {
+		logger.Error("failed to create group profile storage", slog.Any("error", err))
+		os.Exit(1)
+	}
+	groupProfileService, err := groupprofile.NewService(groupProfileStorage, logger)
+	if err != nil {
+		logger.Error("failed to create group profile service", slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -320,7 +333,7 @@ func main() {
 		logger.Error("failed to create event service", slog.Any("error", err))
 		os.Exit(1)
 	}
-	eventTools, err := event.NewTools(eventService, profileService, config.EventListMaxPeriodDays, config.EventListLimit, logger)
+	eventTools, err := event.NewTools(eventService, userProfileService, config.EventListMaxPeriodDays, config.EventListLimit, logger)
 	if err != nil {
 		logger.Error("failed to create event tools", slog.Any("error", err))
 		os.Exit(1)
@@ -368,7 +381,7 @@ func main() {
 		TypingIndicatorDelay:   time.Duration(config.TypingIndicatorDelaySeconds) * time.Second,
 		TypingIndicatorTimeout: time.Duration(config.TypingIndicatorTimeoutSeconds) * time.Second,
 	}
-	messageHandler, err := bot.NewHandler(lineClient, profileService, historySvc, mediaSvc, geminiAgent, handlerConfig, logger)
+	messageHandler, err := bot.NewHandler(lineClient, userProfileService, groupProfileService, historySvc, mediaSvc, geminiAgent, handlerConfig, logger)
 	if err != nil {
 		logger.Error("failed to create message handler", slog.Any("error", err))
 		os.Exit(1)

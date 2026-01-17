@@ -1,4 +1,4 @@
-package profile_test
+package userprofile_test
 
 import (
 	"context"
