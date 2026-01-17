@@ -11,10 +11,9 @@ import (
 
 // Sentinel errors.
 var (
-	ErrGroupNotFound      = errors.New("group not found")
-	ErrAlreadyMember      = errors.New("already a member")
-	ErrBotAlreadyInGroup  = errors.New("bot is already in the group")
-	ErrGroupAlreadyExists = errors.New("group already exists")
+	ErrGroupNotFound     = errors.New("group not found")
+	ErrAlreadyMember     = errors.New("already a member")
+	ErrBotAlreadyInGroup = errors.New("bot is already in the group")
 )
 
 // groupSim is internal storage structure.
@@ -47,16 +46,6 @@ func (s *Service) Exists(ctx context.Context, groupID string) (bool, error) {
 
 // Create creates a new group with the first member.
 func (s *Service) Create(ctx context.Context, groupID, firstMemberID string) error {
-	// Check if group already exists
-	exists, err := s.Exists(ctx, groupID)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return ErrGroupAlreadyExists
-	}
-
-	// Create new group data
 	group := groupSim{
 		Members:    []string{firstMemberID},
 		BotInGroup: false,
