@@ -8,9 +8,9 @@ import (
 	"yuruppu/internal/event"
 	"yuruppu/internal/profile"
 	"yuruppu/internal/toolset/event/create"
-	"yuruppu/internal/toolset/event/delete"
 	"yuruppu/internal/toolset/event/get"
 	"yuruppu/internal/toolset/event/list"
+	"yuruppu/internal/toolset/event/remove"
 	"yuruppu/internal/toolset/event/update"
 )
 
@@ -72,7 +72,7 @@ func NewTools(eventService EventService, profileService ProfileService, listMaxP
 	}
 
 	// Create delete_event tool
-	deleteTool, err := delete.New(eventService, logger)
+	deleteTool, err := remove.New(eventService, logger)
 	if err != nil {
 		return nil, err
 	}

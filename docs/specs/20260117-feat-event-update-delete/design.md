@@ -14,10 +14,10 @@ Add `update_event` and `delete_event` tools to complete the event management lif
 | `internal/toolset/event/update/update_test.go` | update_event tool tests |
 | `internal/toolset/event/update/parameters.json` | Input schema for update_event |
 | `internal/toolset/event/update/response.json` | Output schema for update_event |
-| `internal/toolset/event/delete/delete.go` | delete_event tool implementation |
-| `internal/toolset/event/delete/delete_test.go` | delete_event tool tests |
-| `internal/toolset/event/delete/parameters.json` | Input schema for delete_event |
-| `internal/toolset/event/delete/response.json` | Output schema for delete_event |
+| `internal/toolset/event/remove/remove.go` | delete_event tool implementation |
+| `internal/toolset/event/remove/remove_test.go` | delete_event tool tests |
+| `internal/toolset/event/remove/parameters.json` | Input schema for delete_event |
+| `internal/toolset/event/remove/response.json` | Output schema for delete_event |
 | `internal/toolset/event/event.go` | Extend EventService interface and NewTools() |
 | `internal/toolset/event/event_test.go` | Update mock and test expectations |
 
