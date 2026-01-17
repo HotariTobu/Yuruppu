@@ -11,7 +11,6 @@ import (
 	"os"
 	"regexp"
 	"time"
-
 	"yuruppu/cmd/cli/mock"
 	cliprofile "yuruppu/cmd/cli/profile"
 	"yuruppu/cmd/cli/repl"
@@ -19,7 +18,6 @@ import (
 	"yuruppu/internal/agent"
 	"yuruppu/internal/bot"
 	eventdomain "yuruppu/internal/event"
-	"yuruppu/internal/group"
 	"yuruppu/internal/history"
 	"yuruppu/internal/line"
 	"yuruppu/internal/media"
@@ -61,7 +59,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	userID := fs.String("user-id", "default", "User ID for the conversation")
 	dataDir := fs.String("data-dir", ".yuruppu/", "Data directory for storage")
 	message := fs.String("message", "", "Single message to send (single-turn mode)")
-	groupID := fs.String("group-id", "", "Group ID for group chat mode (optional)")
 
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -102,18 +99,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	profileStorage := mock.NewFileStorage(*dataDir, "profile/")
 	historyStorage := mock.NewFileStorage(*dataDir, "history/")
 	mediaStorage := mock.NewFileStorage(*dataDir, "media/")
-	groupStorage := mock.NewFileStorage(*dataDir, "group/")
 
 	// Create profile service
 	profileService, err := profile.NewService(profileStorage, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create profile service: %w", err)
-	}
-
-	// Create group service
-	groupService, err := group.NewService(groupStorage)
-	if err != nil {
-		return fmt.Errorf("failed to create group service: %w", err)
 	}
 
 	ctx := context.Background()
@@ -207,59 +197,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		logger.Info("profile created successfully", slog.String("userID", *userID))
 	}
 
-	// Handle group mode startup
-	if *groupID != "" {
-		existingGroup, _, err := groupService.GetGroup(ctx, *groupID)
-		if err != nil {
-			return fmt.Errorf("failed to check group: %w", err)
-		}
-
-		if existingGroup == nil {
-			// FR-002: Create new group with user as first member
-			if err := groupService.CreateGroup(ctx, *groupID, *userID); err != nil {
-				return fmt.Errorf("failed to create group: %w", err)
-			}
-			logger.Info("group created", slog.String("groupID", *groupID), slog.String("firstMember", *userID))
-		} else {
-			// FR-003/FR-004: Validate membership
-			isMember, err := groupService.IsMember(ctx, *groupID, *userID)
-			if err != nil {
-				return fmt.Errorf("failed to check membership: %w", err)
-			}
-			if !isMember {
-				return fmt.Errorf("user '%s' is not a member of group '%s'", *userID, *groupID)
-			}
-		}
-	}
-
 	// Single-turn mode or REPL mode
 	if *message != "" {
-		// Single-turn mode
-		var msgCtx context.Context
-		if *groupID != "" {
-			// Group chat mode
-			msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-			msgCtx = line.WithSourceID(msgCtx, *groupID)
-			msgCtx = line.WithUserID(msgCtx, *userID)
-		} else {
-			// 1-on-1 chat mode
-			msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
-			msgCtx = line.WithSourceID(msgCtx, *userID)
-			msgCtx = line.WithUserID(msgCtx, *userID)
-		}
+		// Single-turn mode (1-on-1 chat)
+		msgCtx := line.WithChatType(ctx, line.ChatTypeOneOnOne)
+		msgCtx = line.WithSourceID(msgCtx, *userID)
+		msgCtx = line.WithUserID(msgCtx, *userID)
 		msgCtx = line.WithReplyToken(msgCtx, "cli-reply-token")
-
-		// In group mode, skip if bot is not in group
-		if *groupID != "" {
-			botInGroup, err := groupService.IsBotInGroup(ctx, *groupID)
-			if err != nil {
-				return fmt.Errorf("failed to check bot membership: %w", err)
-			}
-			if !botInGroup {
-				logger.Info("bot is not in group, message not sent")
-				return nil
-			}
-		}
 
 		if err := handler.HandleText(msgCtx, *message); err != nil {
 			return fmt.Errorf("failed to handle message: %w", err)
@@ -267,14 +211,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	} else {
 		// REPL mode
 		if err := repl.Run(ctx, repl.Config{
-			UserID:         *userID,
-			Handler:        handler,
-			Logger:         logger,
-			Stdin:          stdin,
-			Stdout:         stdout,
-			GroupID:        *groupID,
-			GroupService:   groupService,
-			ProfileService: profileService,
+			UserID:  *userID,
+			Handler: handler,
+			Logger:  logger,
+			Stdin:   stdin,
+			Stdout:  stdout,
 		}); err != nil {
 			return fmt.Errorf("REPL error: %w", err)
 		}
