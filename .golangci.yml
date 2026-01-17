@@ -95,6 +95,10 @@ linters:
     gosec:
       excludes:
         - G114  # http.ListenAndServe timeout - acceptable for this project
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
 
   exclusions:
     rules:

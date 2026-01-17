@@ -39,7 +39,7 @@ func (fs *FileStorage) Read(_ context.Context, key string) ([]byte, int64, error
 	}
 
 	// Read file content
-	data, err := os.ReadFile(filePath) //nolint:gosec // CLI tool reads user-specified files by design
+	data, err := os.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read file: %w", err)
 	}
