@@ -73,7 +73,7 @@ func TestService_Exists(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 
 		// When
 		exists, err := svc.Exists(ctx, "mygroup")
@@ -118,7 +118,7 @@ func TestService_Create(t *testing.T) {
 		// Then
 		require.NoError(t, err)
 		assert.Equal(t, 1, store.writeCallCount)
-		assert.Equal(t, "groupsim/mygroup", store.lastWriteKey)
+		assert.Equal(t, "mygroup", store.lastWriteKey)
 		assert.Equal(t, "application/json", store.lastWriteMIMEType)
 
 		// Verify JSON structure
@@ -175,7 +175,7 @@ func TestService_Create(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 
 		// When
 		err := svc.Create(ctx, "mygroup", "alice")
@@ -203,7 +203,7 @@ func TestService_GetMembers(t *testing.T) {
 			BotInGroup: true,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 
 		// When
 		members, err := svc.GetMembers(ctx, "mygroup")
@@ -247,7 +247,7 @@ func TestService_GetMembers(t *testing.T) {
 	t.Run("returns error when JSON unmarshal fails", func(t *testing.T) {
 		// Given
 		store := newMockStorage()
-		store.data["groupsim/mygroup"] = []byte("invalid json")
+		store.data["mygroup"] = []byte("invalid json")
 		svc, _ := groupsim.NewService(store)
 		ctx := context.Background()
 
@@ -312,7 +312,7 @@ func TestService_IsMember(t *testing.T) {
 				BotInGroup: false,
 			}
 			data, _ := json.Marshal(groupData)
-			store.data["groupsim/"+tt.groupID] = data
+			store.data[tt.groupID] = data
 
 			// When
 			isMember, err := svc.IsMember(ctx, tt.groupID, tt.userID)
@@ -357,7 +357,7 @@ func TestService_AddMember(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 		store.generation = 1
 
 		// When
@@ -387,7 +387,7 @@ func TestService_AddMember(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 
 		// When
 		err := svc.AddMember(ctx, "mygroup", "bob")
@@ -425,7 +425,7 @@ func TestService_AddMember(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 		store.generation = 1
 
 		// When
@@ -517,7 +517,7 @@ func TestService_AddBot(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 		store.generation = 1
 
 		// When
@@ -547,7 +547,7 @@ func TestService_AddBot(t *testing.T) {
 			BotInGroup: true,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 
 		// When
 		err := svc.AddBot(ctx, "mygroup")
@@ -585,7 +585,7 @@ func TestService_AddBot(t *testing.T) {
 			BotInGroup: false,
 		}
 		data, _ := json.Marshal(groupData)
-		store.data["groupsim/mygroup"] = data
+		store.data["mygroup"] = data
 		store.generation = 1
 
 		// When
