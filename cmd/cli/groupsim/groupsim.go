@@ -38,8 +38,7 @@ func NewService(s storage.Storage) (*Service, error) {
 
 // Exists checks if a group exists.
 func (s *Service) Exists(ctx context.Context, groupID string) (bool, error) {
-	key := groupKey(groupID)
-	data, _, err := s.storage.Read(ctx, key)
+	data, _, err := s.storage.Read(ctx, groupID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check group existence: %w", err)
 	}
@@ -68,8 +67,7 @@ func (s *Service) Create(ctx context.Context, groupID, firstMemberID string) err
 		return fmt.Errorf("failed to marshal group data: %w", err)
 	}
 
-	key := groupKey(groupID)
-	_, err = s.storage.Write(ctx, key, "application/json", data, 0)
+	_, err = s.storage.Write(ctx, groupID, "application/json", data, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create group: %w", err)
 	}
@@ -117,8 +115,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID string) error {
 		return fmt.Errorf("failed to marshal group data: %w", err)
 	}
 
-	key := groupKey(groupID)
-	_, err = s.storage.Write(ctx, key, "application/json", data, gen)
+	_, err = s.storage.Write(ctx, groupID, "application/json", data, gen)
 	if err != nil {
 		return fmt.Errorf("failed to update group: %w", err)
 	}
@@ -156,8 +153,7 @@ func (s *Service) AddBot(ctx context.Context, groupID string) error {
 		return fmt.Errorf("failed to marshal group data: %w", err)
 	}
 
-	key := groupKey(groupID)
-	_, err = s.storage.Write(ctx, key, "application/json", data, gen)
+	_, err = s.storage.Write(ctx, groupID, "application/json", data, gen)
 	if err != nil {
 		return fmt.Errorf("failed to update group: %w", err)
 	}
@@ -173,8 +169,7 @@ func (s *Service) readGroup(ctx context.Context, groupID string) (*groupSim, err
 
 // readGroupWithGen reads group data from storage along with its generation.
 func (s *Service) readGroupWithGen(ctx context.Context, groupID string) (*groupSim, int64, error) {
-	key := groupKey(groupID)
-	data, gen, err := s.storage.Read(ctx, key)
+	data, gen, err := s.storage.Read(ctx, groupID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read group: %w", err)
 	}
@@ -188,9 +183,4 @@ func (s *Service) readGroupWithGen(ctx context.Context, groupID string) (*groupS
 	}
 
 	return &group, gen, nil
-}
-
-// groupKey returns the storage key for a group.
-func groupKey(groupID string) string {
-	return "groupsim/" + groupID
 }
