@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"yuruppu/internal/line"
 )
@@ -9,12 +10,18 @@ import (
 // HandleJoin handles the bot being added to a group.
 // Currently logs only (FR-020).
 func (h *Handler) HandleJoin(ctx context.Context) error {
-	sourceID, _ := line.SourceIDFromContext(ctx)
-	chatType, _ := line.ChatTypeFromContext(ctx)
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("chatType not found in context")
+	}
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("sourceID not found in context")
+	}
 
 	h.logger.InfoContext(ctx, "bot joined group",
-		slog.String("sourceID", sourceID),
 		slog.String("chatType", string(chatType)),
+		slog.String("sourceID", sourceID),
 	)
 
 	return nil
@@ -23,12 +30,18 @@ func (h *Handler) HandleJoin(ctx context.Context) error {
 // HandleMemberJoined handles members joining a group.
 // Currently logs only (FR-020).
 func (h *Handler) HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error {
-	sourceID, _ := line.SourceIDFromContext(ctx)
-	chatType, _ := line.ChatTypeFromContext(ctx)
+	chatType, ok := line.ChatTypeFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("chatType not found in context")
+	}
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("sourceID not found in context")
+	}
 
 	h.logger.InfoContext(ctx, "members joined group",
-		slog.String("sourceID", sourceID),
 		slog.String("chatType", string(chatType)),
+		slog.String("sourceID", sourceID),
 		slog.Any("joinedUserIDs", joinedUserIDs),
 	)
 
