@@ -16,7 +16,7 @@ import (
 )
 
 // CLIReplyToken is a dummy reply token used for CLI messages.
-const CLIReplyToken = "cli-reply-token"
+const CLIReplyToken = "dummy"
 
 type MessageHandler interface {
 	HandleText(ctx context.Context, text string) error

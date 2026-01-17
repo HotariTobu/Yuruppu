@@ -35,6 +35,58 @@ import (
 // userIDPattern validates user ID format: [0-9a-z_]+
 var userIDPattern = regexp.MustCompile(`^[0-9a-z_]+$`)
 
+type envConfig struct {
+	gcpProjectID string
+	gcpRegion    string
+	llmModel     string
+}
+
+func runSingleTurn(ctx context.Context, handler *bot.Handler, groupService *groupsim.Service, userID, groupID, message string) error {
+	var msgCtx context.Context
+	if groupID != "" {
+		msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
+		msgCtx = line.WithSourceID(msgCtx, groupID)
+
+		botInGroup, err := groupService.IsBotInGroup(ctx, groupID)
+		if err != nil {
+			return fmt.Errorf("failed to check bot presence: %w", err)
+		}
+		if !botInGroup {
+			return nil
+		}
+	} else {
+		msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
+		msgCtx = line.WithSourceID(msgCtx, userID)
+	}
+	msgCtx = line.WithUserID(msgCtx, userID)
+	msgCtx = line.WithReplyToken(msgCtx, repl.CLIReplyToken)
+
+	if err := handler.HandleText(msgCtx, message); err != nil {
+		return fmt.Errorf("failed to handle message: %w", err)
+	}
+	return nil
+}
+
+func loadEnvConfig() (*envConfig, error) {
+	cfg := &envConfig{
+		gcpProjectID: os.Getenv("GCP_PROJECT_ID"),
+		gcpRegion:    os.Getenv("GCP_REGION"),
+		llmModel:     os.Getenv("LLM_MODEL"),
+	}
+
+	if cfg.gcpProjectID == "" {
+		return nil, errors.New("GCP_PROJECT_ID environment variable is required")
+	}
+	if cfg.gcpRegion == "" {
+		return nil, errors.New("GCP_REGION environment variable is required")
+	}
+	if cfg.llmModel == "" {
+		return nil, errors.New("LLM_MODEL environment variable is required")
+	}
+
+	return cfg, nil
+}
+
 func main() {
 	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -79,19 +131,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}))
 
 	// Check required environment variables
-	gcpProjectID := os.Getenv("GCP_PROJECT_ID")
-	if gcpProjectID == "" {
-		return errors.New("GCP_PROJECT_ID environment variable is required")
-	}
-
-	gcpRegion := os.Getenv("GCP_REGION")
-	if gcpRegion == "" {
-		return errors.New("GCP_REGION environment variable is required")
-	}
-
-	llmModel := os.Getenv("LLM_MODEL")
-	if llmModel == "" {
-		return errors.New("LLM_MODEL environment variable is required")
+	envCfg, err := loadEnvConfig()
+	if err != nil {
+		return err
 	}
 
 	// Ensure data directory exists
@@ -173,9 +215,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return fmt.Errorf("failed to get system prompt: %w", err)
 	}
 	geminiAgent, err := agent.NewGeminiAgent(ctx, agent.GeminiConfig{
-		ProjectID:        gcpProjectID,
-		Region:           gcpRegion,
-		Model:            llmModel,
+		ProjectID:        envCfg.gcpProjectID,
+		Region:           envCfg.gcpRegion,
+		Model:            envCfg.llmModel,
 		SystemPrompt:     systemPrompt,
 		Tools:            toolset,
 		FunctionCallOnly: true,
@@ -212,29 +254,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	// Single-turn mode
 	if *message != "" {
-		var msgCtx context.Context
-		if *groupID != "" {
-			msgCtx = line.WithChatType(ctx, line.ChatTypeGroup)
-			msgCtx = line.WithSourceID(msgCtx, *groupID)
-
-			botInGroup, err := groupService.IsBotInGroup(ctx, *groupID)
-			if err != nil {
-				return fmt.Errorf("failed to check bot presence: %w", err)
-			}
-			if !botInGroup {
-				return nil
-			}
-		} else {
-			msgCtx = line.WithChatType(ctx, line.ChatTypeOneOnOne)
-			msgCtx = line.WithSourceID(msgCtx, *userID)
-		}
-		msgCtx = line.WithUserID(msgCtx, *userID)
-		msgCtx = line.WithReplyToken(msgCtx, repl.CLIReplyToken)
-
-		if err := handler.HandleText(msgCtx, *message); err != nil {
-			return fmt.Errorf("failed to handle message: %w", err)
-		}
-		return nil
+		return runSingleTurn(ctx, handler, groupService, *userID, *groupID, *message)
 	}
 
 	// REPL mode

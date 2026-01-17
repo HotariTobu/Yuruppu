@@ -9,7 +9,6 @@ import (
 	"yuruppu/internal/storage"
 )
 
-
 // groupSim is internal storage structure.
 type groupSim struct {
 	Members    []string `json:"members"`
