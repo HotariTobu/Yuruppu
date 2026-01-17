@@ -1093,6 +1093,761 @@ func TestService_List_StorageError(t *testing.T) {
 }
 
 // =============================================================================
+// Update Tests (FR-002, FR-003, FR-006, NFR-001)
+// =============================================================================
+
+// AC-001: Event description update (FR-002, FR-003, FR-005)
+func TestService_Update(t *testing.T) {
+	t.Run("successfully updates event description", func(t *testing.T) {
+		// Given: Storage with existing event
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Go Meetup",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    50,
+			Description: "Original description",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Update event description
+		newDescription := "Updated description with new details"
+		err = svc.Update(context.Background(), "chatroom-001", newDescription)
+
+		// Then: Update should succeed
+		require.NoError(t, err)
+		assert.Equal(t, 1, store.writeCallCount)
+
+		// Verify updated data
+		storedData := store.lastWriteData
+		lines := strings.Split(strings.TrimSpace(string(storedData)), "\n")
+		assert.Len(t, lines, 1)
+
+		var updated event.Event
+		err = json.Unmarshal([]byte(lines[0]), &updated)
+		require.NoError(t, err)
+
+		// Then: Description should be updated, other fields unchanged
+		assert.Equal(t, newDescription, updated.Description)
+		assert.Equal(t, "chatroom-001", updated.ChatRoomID)
+		assert.Equal(t, "user-123", updated.CreatorID)
+		assert.Equal(t, "Go Meetup", updated.Title)
+		assert.Equal(t, testTime1, updated.StartTime)
+		assert.Equal(t, testTime2, updated.EndTime)
+		assert.Equal(t, "Free", updated.Fee)
+		assert.Equal(t, 50, updated.Capacity)
+		assert.True(t, updated.ShowCreator)
+	})
+
+	t.Run("updates correct event when multiple events exist", func(t *testing.T) {
+		// Given: Storage with multiple events
+		store := newMockStorage()
+		events := []*event.Event{
+			{
+				ChatRoomID:  "chatroom-001",
+				CreatorID:   "user-123",
+				Title:       "First Event",
+				StartTime:   testTime1,
+				EndTime:     testTime2,
+				Fee:         "Free",
+				Capacity:    10,
+				Description: "First description",
+				ShowCreator: true,
+			},
+			{
+				ChatRoomID:  "chatroom-002",
+				CreatorID:   "user-456",
+				Title:       "Second Event",
+				StartTime:   testTime3,
+				EndTime:     testTime4,
+				Fee:         "$10",
+				Capacity:    20,
+				Description: "Second description",
+				ShowCreator: false,
+			},
+			{
+				ChatRoomID:  "chatroom-003",
+				CreatorID:   "user-789",
+				Title:       "Third Event",
+				StartTime:   testTime5,
+				EndTime:     testTime6,
+				Fee:         "$5",
+				Capacity:    15,
+				Description: "Third description",
+				ShowCreator: true,
+			},
+		}
+
+		lines := make([]string, 0, len(events))
+		for _, ev := range events {
+			jsonData, _ := json.Marshal(ev)
+			lines = append(lines, string(jsonData))
+		}
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Update middle event
+		err = svc.Update(context.Background(), "chatroom-002", "Updated second event")
+
+		// Then: Only target event should be updated
+		require.NoError(t, err)
+
+		storedData := store.lastWriteData
+		storedLines := strings.Split(strings.TrimSpace(string(storedData)), "\n")
+		require.Len(t, storedLines, 3)
+
+		// Verify first event unchanged
+		var first event.Event
+		err = json.Unmarshal([]byte(storedLines[0]), &first)
+		require.NoError(t, err)
+		assert.Equal(t, "First description", first.Description)
+
+		// Verify second event updated
+		var second event.Event
+		err = json.Unmarshal([]byte(storedLines[1]), &second)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated second event", second.Description)
+		assert.Equal(t, "chatroom-002", second.ChatRoomID)
+
+		// Verify third event unchanged
+		var third event.Event
+		err = json.Unmarshal([]byte(storedLines[2]), &third)
+		require.NoError(t, err)
+		assert.Equal(t, "Third description", third.Description)
+	})
+}
+
+func TestService_Update_InvalidInput(t *testing.T) {
+	t.Run("returns error when chatRoomID is empty", func(t *testing.T) {
+		store := newMockStorage()
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Update(context.Background(), "", "New description")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "chatRoomID cannot be empty")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+}
+
+// AC-003: Event update when event does not exist (FR-006)
+func TestService_Update_EventNotFound(t *testing.T) {
+	t.Run("returns error when event does not exist in empty storage", func(t *testing.T) {
+		// Given: Empty storage
+		store := newMockStorage()
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Try to update non-existent event
+		err = svc.Update(context.Background(), "chatroom-999", "New description")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "event not found")
+		assert.Contains(t, err.Error(), "chatroom-999")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+
+	t.Run("returns error when event not found among existing events", func(t *testing.T) {
+		// Given: Storage with some events
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Existing Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Existing",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Try to update different chatRoomID
+		err = svc.Update(context.Background(), "chatroom-999", "New description")
+
+		// Then: Should return error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "event not found")
+		assert.Contains(t, err.Error(), "chatroom-999")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+}
+
+// NFR-001: Atomic update operation (optimistic locking)
+func TestService_Update_Atomicity(t *testing.T) {
+	t.Run("concurrent updates - one succeeds, one fails with conflict", func(t *testing.T) {
+		// Given: Storage with existing event
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Original",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// Simulate concurrent updates by enabling conflict detection
+		store.simulateConcurrentWrite = true
+
+		// When: First update succeeds
+		err1 := svc.Update(context.Background(), "chatroom-001", "Update 1")
+
+		// When: Second update with stale generation fails
+		err2 := svc.Update(context.Background(), "chatroom-001", "Update 2")
+
+		// Then: One should succeed, one should fail
+		if err1 == nil {
+			require.Error(t, err2)
+			assert.Contains(t, err2.Error(), "generation mismatch")
+		} else {
+			require.NoError(t, err2)
+			assert.Contains(t, err1.Error(), "generation mismatch")
+		}
+	})
+
+	t.Run("uses optimistic locking with generation check", func(t *testing.T) {
+		// Given: Storage with event at generation 5
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Original",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 5 // Current generation
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Update event
+		err = svc.Update(context.Background(), "chatroom-001", "Updated")
+
+		// Then: Should succeed and increment generation
+		require.NoError(t, err)
+		assert.Equal(t, int64(6), store.generation["all"])
+	})
+}
+
+func TestService_Update_StorageErrors(t *testing.T) {
+	t.Run("returns error when storage read fails", func(t *testing.T) {
+		store := newMockStorage()
+		store.readErr = errors.New("storage read error")
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Update(context.Background(), "chatroom-001", "New description")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+
+	t.Run("returns error when storage write fails", func(t *testing.T) {
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Original",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		store.writeErr = errors.New("storage write error")
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Update(context.Background(), "chatroom-001", "New description")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to write")
+	})
+}
+
+// =============================================================================
+// Delete Tests (FR-007, FR-010, FR-011, NFR-001)
+// =============================================================================
+
+// AC-004: Event deletion - physically removed from storage (FR-007, FR-009, FR-011)
+func TestService_Delete(t *testing.T) {
+	t.Run("successfully deletes event and physically removes it", func(t *testing.T) {
+		// Given: Storage with existing event
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Go Meetup",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    50,
+			Description: "Monthly Go meetup",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Delete event
+		err = svc.Delete(context.Background(), "chatroom-001")
+
+		// Then: Delete should succeed
+		require.NoError(t, err)
+		assert.Equal(t, 1, store.writeCallCount)
+
+		// Verify event is physically removed (empty storage)
+		storedData := store.lastWriteData
+		lines := strings.Split(strings.TrimSpace(string(storedData)), "\n")
+		// Empty JSONL should have one empty line after trimming
+		if len(lines) == 1 && lines[0] == "" {
+			// Storage is empty
+			assert.Equal(t, "", lines[0])
+		} else {
+			// No lines should remain
+			assert.Empty(t, lines)
+		}
+	})
+
+	t.Run("deletes correct event when multiple events exist", func(t *testing.T) {
+		// Given: Storage with multiple events
+		store := newMockStorage()
+		events := []*event.Event{
+			{
+				ChatRoomID:  "chatroom-001",
+				CreatorID:   "user-123",
+				Title:       "First Event",
+				StartTime:   testTime1,
+				EndTime:     testTime2,
+				Fee:         "Free",
+				Capacity:    10,
+				Description: "First",
+				ShowCreator: true,
+			},
+			{
+				ChatRoomID:  "chatroom-002",
+				CreatorID:   "user-456",
+				Title:       "Second Event",
+				StartTime:   testTime3,
+				EndTime:     testTime4,
+				Fee:         "$10",
+				Capacity:    20,
+				Description: "Second",
+				ShowCreator: false,
+			},
+			{
+				ChatRoomID:  "chatroom-003",
+				CreatorID:   "user-789",
+				Title:       "Third Event",
+				StartTime:   testTime5,
+				EndTime:     testTime6,
+				Fee:         "$5",
+				Capacity:    15,
+				Description: "Third",
+				ShowCreator: true,
+			},
+		}
+
+		lines := make([]string, 0, len(events))
+		for _, ev := range events {
+			jsonData, _ := json.Marshal(ev)
+			lines = append(lines, string(jsonData))
+		}
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Delete middle event
+		err = svc.Delete(context.Background(), "chatroom-002")
+
+		// Then: Only target event should be removed
+		require.NoError(t, err)
+
+		storedData := store.lastWriteData
+		storedLines := strings.Split(strings.TrimSpace(string(storedData)), "\n")
+		require.Len(t, storedLines, 2)
+
+		// Verify first event still exists
+		var first event.Event
+		err = json.Unmarshal([]byte(storedLines[0]), &first)
+		require.NoError(t, err)
+		assert.Equal(t, "chatroom-001", first.ChatRoomID)
+		assert.Equal(t, "First Event", first.Title)
+
+		// Verify third event still exists
+		var third event.Event
+		err = json.Unmarshal([]byte(storedLines[1]), &third)
+		require.NoError(t, err)
+		assert.Equal(t, "chatroom-003", third.ChatRoomID)
+		assert.Equal(t, "Third Event", third.Title)
+
+		// Verify second event is gone (not in results)
+		for _, line := range storedLines {
+			var ev event.Event
+			json.Unmarshal([]byte(line), &ev)
+			assert.NotEqual(t, "chatroom-002", ev.ChatRoomID)
+		}
+	})
+}
+
+func TestService_Delete_InvalidInput(t *testing.T) {
+	t.Run("returns error when chatRoomID is empty", func(t *testing.T) {
+		store := newMockStorage()
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Delete(context.Background(), "")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "chatRoomID cannot be empty")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+}
+
+// AC-006: Event deletion when event does not exist (FR-010)
+func TestService_Delete_EventNotFound(t *testing.T) {
+	t.Run("returns error when event does not exist in empty storage", func(t *testing.T) {
+		// Given: Empty storage
+		store := newMockStorage()
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Try to delete non-existent event
+		err = svc.Delete(context.Background(), "chatroom-999")
+
+		// Then: Should return error (FR-010)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "event not found")
+		assert.Contains(t, err.Error(), "chatroom-999")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+
+	t.Run("returns error when event not found among existing events", func(t *testing.T) {
+		// Given: Storage with some events
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Existing Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Existing",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Try to delete different chatRoomID
+		err = svc.Delete(context.Background(), "chatroom-999")
+
+		// Then: Should return error (FR-010)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "event not found")
+		assert.Contains(t, err.Error(), "chatroom-999")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+}
+
+// FR-011: Verify deleted events don't appear in Get/List
+func TestService_Delete_VerifyPhysicalRemoval(t *testing.T) {
+	t.Run("deleted event does not appear in Get", func(t *testing.T) {
+		// Given: Storage with event
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event to Delete",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "Will be deleted",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// Verify event exists before deletion
+		ev, err := svc.Get(context.Background(), "chatroom-001")
+		require.NoError(t, err)
+		assert.Equal(t, "chatroom-001", ev.ChatRoomID)
+
+		// When: Delete event
+		err = svc.Delete(context.Background(), "chatroom-001")
+		require.NoError(t, err)
+
+		// Then: Get should return "not found" error (FR-011)
+		ev, err = svc.Get(context.Background(), "chatroom-001")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "event not found")
+		assert.Nil(t, ev)
+	})
+
+	t.Run("deleted event does not appear in List", func(t *testing.T) {
+		// Given: Storage with multiple events
+		store := newMockStorage()
+		events := []*event.Event{
+			{
+				ChatRoomID:  "chatroom-001",
+				CreatorID:   "user-123",
+				Title:       "Event 1",
+				StartTime:   testTime1,
+				EndTime:     testTime2,
+				Fee:         "Free",
+				Capacity:    10,
+				Description: "First",
+				ShowCreator: true,
+			},
+			{
+				ChatRoomID:  "chatroom-002",
+				CreatorID:   "user-123",
+				Title:       "Event to Delete",
+				StartTime:   testTime3,
+				EndTime:     testTime4,
+				Fee:         "$10",
+				Capacity:    20,
+				Description: "Will be deleted",
+				ShowCreator: false,
+			},
+			{
+				ChatRoomID:  "chatroom-003",
+				CreatorID:   "user-123",
+				Title:       "Event 3",
+				StartTime:   testTime5,
+				EndTime:     testTime6,
+				Fee:         "$5",
+				Capacity:    15,
+				Description: "Third",
+				ShowCreator: true,
+			},
+		}
+
+		lines := make([]string, 0, len(events))
+		for _, ev := range events {
+			jsonData, _ := json.Marshal(ev)
+			lines = append(lines, string(jsonData))
+		}
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// Verify 3 events exist before deletion
+		listResult, err := svc.List(context.Background(), event.ListOptions{})
+		require.NoError(t, err)
+		assert.Len(t, listResult, 3)
+
+		// When: Delete middle event
+		err = svc.Delete(context.Background(), "chatroom-002")
+		require.NoError(t, err)
+
+		// Then: List should return only 2 events (FR-011)
+		listResult, err = svc.List(context.Background(), event.ListOptions{})
+		require.NoError(t, err)
+		assert.Len(t, listResult, 2)
+
+		// Verify deleted event is not in list
+		for _, ev := range listResult {
+			assert.NotEqual(t, "chatroom-002", ev.ChatRoomID)
+		}
+
+		// Verify remaining events
+		assert.Equal(t, "chatroom-001", listResult[0].ChatRoomID)
+		assert.Equal(t, "chatroom-003", listResult[1].ChatRoomID)
+	})
+}
+
+// NFR-001: Atomic delete operation (optimistic locking)
+func TestService_Delete_Atomicity(t *testing.T) {
+	t.Run("concurrent deletes on different events - generation check prevents race", func(t *testing.T) {
+		// Given: Storage with multiple events
+		store := newMockStorage()
+		events := []*event.Event{
+			{
+				ChatRoomID:  "chatroom-001",
+				CreatorID:   "user-123",
+				Title:       "Event 1",
+				StartTime:   testTime1,
+				EndTime:     testTime2,
+				Fee:         "Free",
+				Capacity:    10,
+				Description: "First",
+				ShowCreator: true,
+			},
+			{
+				ChatRoomID:  "chatroom-002",
+				CreatorID:   "user-456",
+				Title:       "Event 2",
+				StartTime:   testTime3,
+				EndTime:     testTime4,
+				Fee:         "$10",
+				Capacity:    20,
+				Description: "Second",
+				ShowCreator: false,
+			},
+		}
+
+		lines := make([]string, 0, len(events))
+		for _, ev := range events {
+			jsonData, _ := json.Marshal(ev)
+			lines = append(lines, string(jsonData))
+		}
+		store.data["all"] = []byte(strings.Join(lines, "\n"))
+		store.generation["all"] = 1
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// Simulate concurrent writes by enabling conflict detection
+		store.simulateConcurrentWrite = true
+
+		// When: First delete succeeds
+		err1 := svc.Delete(context.Background(), "chatroom-001")
+
+		// When: Second delete with stale generation fails
+		err2 := svc.Delete(context.Background(), "chatroom-002")
+
+		// Then: One should succeed, one should fail with generation mismatch (NFR-001: atomicity)
+		if err1 == nil {
+			require.Error(t, err2)
+			assert.Contains(t, err2.Error(), "generation mismatch")
+		} else {
+			require.NoError(t, err2)
+			assert.Contains(t, err1.Error(), "generation mismatch")
+		}
+	})
+
+	t.Run("uses optimistic locking with generation check", func(t *testing.T) {
+		// Given: Storage with event at generation 5
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "To delete",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 5 // Current generation
+
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		// When: Delete event
+		err = svc.Delete(context.Background(), "chatroom-001")
+
+		// Then: Should succeed and increment generation (NFR-001)
+		require.NoError(t, err)
+		assert.Equal(t, int64(6), store.generation["all"])
+	})
+}
+
+func TestService_Delete_StorageErrors(t *testing.T) {
+	t.Run("returns error when storage read fails", func(t *testing.T) {
+		store := newMockStorage()
+		store.readErr = errors.New("storage read error")
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Delete(context.Background(), "chatroom-001")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read")
+		assert.Equal(t, 0, store.writeCallCount)
+	})
+
+	t.Run("returns error when storage write fails", func(t *testing.T) {
+		store := newMockStorage()
+		existingEvent := &event.Event{
+			ChatRoomID:  "chatroom-001",
+			CreatorID:   "user-123",
+			Title:       "Event",
+			StartTime:   testTime1,
+			EndTime:     testTime2,
+			Fee:         "Free",
+			Capacity:    10,
+			Description: "To delete",
+			ShowCreator: true,
+		}
+		existingJSON, _ := json.Marshal(existingEvent)
+		store.data["all"] = existingJSON
+		store.generation["all"] = 1
+
+		store.writeErr = errors.New("storage write error")
+		svc, err := event.NewService(store)
+		require.NoError(t, err)
+
+		err = svc.Delete(context.Background(), "chatroom-001")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to write")
+	})
+}
+
+// =============================================================================
 // Mock Storage
 // =============================================================================
 
