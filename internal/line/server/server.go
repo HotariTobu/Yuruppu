@@ -19,6 +19,8 @@ import (
 // is already sent before handler execution.
 type Handler interface {
 	HandleFollow(ctx context.Context) error
+	HandleJoin(ctx context.Context) error
+	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
 	HandleText(ctx context.Context, text string) error
 	HandleImage(ctx context.Context, messageID string) error
 	HandleSticker(ctx context.Context, packageID, stickerID string) error
@@ -89,6 +91,10 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		switch e := event.(type) {
 		case webhook.FollowEvent:
 			s.dispatchFollow(e)
+		case webhook.JoinEvent:
+			s.dispatchJoin(e)
+		case webhook.MemberJoinedEvent:
+			s.dispatchMemberJoined(e)
 		case webhook.MessageEvent:
 			s.dispatchMessage(e)
 		}

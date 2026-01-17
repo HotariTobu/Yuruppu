@@ -13,9 +13,15 @@ type UserProfile struct {
 	StatusMessage string
 }
 
-// GetProfile fetches user profile from LINE API.
-// Returns profile information including display name, picture URL, and status message.
-func (c *Client) GetProfile(ctx context.Context, userID string) (*UserProfile, error) {
+// GroupSummary contains LINE group summary information.
+type GroupSummary struct {
+	GroupID    string
+	GroupName  string
+	PictureURL string
+}
+
+// GetUserProfile fetches user profile from LINE API.
+func (c *Client) GetUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
 	c.logger.DebugContext(ctx, "fetching user profile",
 		slog.String("userID", userID),
 	)
@@ -31,10 +37,35 @@ func (c *Client) GetProfile(ctx context.Context, userID string) (*UserProfile, e
 		StatusMessage: resp.StatusMessage,
 	}
 
-	c.logger.DebugContext(ctx, "profile fetched successfully",
+	c.logger.DebugContext(ctx, "user profile fetched successfully",
 		slog.String("userID", userID),
 		slog.String("displayName", profile.DisplayName),
 	)
 
 	return profile, nil
+}
+
+// GetGroupSummary fetches group summary from LINE API.
+func (c *Client) GetGroupSummary(ctx context.Context, groupID string) (*GroupSummary, error) {
+	c.logger.DebugContext(ctx, "fetching group summary",
+		slog.String("groupID", groupID),
+	)
+
+	resp, err := c.api.GetGroupSummary(groupID)
+	if err != nil {
+		return nil, fmt.Errorf("LINE API GetGroupSummary failed: %w", err)
+	}
+
+	summary := &GroupSummary{
+		GroupID:    resp.GroupId,
+		GroupName:  resp.GroupName,
+		PictureURL: resp.PictureUrl,
+	}
+
+	c.logger.DebugContext(ctx, "group summary fetched successfully",
+		slog.String("groupID", groupID),
+		slog.String("groupName", summary.GroupName),
+	)
+
+	return summary, nil
 }

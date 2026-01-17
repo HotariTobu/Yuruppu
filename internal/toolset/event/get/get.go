@@ -9,7 +9,7 @@ import (
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
-	"yuruppu/internal/profile"
+	"yuruppu/internal/userprofile"
 )
 
 //go:embed parameters.json
@@ -26,33 +26,33 @@ type EventService interface {
 	Get(ctx context.Context, chatRoomID string) (*event.Event, error)
 }
 
-// ProfileService provides access to user profile operations.
-type ProfileService interface {
-	GetUserProfile(ctx context.Context, userID string) (*profile.UserProfile, error)
+// UserProfileService provides access to user profile operations.
+type UserProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
 }
 
 // Tool implements the get_event tool for retrieving event details.
 type Tool struct {
-	eventService   EventService
-	profileService ProfileService
-	logger         *slog.Logger
+	eventService       EventService
+	userProfileService UserProfileService
+	logger             *slog.Logger
 }
 
 // New creates a new get_event tool with the specified services.
-func New(eventService EventService, profileService ProfileService, logger *slog.Logger) (*Tool, error) {
+func New(eventService EventService, userProfileService UserProfileService, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
-	if profileService == nil {
-		return nil, errors.New("profileService cannot be nil")
+	if userProfileService == nil {
+		return nil, errors.New("userProfileService cannot be nil")
 	}
 	if logger == nil {
 		return nil, errors.New("logger cannot be nil")
 	}
 	return &Tool{
-		eventService:   eventService,
-		profileService: profileService,
-		logger:         logger,
+		eventService:       eventService,
+		userProfileService: userProfileService,
+		logger:             logger,
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 
 	// Resolve creator name if showCreator is true
 	if ev.ShowCreator {
-		userProfile, err := t.profileService.GetUserProfile(ctx, ev.CreatorID)
+		userProfile, err := t.userProfileService.GetUserProfile(ctx, ev.CreatorID)
 		if err != nil {
 			t.logger.ErrorContext(ctx, "failed to get creator profile", slog.String("creatorID", ev.CreatorID), slog.Any("error", err))
 			return nil, errors.New("failed to get creator profile")
