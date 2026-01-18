@@ -14,17 +14,26 @@ type Fetcher interface {
 	FetchGroupSummary(ctx context.Context, groupID string) (*lineclient.GroupSummary, error)
 }
 
-// LineClient is a mock implementation of LINE client interfaces for CLI testing.
-type LineClient struct {
-	fetcher Fetcher
+// GroupSim defines the interface for group simulation operations.
+type GroupSim interface {
+	GetMembers(ctx context.Context, groupID string) ([]string, error)
 }
 
-// NewLineClient creates a new mock LINE client with the given fetcher.
-func NewLineClient(fetcher Fetcher) *LineClient {
+// LineClient is a mock implementation of LINE client interfaces for CLI testing.
+type LineClient struct {
+	fetcher  Fetcher
+	groupSim GroupSim
+}
+
+// NewLineClient creates a new mock LINE client with the given fetcher and group simulator.
+func NewLineClient(fetcher Fetcher, groupSim GroupSim) *LineClient {
 	if fetcher == nil {
 		panic("fetcher cannot be nil")
 	}
-	return &LineClient{fetcher: fetcher}
+	if groupSim == nil {
+		panic("groupSim cannot be nil")
+	}
+	return &LineClient{fetcher: fetcher, groupSim: groupSim}
 }
 
 // GetMessageContent returns an error indicating that media operations are not supported in mock mode.
@@ -52,7 +61,11 @@ func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, ti
 	return nil
 }
 
-// GetGroupMemberCount returns 0 in CLI mode since member count is not available.
+// GetGroupMemberCount returns the number of members in a group via GroupSim.
 func (c *LineClient) GetGroupMemberCount(ctx context.Context, groupID string) (int, error) {
-	return 0, nil
+	members, err := c.groupSim.GetMembers(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	return len(members), nil
 }

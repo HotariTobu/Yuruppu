@@ -42,6 +42,14 @@ type envConfig struct {
 	llmModel     string
 }
 
+// nopGroupSim is a no-op implementation of mock.GroupSim for non-group mode.
+type nopGroupSim struct{}
+
+// GetMembers returns an empty slice for non-group mode.
+func (n *nopGroupSim) GetMembers(ctx context.Context, groupID string) ([]string, error) {
+	return []string{}, nil
+}
+
 func runSingleTurn(ctx context.Context, handler *bot.Handler, groupService *groupsim.Service, userID, groupID, message string) error {
 	var msgCtx context.Context
 	if groupID != "" {
@@ -174,8 +182,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return fmt.Errorf("failed to create group profile service: %w", err)
 	}
 
-	// Create mock LINE client with prompter
-	lineClient := mock.NewLineClient(prompter.NewPrompter(scanner, stderr))
+	// Create mock LINE client with prompter and group simulator
+	var groupSim mock.GroupSim = &nopGroupSim{}
+	if groupService != nil {
+		groupSim = groupService
+	}
+	lineClient := mock.NewLineClient(prompter.NewPrompter(scanner, stderr), groupSim)
 
 	// Create history service
 	historyService, err := history.NewService(historyStorage)
