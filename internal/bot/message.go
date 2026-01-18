@@ -265,10 +265,12 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 	// Get user count for group chats (FR-005)
 	var userCount int
 	if chatType == line.ChatTypeGroup {
-		if profile, err := h.groupProfileService.GetGroupProfile(ctx, sourceID); err == nil {
+		profile, err := h.groupProfileService.GetGroupProfile(ctx, sourceID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to get group profile for user count", "error", err)
+		} else {
 			userCount = profile.UserCount
 		}
-		// Ignore errors - graceful degradation (AC-005)
 	}
 
 	var buf bytes.Buffer
