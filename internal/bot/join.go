@@ -33,7 +33,7 @@ func (h *Handler) HandleJoin(ctx context.Context) error {
 	profile := &groupprofile.GroupProfile{
 		DisplayName: summary.GroupName,
 		PictureURL:  summary.PictureURL,
-		UserCount: 1, // fallback
+		UserCount:   1, // fallback
 	}
 
 	// Fetch member count (FR-001)

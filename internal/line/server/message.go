@@ -8,6 +8,21 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
+// MessageHandler handles incoming LINE messages by type.
+// Each method receives a context with timeout and LINE-specific values
+// (reply token, source ID, user ID) accessible via context accessor functions.
+// The error return is used for logging purposes only - the HTTP response
+// is already sent before handler execution.
+type MessageHandler interface {
+	HandleText(ctx context.Context, text string) error
+	HandleImage(ctx context.Context, messageID string) error
+	HandleSticker(ctx context.Context, packageID, stickerID string) error
+	HandleVideo(ctx context.Context, messageID string) error
+	HandleAudio(ctx context.Context, messageID string) error
+	HandleLocation(ctx context.Context, latitude, longitude float64) error
+	HandleUnknown(ctx context.Context) error
+}
+
 // dispatchMessage dispatches the message event to all registered handlers.
 // Each handler runs asynchronously in its own goroutine with panic recovery.
 func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
@@ -20,7 +35,7 @@ func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
 	}
 }
 
-func (s *Server) invokeMessageHandler(handler Handler, msgEvent webhook.MessageEvent) {
+func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.MessageEvent) {
 	chatType, sourceID, userID := extractSourceInfo(msgEvent.Source)
 
 	defer func() {

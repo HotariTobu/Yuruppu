@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,23 +11,11 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
-// Handler handles incoming LINE messages by type.
-// Each method receives a context with timeout and LINE-specific values
-// (reply token, source ID, user ID) accessible via context accessor functions.
-// The error return is used for logging purposes only - the HTTP response
-// is already sent before handler execution.
+// Handler combines all event handler interfaces.
 type Handler interface {
-	HandleFollow(ctx context.Context) error
-	HandleJoin(ctx context.Context) error
-	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
-	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
-	HandleText(ctx context.Context, text string) error
-	HandleImage(ctx context.Context, messageID string) error
-	HandleSticker(ctx context.Context, packageID, stickerID string) error
-	HandleVideo(ctx context.Context, messageID string) error
-	HandleAudio(ctx context.Context, messageID string) error
-	HandleLocation(ctx context.Context, latitude, longitude float64) error
-	HandleUnknown(ctx context.Context) error
+	FollowHandler
+	JoinHandler
+	MessageHandler
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
