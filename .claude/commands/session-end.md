@@ -3,7 +3,7 @@ description: End session with progress update and structured commit
 argument-hint: <spec-name>
 requires-phase: in-progress
 sets-phase: completed
-allowed-tools: Bash(git:*), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash(git:*), Bash(make fix), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # End Session
@@ -41,9 +41,9 @@ End the current coding session with progress update and structured commit.
    Run all `reviewer-*` agents in parallel by default.
    Fix critical issues before proceeding.
 
-3. **Run preflight check (quality gate)**
+3. **Run fix and preflight check (quality gate)**
    ```bash
-   make preflight
+   make fix && make preflight
    ```
    - If preflight fails, fix issues before proceeding
    - Do NOT skip this step - broken commits waste future sessions

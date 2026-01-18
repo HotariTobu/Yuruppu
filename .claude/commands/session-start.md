@@ -3,7 +3,7 @@ description: Start a coding session with progress review and planning
 argument-hint: [spec-name]
 requires-phase: designed, in-progress
 sets-phase: in-progress
-allowed-tools: Bash(git:*), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash(git:*), Bash(make fix), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # Start Session
@@ -29,9 +29,9 @@ Start a coding session with progress review and planning.
 2. **Handle blocked phase** (if applicable)
    - If `phase` is `"blocked"`: Display blockers and ask user how to proceed
 
-3. **Run preflight check**
+3. **Run fix and preflight check**
    ```bash
-   make preflight
+   make fix && make preflight
    ```
    - If preflight fails, prioritize fixing issues before new work
    - Document any environment issues as blockers
