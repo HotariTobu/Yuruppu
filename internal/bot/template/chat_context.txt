@@ -1,4 +1,6 @@
 [context]
 current_local_time: {{.CurrentLocalTime}}
 chat_type: {{.ChatType}}
+{{- if gt .UserCount 0}}
 user_count: {{.UserCount}}
+{{- end}}
