@@ -26,7 +26,7 @@ Knowing the group size provides valuable context for Yuruppu's responses. A smal
 
 - [ ] FR-001: Retrieve group member count when the bot joins a group
 - [x] FR-002: Increment member count by the number of members who joined
-- [ ] FR-003: Decrement member count by the number of members who left
+- [x] FR-003: Decrement member count by the number of members who left
 - [ ] FR-004: Persist member count to storage along with group information
 - [ ] FR-005: Include group member count in the context passed to LLM for group messages
 
