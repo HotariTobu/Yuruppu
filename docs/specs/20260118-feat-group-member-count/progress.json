@@ -1,5 +1,5 @@
 {
-  "phase": "prototyped",
+  "phase": "designed",
   "lastUpdated": "2026-01-18",
   "requirements": [
     { "id": "FR-001", "passes": false },
