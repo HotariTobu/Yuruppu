@@ -175,6 +175,10 @@ func (m *mockHandler) HandleMemberJoined(ctx context.Context, joinedUserIDs []st
 	return nil
 }
 
+func (m *mockHandler) HandleMemberLeft(ctx context.Context, leftUserIDs []string) error {
+	return nil
+}
+
 // =============================================================================
 // New Tests
 // =============================================================================

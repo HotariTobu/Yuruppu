@@ -200,6 +200,9 @@ type mockLineClient struct {
 	groupSummary    *lineclient.GroupSummary
 	groupSummaryErr error
 	lastGroupID     string
+	// GroupMemberCount tracking
+	groupMemberCount    int
+	groupMemberCountErr error
 }
 
 func (m *mockLineClient) GetMessageContent(messageID string) ([]byte, string, error) {
@@ -237,6 +240,13 @@ func (m *mockLineClient) GetGroupSummary(ctx context.Context, groupID string) (*
 		GroupName:  "Test Group",
 		PictureURL: "",
 	}, nil
+}
+
+func (m *mockLineClient) GetGroupMemberCount(ctx context.Context, groupID string) (int, error) {
+	if m.groupMemberCountErr != nil {
+		return 0, m.groupMemberCountErr
+	}
+	return m.groupMemberCount, nil
 }
 
 func (m *mockLineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {

@@ -51,3 +51,8 @@ func (c *LineClient) SendReply(replyToken string, text string) error {
 func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
 	return nil
 }
+
+// GetGroupMemberCount returns 0 in CLI mode since member count is not available.
+func (c *LineClient) GetGroupMemberCount(ctx context.Context, groupID string) (int, error) {
+	return 0, nil
+}

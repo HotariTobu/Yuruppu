@@ -257,14 +257,29 @@ func (h *Handler) buildContextParts(ctx context.Context, userID string) ([]agent
 	if !ok {
 		return nil, errors.New("chatType not found in context")
 	}
+	sourceID, ok := line.SourceIDFromContext(ctx)
+	if !ok {
+		return nil, errors.New("sourceID not found in context")
+	}
+
+	// Get user count for group chats (FR-005)
+	var userCount int
+	if chatType == line.ChatTypeGroup {
+		if profile, err := h.groupProfileService.GetGroupProfile(ctx, sourceID); err == nil {
+			userCount = profile.UserCount
+		}
+		// Ignore errors - graceful degradation (AC-005)
+	}
 
 	var buf bytes.Buffer
 	if err := chatContextTemplate.Execute(&buf, struct {
 		CurrentLocalTime string
 		ChatType         line.ChatType
+		UserCount        int
 	}{
 		CurrentLocalTime: time.Now().In(jst).Format("2006 Jan 2(Mon) 3:04PM"),
 		ChatType:         chatType,
+		UserCount:        userCount,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to execute chat context template: %w", err)
 	}

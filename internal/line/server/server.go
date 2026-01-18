@@ -21,6 +21,7 @@ type Handler interface {
 	HandleFollow(ctx context.Context) error
 	HandleJoin(ctx context.Context) error
 	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
+	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
 	HandleText(ctx context.Context, text string) error
 	HandleImage(ctx context.Context, messageID string) error
 	HandleSticker(ctx context.Context, packageID, stickerID string) error
@@ -95,6 +96,8 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			s.dispatchJoin(e)
 		case webhook.MemberJoinedEvent:
 			s.dispatchMemberJoined(e)
+		case webhook.MemberLeftEvent:
+			s.dispatchMemberLeft(e)
 		case webhook.MessageEvent:
 			s.dispatchMessage(e)
 		}
