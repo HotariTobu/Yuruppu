@@ -1,6 +1,7 @@
 package prompter_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"strings"
@@ -12,19 +13,19 @@ import (
 )
 
 func TestNewPrompter(t *testing.T) {
-	t.Run("should create prompter with valid reader and writer", func(t *testing.T) {
+	t.Run("should create prompter with valid scanner and writer", func(t *testing.T) {
 		// Given
-		reader := strings.NewReader("")
+		scanner := bufio.NewScanner(strings.NewReader(""))
 		var writer bytes.Buffer
 
 		// When
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 
 		// Then
 		require.NotNil(t, p)
 	})
 
-	t.Run("should panic when reader is nil", func(t *testing.T) {
+	t.Run("should panic when scanner is nil", func(t *testing.T) {
 		// Given
 		var writer bytes.Buffer
 
@@ -36,11 +37,11 @@ func TestNewPrompter(t *testing.T) {
 
 	t.Run("should panic when writer is nil", func(t *testing.T) {
 		// Given
-		reader := strings.NewReader("")
+		scanner := bufio.NewScanner(strings.NewReader(""))
 
 		// When/Then
 		assert.Panics(t, func() {
-			prompter.NewPrompter(reader, nil)
+			prompter.NewPrompter(scanner, nil)
 		})
 	})
 }
@@ -49,9 +50,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should prompt for profile and return it", func(t *testing.T) {
 		// Given
 		input := "Test User\nhttps://example.com/pic.jpg\nHello world\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -68,9 +69,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should re-prompt if display name is empty", func(t *testing.T) {
 		// Given
 		input := "\n\nValid Name\n\n\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -85,9 +86,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should allow empty optional fields", func(t *testing.T) {
 		// Given
 		input := "Test User\n\n\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -104,9 +105,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should return EOF if input ends early", func(t *testing.T) {
 		// Given
 		input := "Test User\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -120,9 +121,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should display prompts to writer", func(t *testing.T) {
 		// Given
 		input := "Test User\n\n\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -130,17 +131,17 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 
 		// Then
 		output := writer.String()
-		assert.Contains(t, output, "Enter display name:")
-		assert.Contains(t, output, "Enter picture URL")
-		assert.Contains(t, output, "Enter status message")
+		assert.Contains(t, output, "Enter user display name:")
+		assert.Contains(t, output, "Enter user picture URL")
+		assert.Contains(t, output, "Enter user status message")
 	})
 
 	t.Run("should trim whitespace from input", func(t *testing.T) {
 		// Given
 		input := "  Test User  \n  https://example.com  \n  Hello  \n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx := context.Background()
 
 		// When
@@ -156,9 +157,9 @@ func TestPrompter_FetchUserProfile(t *testing.T) {
 	t.Run("should return error when context is cancelled", func(t *testing.T) {
 		// Given
 		input := "Test User\n\n\n"
-		reader := strings.NewReader(input)
+		scanner := bufio.NewScanner(strings.NewReader(input))
 		var writer bytes.Buffer
-		p := prompter.NewPrompter(reader, &writer)
+		p := prompter.NewPrompter(scanner, &writer)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 

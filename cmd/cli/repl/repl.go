@@ -7,10 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"yuruppu/internal/line"
 	"yuruppu/internal/userprofile"
 )
@@ -43,8 +40,8 @@ type Runner struct {
 	groupSimService    GroupSimService
 	handler            MessageHandler
 	logger             *slog.Logger
-	stdin              io.Reader
-	stdout             io.Writer
+	scanner            *bufio.Scanner
+	writer             io.Writer
 }
 
 func NewRunner(
@@ -54,8 +51,8 @@ func NewRunner(
 	groupSimService GroupSimService,
 	handler MessageHandler,
 	logger *slog.Logger,
-	stdin io.Reader,
-	stdout io.Writer,
+	scanner *bufio.Scanner,
+	writer io.Writer,
 ) (*Runner, error) {
 	if userID == "" {
 		return nil, errors.New("userID must not be empty")
@@ -66,11 +63,11 @@ func NewRunner(
 	if logger == nil {
 		return nil, errors.New("logger must not be nil")
 	}
-	if stdin == nil {
-		return nil, errors.New("stdin must not be nil")
+	if scanner == nil {
+		return nil, errors.New("scanner must not be nil")
 	}
-	if stdout == nil {
-		return nil, errors.New("stdout must not be nil")
+	if writer == nil {
+		return nil, errors.New("writer must not be nil")
 	}
 
 	return &Runner{
@@ -80,8 +77,8 @@ func NewRunner(
 		groupSimService:    groupSimService,
 		handler:            handler,
 		logger:             logger,
-		stdin:              stdin,
-		stdout:             stdout,
+		scanner:            scanner,
+		writer:             writer,
 	}, nil
 }
 
@@ -223,100 +220,65 @@ func (r *Runner) handleText(ctx context.Context, text string) {
 }
 
 // Run starts the REPL loop.
-// Exits on /quit, Ctrl+C twice, or context cancellation.
+// Exits on /quit, EOF, or Ctrl+C.
 func (r *Runner) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("context must not be nil")
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT)
-	defer signal.Stop(sigChan)
-
-	ctrlCCount := 0
-
-	scanner := bufio.NewScanner(r.stdin)
-
-	inputChan := make(chan string, 1)
-	doneChan := make(chan error, 1)
-
-	go func() {
-		for scanner.Scan() {
-			inputChan <- scanner.Text()
-		}
-		if err := scanner.Err(); err != nil {
-			doneChan <- err
-		} else {
-			doneChan <- nil
-		}
-		close(inputChan)
-	}()
-
 	for {
-		_, _ = fmt.Fprint(r.stdout, r.buildPrompt(ctx))
-
-		select {
-		case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
 			return context.Canceled
-
-		case <-sigChan:
-			ctrlCCount++
-			if ctrlCCount == 1 {
-				r.logger.InfoContext(ctx, "press Ctrl+C again to exit")
-			} else {
-				return nil
-			}
-
-		case err := <-doneChan:
-			return err
-
-		case text, ok := <-inputChan:
-			if !ok {
-				return <-doneChan
-			}
-
-			ctrlCCount = 0
-
-			trimmed := strings.TrimSpace(text)
-
-			if trimmed == "" {
-				continue
-			}
-
-			if trimmed == "/quit" {
-				return nil
-			}
-
-			if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
-				targetUserID = strings.TrimSpace(targetUserID)
-				if targetUserID == "" {
-					r.logger.WarnContext(ctx, "usage: /switch <user-id>")
-					continue
-				}
-				r.handleSwitch(ctx, targetUserID)
-				continue
-			}
-
-			if trimmed == "/users" {
-				r.handleUsers(ctx)
-				continue
-			}
-
-			if targetUserID, ok := strings.CutPrefix(trimmed, "/invite "); ok {
-				r.handleInvite(ctx, targetUserID)
-				continue
-			}
-			if trimmed == "/invite" {
-				r.logger.WarnContext(ctx, "usage: /invite <user-id>")
-				continue
-			}
-
-			if trimmed == "/invite-bot" {
-				r.handleInviteBot(ctx)
-				continue
-			}
-
-			r.handleText(ctx, trimmed)
 		}
+
+		_, _ = fmt.Fprint(r.writer, r.buildPrompt(ctx))
+
+		if !r.scanner.Scan() {
+			if err := r.scanner.Err(); err != nil {
+				return err
+			}
+			return nil // EOF
+		}
+
+		trimmed := strings.TrimSpace(r.scanner.Text())
+
+		if trimmed == "" {
+			continue
+		}
+
+		if trimmed == "/quit" {
+			return nil
+		}
+
+		if targetUserID, ok := strings.CutPrefix(trimmed, "/switch "); ok {
+			targetUserID = strings.TrimSpace(targetUserID)
+			if targetUserID == "" {
+				r.logger.WarnContext(ctx, "usage: /switch <user-id>")
+				continue
+			}
+			r.handleSwitch(ctx, targetUserID)
+			continue
+		}
+
+		if trimmed == "/users" {
+			r.handleUsers(ctx)
+			continue
+		}
+
+		if targetUserID, ok := strings.CutPrefix(trimmed, "/invite "); ok {
+			r.handleInvite(ctx, targetUserID)
+			continue
+		}
+		if trimmed == "/invite" {
+			r.logger.WarnContext(ctx, "usage: /invite <user-id>")
+			continue
+		}
+
+		if trimmed == "/invite-bot" {
+			r.handleInviteBot(ctx)
+			continue
+		}
+
+		r.handleText(ctx, trimmed)
 	}
 }

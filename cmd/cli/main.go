@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -141,6 +142,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	// Create shared scanner for stdin
+	scanner := bufio.NewScanner(stdin)
+
 	// Create FileStorage instances with key prefixes
 	userProfileStorage := mock.NewFileStorage(*dataDir, "userprofile/")
 	historyStorage := mock.NewFileStorage(*dataDir, "history/")
@@ -171,7 +175,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// Create mock LINE client with prompter
-	lineClient := mock.NewLineClient(prompter.NewPrompter(stdin, stderr))
+	lineClient := mock.NewLineClient(prompter.NewPrompter(scanner, stderr))
 
 	// Create history service
 	historyService, err := history.NewService(historyStorage)
@@ -264,7 +268,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	// REPL mode
-	r, err := repl.NewRunner(*userID, *groupID, userProfileService, groupService, handler, logger, stdin, stdout)
+	r, err := repl.NewRunner(*userID, *groupID, userProfileService, groupService, handler, logger, scanner, stdout)
 	if err != nil {
 		return fmt.Errorf("failed to create REPL: %w", err)
 	}

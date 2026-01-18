@@ -13,21 +13,21 @@ import (
 // Prompter prompts for profile information via stdin.
 // Implements mock.Fetcher interface.
 type Prompter struct {
-	reader io.Reader
-	writer io.Writer
+	scanner *bufio.Scanner
+	writer  io.Writer
 }
 
 // NewPrompter creates a new prompter.
-func NewPrompter(r io.Reader, w io.Writer) *Prompter {
-	if r == nil {
-		panic("reader cannot be nil")
+func NewPrompter(scanner *bufio.Scanner, w io.Writer) *Prompter {
+	if scanner == nil {
+		panic("scanner cannot be nil")
 	}
 	if w == nil {
 		panic("writer cannot be nil")
 	}
 	return &Prompter{
-		reader: r,
-		writer: w,
+		scanner: scanner,
+		writer:  w,
 	}
 }
 
@@ -35,22 +35,20 @@ func NewPrompter(r io.Reader, w io.Writer) *Prompter {
 // Display name is required (re-prompts if empty).
 // Picture URL and status message are optional.
 func (p *Prompter) FetchUserProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error) {
-	scanner := bufio.NewScanner(p.reader)
-
 	// Display name (required)
 	var displayName string
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		_, _ = fmt.Fprint(p.writer, "Enter display name: ")
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprint(p.writer, "Enter user display name: ")
+		if !p.scanner.Scan() {
+			if err := p.scanner.Err(); err != nil {
 				return nil, err
 			}
 			return nil, io.EOF
 		}
-		displayName = strings.TrimSpace(scanner.Text())
+		displayName = strings.TrimSpace(p.scanner.Text())
 		if displayName != "" {
 			break
 		}
@@ -60,27 +58,27 @@ func (p *Prompter) FetchUserProfile(ctx context.Context, userID string) (*linecl
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprint(p.writer, "Enter picture URL (optional): ")
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
+	_, _ = fmt.Fprint(p.writer, "Enter user picture URL (optional): ")
+	if !p.scanner.Scan() {
+		if err := p.scanner.Err(); err != nil {
 			return nil, err
 		}
 		return nil, io.EOF
 	}
-	pictureURL := strings.TrimSpace(scanner.Text())
+	pictureURL := strings.TrimSpace(p.scanner.Text())
 
 	// Status message (optional)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprint(p.writer, "Enter status message (optional): ")
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
+	_, _ = fmt.Fprint(p.writer, "Enter user status message (optional): ")
+	if !p.scanner.Scan() {
+		if err := p.scanner.Err(); err != nil {
 			return nil, err
 		}
 		return nil, io.EOF
 	}
-	statusMessage := strings.TrimSpace(scanner.Text())
+	statusMessage := strings.TrimSpace(p.scanner.Text())
 
 	return &lineclient.UserProfile{
 		DisplayName:   displayName,
@@ -91,22 +89,20 @@ func (p *Prompter) FetchUserProfile(ctx context.Context, userID string) (*linecl
 
 // FetchGroupSummary prompts the user for group information.
 func (p *Prompter) FetchGroupSummary(ctx context.Context, groupID string) (*lineclient.GroupSummary, error) {
-	scanner := bufio.NewScanner(p.reader)
-
 	// Group name (required)
 	var groupName string
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		_, _ = fmt.Fprint(p.writer, "Enter group name: ")
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprint(p.writer, "Enter group display name: ")
+		if !p.scanner.Scan() {
+			if err := p.scanner.Err(); err != nil {
 				return nil, err
 			}
 			return nil, io.EOF
 		}
-		groupName = strings.TrimSpace(scanner.Text())
+		groupName = strings.TrimSpace(p.scanner.Text())
 		if groupName != "" {
 			break
 		}
@@ -116,14 +112,14 @@ func (p *Prompter) FetchGroupSummary(ctx context.Context, groupID string) (*line
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprint(p.writer, "Enter picture URL (optional): ")
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
+	_, _ = fmt.Fprint(p.writer, "Enter group picture URL (optional): ")
+	if !p.scanner.Scan() {
+		if err := p.scanner.Err(); err != nil {
 			return nil, err
 		}
 		return nil, io.EOF
 	}
-	pictureURL := strings.TrimSpace(scanner.Text())
+	pictureURL := strings.TrimSpace(p.scanner.Text())
 
 	return &lineclient.GroupSummary{
 		GroupID:    groupID,
