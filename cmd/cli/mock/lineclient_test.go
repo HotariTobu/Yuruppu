@@ -27,14 +27,25 @@ func (m *mockFetcher) FetchGroupSummary(ctx context.Context, groupID string) (*l
 	return m.groupSummary, m.groupErr
 }
 
+// mockGroupSim is a test implementation of GroupSim.
+type mockGroupSim struct {
+	members []string
+	err     error
+}
+
+func (m *mockGroupSim) GetMembers(ctx context.Context, groupID string) ([]string, error) {
+	return m.members, m.err
+}
+
 // TestNewLineClient tests the constructor
 func TestNewLineClient(t *testing.T) {
-	t.Run("should create client with fetcher", func(t *testing.T) {
+	t.Run("should create client with fetcher and groupSim", func(t *testing.T) {
 		// Given
 		fetcher := &mockFetcher{}
+		groupSim := &mockGroupSim{}
 
 		// When
-		client := mock.NewLineClient(fetcher)
+		client := mock.NewLineClient(fetcher, groupSim)
 
 		// Then
 		require.NotNil(t, client)
@@ -43,7 +54,14 @@ func TestNewLineClient(t *testing.T) {
 	t.Run("should panic when fetcher is nil", func(t *testing.T) {
 		// When/Then
 		assert.Panics(t, func() {
-			mock.NewLineClient(nil)
+			mock.NewLineClient(nil, &mockGroupSim{})
+		})
+	})
+
+	t.Run("should panic when groupSim is nil", func(t *testing.T) {
+		// When/Then
+		assert.Panics(t, func() {
+			mock.NewLineClient(&mockFetcher{}, nil)
 		})
 	})
 }
@@ -52,7 +70,7 @@ func TestNewLineClient(t *testing.T) {
 func TestLineClient_GetMessageContent(t *testing.T) {
 	t.Run("should return error indicating media is not supported", func(t *testing.T) {
 		// Given
-		client := mock.NewLineClient(&mockFetcher{})
+		client := mock.NewLineClient(&mockFetcher{}, &mockGroupSim{})
 
 		// When
 		data, mimeType, err := client.GetMessageContent("msg123")
@@ -75,7 +93,7 @@ func TestLineClient_GetUserProfile(t *testing.T) {
 			PictureURL:    "https://example.com/pic.jpg",
 			StatusMessage: "Hello",
 		}
-		client := mock.NewLineClient(&mockFetcher{userProfile: expectedProfile})
+		client := mock.NewLineClient(&mockFetcher{userProfile: expectedProfile}, &mockGroupSim{})
 
 		// When
 		profile, err := client.GetUserProfile(context.Background(), "user123")
@@ -88,7 +106,7 @@ func TestLineClient_GetUserProfile(t *testing.T) {
 	t.Run("should propagate fetcher error", func(t *testing.T) {
 		// Given
 		expectedErr := errors.New("fetch failed")
-		client := mock.NewLineClient(&mockFetcher{userErr: expectedErr})
+		client := mock.NewLineClient(&mockFetcher{userErr: expectedErr}, &mockGroupSim{})
 
 		// When
 		profile, err := client.GetUserProfile(context.Background(), "user123")
@@ -109,7 +127,7 @@ func TestLineClient_GetGroupSummary(t *testing.T) {
 			GroupName:  "Test Group",
 			PictureURL: "https://example.com/group.jpg",
 		}
-		client := mock.NewLineClient(&mockFetcher{groupSummary: expectedSummary})
+		client := mock.NewLineClient(&mockFetcher{groupSummary: expectedSummary}, &mockGroupSim{})
 
 		// When
 		summary, err := client.GetGroupSummary(context.Background(), "group123")
@@ -122,7 +140,7 @@ func TestLineClient_GetGroupSummary(t *testing.T) {
 	t.Run("should propagate fetcher error", func(t *testing.T) {
 		// Given
 		expectedErr := errors.New("fetch failed")
-		client := mock.NewLineClient(&mockFetcher{groupErr: expectedErr})
+		client := mock.NewLineClient(&mockFetcher{groupErr: expectedErr}, &mockGroupSim{})
 
 		// When
 		summary, err := client.GetGroupSummary(context.Background(), "group123")
@@ -138,7 +156,7 @@ func TestLineClient_GetGroupSummary(t *testing.T) {
 func TestLineClient_SendReply(t *testing.T) {
 	t.Run("should return nil (no-op)", func(t *testing.T) {
 		// Given
-		client := mock.NewLineClient(&mockFetcher{})
+		client := mock.NewLineClient(&mockFetcher{}, &mockGroupSim{})
 
 		// When
 		err := client.SendReply("token123", "Hello, user!")
@@ -148,11 +166,54 @@ func TestLineClient_SendReply(t *testing.T) {
 	})
 }
 
+// TestLineClient_GetGroupMemberCount tests the GetGroupMemberCount method
+func TestLineClient_GetGroupMemberCount(t *testing.T) {
+	t.Run("should return member count via groupSim", func(t *testing.T) {
+		// Given
+		groupSim := &mockGroupSim{members: []string{"user1", "user2", "user3"}}
+		client := mock.NewLineClient(&mockFetcher{}, groupSim)
+
+		// When
+		count, err := client.GetGroupMemberCount(context.Background(), "group123")
+
+		// Then
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+	})
+
+	t.Run("should return 0 when group has no members", func(t *testing.T) {
+		// Given
+		client := mock.NewLineClient(&mockFetcher{}, &mockGroupSim{members: []string{}})
+
+		// When
+		count, err := client.GetGroupMemberCount(context.Background(), "group123")
+
+		// Then
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("should propagate groupSim error", func(t *testing.T) {
+		// Given
+		expectedErr := errors.New("group not found")
+		groupSim := &mockGroupSim{err: expectedErr}
+		client := mock.NewLineClient(&mockFetcher{}, groupSim)
+
+		// When
+		count, err := client.GetGroupMemberCount(context.Background(), "group123")
+
+		// Then
+		require.Error(t, err)
+		assert.Equal(t, 0, count)
+		assert.Equal(t, expectedErr, err)
+	})
+}
+
 // TestLineClient_InterfaceCompliance verifies that LineClient implements required interfaces
 func TestLineClient_InterfaceCompliance(t *testing.T) {
 	t.Run("should implement bot.LineClient interface", func(t *testing.T) {
 		// Given
-		client := mock.NewLineClient(&mockFetcher{})
+		client := mock.NewLineClient(&mockFetcher{}, &mockGroupSim{})
 
 		// When/Then
 		var _ interface {
@@ -164,7 +225,7 @@ func TestLineClient_InterfaceCompliance(t *testing.T) {
 
 	t.Run("should implement reply.LineClient interface", func(t *testing.T) {
 		// Given
-		client := mock.NewLineClient(&mockFetcher{})
+		client := mock.NewLineClient(&mockFetcher{}, &mockGroupSim{})
 
 		// When/Then
 		var _ interface {
