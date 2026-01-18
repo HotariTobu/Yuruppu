@@ -17,6 +17,7 @@ type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
 	GetUserProfile(ctx context.Context, userID string) (*lineclient.UserProfile, error)
 	GetGroupSummary(ctx context.Context, groupID string) (*lineclient.GroupSummary, error)
+	GetGroupMemberCount(ctx context.Context, groupID string) (int, error)
 	ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error
 }
 

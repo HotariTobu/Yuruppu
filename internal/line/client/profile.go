@@ -69,3 +69,23 @@ func (c *Client) GetGroupSummary(ctx context.Context, groupID string) (*GroupSum
 
 	return summary, nil
 }
+
+// GetGroupMemberCount fetches the member count of a group from LINE API.
+func (c *Client) GetGroupMemberCount(ctx context.Context, groupID string) (int, error) {
+	c.logger.DebugContext(ctx, "fetching group member count",
+		slog.String("groupID", groupID),
+	)
+
+	resp, err := c.api.GetGroupMemberCount(groupID)
+	if err != nil {
+		return 0, fmt.Errorf("LINE API GetGroupMemberCount failed: %w", err)
+	}
+
+	count := int(resp.Count)
+	c.logger.DebugContext(ctx, "group member count fetched successfully",
+		slog.String("groupID", groupID),
+		slog.Int("count", count),
+	)
+
+	return count, nil
+}

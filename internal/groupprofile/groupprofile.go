@@ -15,6 +15,7 @@ type GroupProfile struct {
 	DisplayName     string `json:"displayName"`
 	PictureURL      string `json:"pictureUrl,omitempty"`
 	PictureMIMEType string `json:"pictureMimeType,omitempty"`
+	UserCount       int    `json:"userCount,omitempty"`
 }
 
 // Service provides group profile management with caching and persistence.
