@@ -743,13 +743,13 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// Then: Message processing continues normally
 		require.NoError(t, err, "message processing should continue despite missing group profile")
-		// And: LLM request is sent with user_count: 0 (graceful degradation)
+		// And: LLM request is sent without user_count (graceful degradation)
 		require.NotEmpty(t, mockAg.lastContextText, "context should still be sent")
-		assert.Contains(t, mockAg.lastContextText, "user_count: 0", "context should include user_count: 0 when profile unavailable")
+		assert.NotContains(t, mockAg.lastContextText, "user_count:", "context should not include user_count when profile unavailable")
 		assert.Contains(t, mockAg.lastContextText, "chat_type: group", "context should still indicate group chat")
 	})
 
-	t.Run("1:1 chat does not include user_count (defaults to 0)", func(t *testing.T) {
+	t.Run("1:1 chat does not include user_count", func(t *testing.T) {
 		// Given: A 1:1 chat (sourceID == userID)
 		mockAg := &mockAgent{response: "Hello!"}
 
@@ -761,10 +761,10 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
 		err := h.HandleText(ctx, "Hi!")
 
-		// Then: The context includes user_count: 0 for 1:1 chats
+		// Then: The context does not include user_count for 1:1 chats
 		require.NoError(t, err)
 		require.NotEmpty(t, mockAg.lastContextText, "context should be captured")
-		assert.Contains(t, mockAg.lastContextText, "user_count: 0", "1:1 chat should have user_count: 0")
+		assert.NotContains(t, mockAg.lastContextText, "user_count:", "1:1 chat should not have user_count")
 		assert.Contains(t, mockAg.lastContextText, "chat_type: 1-on-1", "context should indicate 1:1 chat")
 	})
 
@@ -924,6 +924,6 @@ func TestHandleMessage_ContextFormat(t *testing.T) {
 		assert.Contains(t, context, "[context]", "should contain header")
 		assert.Contains(t, context, "current_local_time:", "should contain timestamp")
 		assert.Contains(t, context, "chat_type: 1-on-1", "should contain chat type")
-		assert.Contains(t, context, "user_count: 0", "should contain user count (0 for 1:1)")
+		assert.NotContains(t, context, "user_count:", "should not contain user_count for 1:1 chat")
 	})
 }
