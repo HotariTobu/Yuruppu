@@ -143,6 +143,123 @@ func validHandlerConfig() bot.HandlerConfig {
 }
 
 // =============================================================================
+// Test Handler Builder
+// =============================================================================
+
+// testHandlerBuilder provides a fluent API for constructing test handlers
+type testHandlerBuilder struct {
+	t            *testing.T
+	lineClient   *mockLineClient
+	profile      *mockProfileService
+	groupProfile *mockGroupProfileService
+	media        *mockMediaService
+	agent        *mockAgent
+	storage      *mockStorage
+}
+
+// newTestHandler creates a new test handler builder with sensible defaults
+func newTestHandler(t *testing.T) *testHandlerBuilder {
+	return &testHandlerBuilder{
+		t:            t,
+		lineClient:   &mockLineClient{},
+		profile:      &mockProfileService{},
+		groupProfile: &mockGroupProfileService{},
+		media:        &mockMediaService{},
+		agent:        &mockAgent{},
+		storage:      newMockStorage(),
+	}
+}
+
+// WithLineClient sets a custom LINE client mock
+func (b *testHandlerBuilder) WithLineClient(lc *mockLineClient) *testHandlerBuilder {
+	b.lineClient = lc
+	return b
+}
+
+// WithGroupSummary configures the LINE client to return a specific group summary
+func (b *testHandlerBuilder) WithGroupSummary(groupID, groupName, pictureURL string) *testHandlerBuilder {
+	b.lineClient.groupSummary = &lineclient.GroupSummary{
+		GroupID:    groupID,
+		GroupName:  groupName,
+		PictureURL: pictureURL,
+	}
+	return b
+}
+
+// WithGroupSummaryError configures the LINE client to return an error for GetGroupSummary
+func (b *testHandlerBuilder) WithGroupSummaryError(err error) *testHandlerBuilder {
+	b.lineClient.groupSummaryErr = err
+	return b
+}
+
+// WithMemberCount configures the LINE client to return a specific member count
+func (b *testHandlerBuilder) WithMemberCount(count int) *testHandlerBuilder {
+	b.lineClient.groupMemberCount = count
+	return b
+}
+
+// WithMemberCountError configures the LINE client to return an error for GetGroupMemberCount
+func (b *testHandlerBuilder) WithMemberCountError(err error) *testHandlerBuilder {
+	b.lineClient.groupMemberCountErr = err
+	return b
+}
+
+// WithGroupProfile sets a custom group profile service mock
+func (b *testHandlerBuilder) WithGroupProfile(gps *mockGroupProfileService) *testHandlerBuilder {
+	b.groupProfile = gps
+	return b
+}
+
+// WithGroupProfileError configures the group profile service to return errors
+func (b *testHandlerBuilder) WithGroupProfileError(getErr, setErr error) *testHandlerBuilder {
+	b.groupProfile.getErr = getErr
+	b.groupProfile.setErr = setErr
+	return b
+}
+
+// WithInitialGroupProfile sets the initial profile that GetGroupProfile will return
+func (b *testHandlerBuilder) WithInitialGroupProfile(profile *groupprofile.GroupProfile) *testHandlerBuilder {
+	b.groupProfile.profile = profile
+	return b
+}
+
+// WithAgent sets a custom agent mock
+func (b *testHandlerBuilder) WithAgent(ag *mockAgent) *testHandlerBuilder {
+	b.agent = ag
+	return b
+}
+
+// WithStorage sets a custom storage mock
+func (b *testHandlerBuilder) WithStorage(s *mockStorage) *testHandlerBuilder {
+	b.storage = s
+	return b
+}
+
+// Build creates the handler with configured mocks
+func (b *testHandlerBuilder) Build() *bot.Handler {
+	historyRepo, err := history.NewService(b.storage)
+	require.NoError(b.t, err)
+
+	handler, err := bot.NewHandler(
+		b.lineClient,
+		b.profile,
+		b.groupProfile,
+		historyRepo,
+		b.media,
+		b.agent,
+		validHandlerConfig(),
+		slog.New(slog.DiscardHandler),
+	)
+	require.NoError(b.t, err)
+	return handler
+}
+
+// BuildWithMocks creates the handler and returns it along with key mocks for verification
+func (b *testHandlerBuilder) BuildWithMocks() (*bot.Handler, *mockLineClient, *mockGroupProfileService) {
+	return b.Build(), b.lineClient, b.groupProfile
+}
+
+// =============================================================================
 // Mocks
 // =============================================================================
 
