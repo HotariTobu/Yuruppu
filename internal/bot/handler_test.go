@@ -267,19 +267,16 @@ type mockAgent struct {
 	response            string
 	err                 error
 	lastUserMessageText string
+	lastContextText     string        // Captures the first message if it's a context message
 	processDelay        time.Duration // Delay to simulate slow processing
 }
 
 func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message) (*agent.AssistantMessage, error) {
+	// Extract context from first message if it looks like a context message
+	m.extractContextFromHistory(hist)
+
 	// Extract text from last user message in history for testing
-	// Parts[0] is the header, Parts[1] is the actual message content
-	if len(hist) > 0 {
-		if userMsg, ok := hist[len(hist)-1].(*agent.UserMessage); ok && len(userMsg.Parts) > 1 {
-			if textPart, ok := userMsg.Parts[1].(*agent.UserTextPart); ok {
-				m.lastUserMessageText = textPart.Text
-			}
-		}
-	}
+	m.extractLastUserMessageText(hist)
 	// Simulate processing delay for testing delayed loading indicator
 	if m.processDelay > 0 {
 		select {
@@ -298,6 +295,42 @@ func (m *mockAgent) Generate(ctx context.Context, hist []agent.Message) (*agent.
 
 func (m *mockAgent) Close(ctx context.Context) error {
 	return nil
+}
+
+// extractContextFromHistory extracts context from the first message if it's a context message
+func (m *mockAgent) extractContextFromHistory(hist []agent.Message) {
+	if len(hist) == 0 {
+		return
+	}
+	userMsg, ok := hist[0].(*agent.UserMessage)
+	if !ok || len(userMsg.Parts) == 0 {
+		return
+	}
+	textPart, ok := userMsg.Parts[0].(*agent.UserTextPart)
+	if !ok || len(textPart.Text) == 0 {
+		return
+	}
+	// Check if this is a context message (starts with "[context]")
+	if textPart.Text[0] == '[' {
+		m.lastContextText = textPart.Text
+	}
+}
+
+// extractLastUserMessageText extracts text from the last user message
+// Parts[0] is the header, Parts[1] is the actual message content
+func (m *mockAgent) extractLastUserMessageText(hist []agent.Message) {
+	if len(hist) == 0 {
+		return
+	}
+	userMsg, ok := hist[len(hist)-1].(*agent.UserMessage)
+	if !ok || len(userMsg.Parts) <= 1 {
+		return
+	}
+	textPart, ok := userMsg.Parts[1].(*agent.UserTextPart)
+	if !ok {
+		return
+	}
+	m.lastUserMessageText = textPart.Text
 }
 
 type mockLineClient struct {

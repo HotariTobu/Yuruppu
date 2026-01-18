@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 	"yuruppu/internal/bot"
+	"yuruppu/internal/groupprofile"
 	"yuruppu/internal/history"
 
 	"github.com/stretchr/testify/assert"
@@ -686,5 +687,243 @@ func TestHandler_ErrorChain(t *testing.T) {
 		assert.True(t, errors.Is(err, storageErr), "error chain should contain original storage error")
 		// Verify wrapping context is present
 		assert.Contains(t, err.Error(), "failed to save user message to history")
+	})
+}
+
+// =============================================================================
+// Group Member Count Context Tests (FR-005)
+// =============================================================================
+
+func TestHandleMessage_GroupMemberCount(t *testing.T) {
+	// AC-004: Member count passed to LLM [FR-005]
+	t.Run("AC-004: group message includes user_count from stored group profile", func(t *testing.T) {
+		// Given: A group with a stored member count
+		mockGroupProfile := &mockGroupProfileService{
+			profile: &groupprofile.GroupProfile{
+				DisplayName: "Test Group",
+				PictureURL:  "",
+				UserCount:   15, // 15 members in the group
+			},
+		}
+		mockAg := &mockAgent{response: "Hello group!"}
+
+		h := newTestHandler(t).
+			WithGroupProfile(mockGroupProfile).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A user sends a message in the group chat
+		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
+		err := h.HandleText(ctx, "Hi everyone!")
+
+		// Then: The group member count is included in the context
+		require.NoError(t, err)
+		require.NotEmpty(t, mockAg.lastContextText, "context should be captured")
+		assert.Contains(t, mockAg.lastContextText, "[context]", "context should start with [context]")
+		assert.Contains(t, mockAg.lastContextText, "user_count: 15", "context should include user_count: 15")
+		assert.Contains(t, mockAg.lastContextText, "chat_type: group", "context should indicate group chat")
+	})
+
+	// AC-005: Handle missing member count gracefully [FR-005]
+	t.Run("AC-005: group message continues when group profile unavailable", func(t *testing.T) {
+		// Given: A group message is received but member count is not stored
+		mockGroupProfile := &mockGroupProfileService{
+			getErr: errors.New("profile not found"),
+		}
+		mockAg := &mockAgent{response: "Hello group!"}
+
+		h := newTestHandler(t).
+			WithGroupProfile(mockGroupProfile).
+			WithAgent(mockAg).
+			Build()
+
+		// When: The message is processed
+		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
+		err := h.HandleText(ctx, "Hi everyone!")
+
+		// Then: Message processing continues normally
+		require.NoError(t, err, "message processing should continue despite missing group profile")
+		// And: LLM request is sent with user_count: 0 (graceful degradation)
+		require.NotEmpty(t, mockAg.lastContextText, "context should still be sent")
+		assert.Contains(t, mockAg.lastContextText, "user_count: 0", "context should include user_count: 0 when profile unavailable")
+		assert.Contains(t, mockAg.lastContextText, "chat_type: group", "context should still indicate group chat")
+	})
+
+	t.Run("1:1 chat does not include user_count (defaults to 0)", func(t *testing.T) {
+		// Given: A 1:1 chat (sourceID == userID)
+		mockAg := &mockAgent{response: "Hello!"}
+
+		h := newTestHandler(t).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A user sends a message in 1:1 chat
+		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
+		err := h.HandleText(ctx, "Hi!")
+
+		// Then: The context includes user_count: 0 for 1:1 chats
+		require.NoError(t, err)
+		require.NotEmpty(t, mockAg.lastContextText, "context should be captured")
+		assert.Contains(t, mockAg.lastContextText, "user_count: 0", "1:1 chat should have user_count: 0")
+		assert.Contains(t, mockAg.lastContextText, "chat_type: 1-on-1", "context should indicate 1:1 chat")
+	})
+
+	t.Run("group profile service not called for 1:1 chats", func(t *testing.T) {
+		// Given: A 1:1 chat
+		mockGroupProfile := &mockGroupProfileService{}
+		mockAg := &mockAgent{response: "Hello!"}
+
+		h := newTestHandler(t).
+			WithGroupProfile(mockGroupProfile).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A user sends a message in 1:1 chat
+		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
+		err := h.HandleText(ctx, "Hi!")
+
+		// Then: Group profile service should not be called
+		require.NoError(t, err)
+		assert.Empty(t, mockGroupProfile.lastGroupID, "group profile service should not be called for 1:1 chats")
+	})
+
+	t.Run("group profile service called with correct groupID", func(t *testing.T) {
+		// Given: A group chat with stored profile
+		mockGroupProfile := &mockGroupProfileService{
+			profile: &groupprofile.GroupProfile{
+				DisplayName: "Test Group",
+				UserCount:   42,
+			},
+		}
+		mockAg := &mockAgent{response: "Hello group!"}
+
+		h := newTestHandler(t).
+			WithGroupProfile(mockGroupProfile).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A user sends a message in the group
+		ctx := withLineContext(t.Context(), "reply-token", "group-456", "user-123")
+		err := h.HandleText(ctx, "Hi everyone!")
+
+		// Then: Group profile service is called with correct groupID
+		require.NoError(t, err)
+		assert.Equal(t, "group-456", mockGroupProfile.lastGroupID, "group profile should be fetched with correct groupID")
+	})
+
+	t.Run("different member counts are correctly reflected in context", func(t *testing.T) {
+		tests := []struct {
+			name            string
+			userCount       int
+			expectedContext string
+		}{
+			{
+				name:            "small group with 3 members",
+				userCount:       3,
+				expectedContext: "user_count: 3",
+			},
+			{
+				name:            "medium group with 25 members",
+				userCount:       25,
+				expectedContext: "user_count: 25",
+			},
+			{
+				name:            "large group with 100 members",
+				userCount:       100,
+				expectedContext: "user_count: 100",
+			},
+			{
+				name:            "very large group with 500 members",
+				userCount:       500,
+				expectedContext: "user_count: 500",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				// Given: A group with specific member count
+				mockGroupProfile := &mockGroupProfileService{
+					profile: &groupprofile.GroupProfile{
+						DisplayName: "Test Group",
+						UserCount:   tt.userCount,
+					},
+				}
+				mockAg := &mockAgent{response: "Hello!"}
+
+				h := newTestHandler(t).
+					WithGroupProfile(mockGroupProfile).
+					WithAgent(mockAg).
+					Build()
+
+				// When: A message is sent
+				ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
+				err := h.HandleText(ctx, "Hi!")
+
+				// Then: The correct user_count is in the context
+				require.NoError(t, err)
+				assert.Contains(t, mockAg.lastContextText, tt.expectedContext,
+					"context should include correct user_count")
+			})
+		}
+	})
+}
+
+// =============================================================================
+// Context Format Verification Tests
+// =============================================================================
+
+func TestHandleMessage_ContextFormat(t *testing.T) {
+	t.Run("context contains all required fields for group chat", func(t *testing.T) {
+		// Given: A group chat with stored profile
+		mockGroupProfile := &mockGroupProfileService{
+			profile: &groupprofile.GroupProfile{
+				DisplayName: "Test Group",
+				UserCount:   20,
+			},
+		}
+		mockAg := &mockAgent{response: "Hello!"}
+
+		h := newTestHandler(t).
+			WithGroupProfile(mockGroupProfile).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A message is sent
+		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
+		err := h.HandleText(ctx, "Hi!")
+
+		// Then: Context contains all required fields
+		require.NoError(t, err)
+		context := mockAg.lastContextText
+
+		assert.Contains(t, context, "[context]", "should contain header")
+		assert.Contains(t, context, "current_local_time:", "should contain timestamp")
+		assert.Contains(t, context, "chat_type: group", "should contain chat type")
+		assert.Contains(t, context, "user_count: 20", "should contain user count")
+
+		// Verify format matches template expectations
+		assert.Contains(t, context, "\n", "should be multi-line")
+	})
+
+	t.Run("context contains all required fields for 1:1 chat", func(t *testing.T) {
+		// Given: A 1:1 chat
+		mockAg := &mockAgent{response: "Hello!"}
+
+		h := newTestHandler(t).
+			WithAgent(mockAg).
+			Build()
+
+		// When: A message is sent
+		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
+		err := h.HandleText(ctx, "Hi!")
+
+		// Then: Context contains all required fields
+		require.NoError(t, err)
+		context := mockAg.lastContextText
+
+		assert.Contains(t, context, "[context]", "should contain header")
+		assert.Contains(t, context, "current_local_time:", "should contain timestamp")
+		assert.Contains(t, context, "chat_type: 1-on-1", "should contain chat type")
+		assert.Contains(t, context, "user_count: 0", "should contain user count (0 for 1:1)")
 	})
 }

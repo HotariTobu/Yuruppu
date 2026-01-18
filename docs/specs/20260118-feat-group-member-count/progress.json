@@ -6,8 +6,8 @@
     { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": true },
     { "id": "FR-004", "passes": false },
-    { "id": "FR-005", "passes": false }
+    { "id": "FR-005", "passes": true }
   ],
   "blockers": [],
-  "notes": "Session 4 complete: FR-003 (HandleMemberLeft) comprehensive tests added and verified with all reviewer agents. All tests pass. Next session should work on FR-005 (LLM context integration) - add user_count to chat_context template and buildContextParts. FR-004 (persistence) is implicitly covered by FR-001, FR-002, FR-003 tests."
+  "notes": "Session 5 complete: FR-005 (LLM context integration) tests added. Tests verify user_count is included in context for group chats (AC-004) and graceful degradation when profile unavailable (AC-005). Implementation was already in place in buildContextParts(). FR-004 (persistence) is implicitly covered by FR-001, FR-002, FR-003 tests. Next session: FR-001 (retrieve member count on bot join)."
 }
