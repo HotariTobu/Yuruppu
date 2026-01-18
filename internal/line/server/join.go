@@ -8,6 +8,13 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
+// JoinHandler handles join and member events.
+type JoinHandler interface {
+	HandleJoin(ctx context.Context) error
+	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
+	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
+}
+
 // dispatchJoin dispatches the join event to all registered handlers.
 func (s *Server) dispatchJoin(joinEvent webhook.JoinEvent) {
 	if len(s.handlers) == 0 {
@@ -19,7 +26,7 @@ func (s *Server) dispatchJoin(joinEvent webhook.JoinEvent) {
 	}
 }
 
-func (s *Server) invokeJoinHandler(handler Handler, joinEvent webhook.JoinEvent) {
+func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEvent) {
 	chatType, sourceID, userID := extractSourceInfo(joinEvent.Source)
 
 	defer func() {
@@ -58,7 +65,7 @@ func (s *Server) dispatchMemberJoined(event webhook.MemberJoinedEvent) {
 	}
 }
 
-func (s *Server) invokeMemberJoinedHandler(handler Handler, event webhook.MemberJoinedEvent) {
+func (s *Server) invokeMemberJoinedHandler(handler JoinHandler, event webhook.MemberJoinedEvent) {
 	chatType, sourceID, userID := extractSourceInfo(event.Source)
 
 	joinedUserIDs := make([]string, 0, len(event.Joined.Members))
@@ -104,7 +111,7 @@ func (s *Server) dispatchMemberLeft(event webhook.MemberLeftEvent) {
 	}
 }
 
-func (s *Server) invokeMemberLeftHandler(handler Handler, event webhook.MemberLeftEvent) {
+func (s *Server) invokeMemberLeftHandler(handler JoinHandler, event webhook.MemberLeftEvent) {
 	chatType, sourceID, userID := extractSourceInfo(event.Source)
 
 	leftUserIDs := make([]string, 0, len(event.Left.Members))
