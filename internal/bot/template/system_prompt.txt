@@ -5,6 +5,7 @@ The first user turn contains context:
 ```
 [context]
 chat_type: {1-on-1|group}
+user_count: {number of users in the group, excluding yourself}
 
 [[context.user_profiles]]
 display_name: {name}
