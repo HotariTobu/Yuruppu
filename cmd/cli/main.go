@@ -223,7 +223,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("failed to create event service: %w", err)
 	}
-	eventTools, err := event.NewTools(eventService, userProfileService, 366, 5, logger)
+	eventTools, err := event.NewTools(eventService, userProfileService, lineClient, 366, 5, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create event tools: %w", err)
 	}
