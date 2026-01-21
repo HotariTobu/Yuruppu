@@ -12,8 +12,6 @@ import (
 	"yuruppu/internal/toolset/event/remove"
 	"yuruppu/internal/toolset/event/update"
 	"yuruppu/internal/userprofile"
-
-	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
 
 // EventService provides access to event operations.
@@ -30,22 +28,14 @@ type UserProfileService interface {
 	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
 }
 
-// LineClient provides access to LINE API for sending messages.
-type LineClient interface {
-	SendFlexReply(replyToken string, altText string, flexContainer messaging_api.FlexContainerInterface) error
-}
-
 // NewTools creates all event management tools (create, get, list).
 // Returns error if any service is nil or configuration values are invalid.
-func NewTools(eventService EventService, userProfileService UserProfileService, lineClient LineClient, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
+func NewTools(eventService EventService, userProfileService UserProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
 	}
 	if userProfileService == nil {
 		return nil, errors.New("userProfileService cannot be nil")
-	}
-	if lineClient == nil {
-		return nil, errors.New("lineClient cannot be nil")
 	}
 	if listMaxPeriodDays <= 0 {
 		return nil, errors.New("listMaxPeriodDays must be positive")
@@ -70,7 +60,7 @@ func NewTools(eventService EventService, userProfileService UserProfileService, 
 	}
 
 	// Create list_events tool
-	listTool, err := list.New(eventService, lineClient, userProfileService, listMaxPeriodDays, listLimit, logger)
+	listTool, err := list.New(eventService, listMaxPeriodDays, listLimit, logger)
 	if err != nil {
 		return nil, err
 	}

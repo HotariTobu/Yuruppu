@@ -1,19 +1,13 @@
 package list
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
 	"log/slog"
-	"text/template"
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
-	"yuruppu/internal/userprofile"
-
-	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
 
 //go:embed parameters.json
@@ -21,9 +15,6 @@ var parametersSchema []byte
 
 //go:embed response.json
 var responseSchema []byte
-
-//go:embed flex.json
-var flexTemplate string
 
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
@@ -33,37 +24,18 @@ type EventService interface {
 	List(ctx context.Context, opts event.ListOptions) ([]*event.Event, error)
 }
 
-// LineClient provides access to LINE API.
-type LineClient interface {
-	SendFlexReply(replyToken string, altText string, flexContainer messaging_api.FlexContainerInterface) error
-}
-
-// UserProfileService provides access to user profile operations.
-type UserProfileService interface {
-	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
-}
-
 // Tool implements the list_events tool for retrieving filtered event lists.
 type Tool struct {
-	eventService       EventService
-	lineClient         LineClient
-	userProfileService UserProfileService
-	tmpl               *template.Template
-	maxPeriodDays      int
-	limit              int
-	logger             *slog.Logger
+	eventService  EventService
+	maxPeriodDays int
+	limit         int
+	logger        *slog.Logger
 }
 
 // New creates a new list_events tool with the specified service and configuration.
-func New(eventService EventService, lineClient LineClient, userProfileService UserProfileService, maxPeriodDays, limit int, logger *slog.Logger) (*Tool, error) {
+func New(eventService EventService, maxPeriodDays, limit int, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
-	}
-	if lineClient == nil {
-		return nil, errors.New("lineClient cannot be nil")
-	}
-	if userProfileService == nil {
-		return nil, errors.New("userProfileService cannot be nil")
 	}
 	if maxPeriodDays <= 0 {
 		return nil, errors.New("maxPeriodDays must be positive")
@@ -74,21 +46,11 @@ func New(eventService EventService, lineClient LineClient, userProfileService Us
 	if logger == nil {
 		return nil, errors.New("logger cannot be nil")
 	}
-
-	// Parse flex template
-	tmpl, err := template.New("flex").Parse(flexTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse flex template: %w", err)
-	}
-
 	return &Tool{
-		eventService:       eventService,
-		lineClient:         lineClient,
-		userProfileService: userProfileService,
-		tmpl:               tmpl,
-		maxPeriodDays:      maxPeriodDays,
-		limit:              limit,
-		logger:             logger,
+		eventService:  eventService,
+		maxPeriodDays: maxPeriodDays,
+		limit:         limit,
+		logger:        logger,
 	}, nil
 }
 
@@ -99,7 +61,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to retrieve and display a list of events. Sends a visual Flex Message to the user."
+	return "Use this tool to retrieve a list of events with optional filters."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.
@@ -112,19 +74,7 @@ func (t *Tool) ResponseJsonSchema() []byte {
 	return responseSchema
 }
 
-// flexEventData holds data for rendering a single event in the flex template.
-type flexEventData struct {
-	Title       string
-	CreatorName string
-	ShowCreator bool
-	StartTime   string
-	EndTime     string
-	Fee         string
-	Capacity    int
-	Description string
-}
-
-// Callback retrieves a filtered list of events and sends as Flex Message.
+// Callback retrieves a filtered list of events.
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
 	// Build ListOptions
 	opts := event.ListOptions{}
@@ -203,81 +153,21 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		return nil, errors.New("failed to list events")
 	}
 
-	// AC-002: No events - return to LLM, don't send message
-	if len(events) == 0 {
-		return map[string]any{
-			"status": "no_events",
-		}, nil
-	}
-
-	// AC-001: Events exist - send Flex Message
-	replyToken, ok := line.ReplyTokenFromContext(ctx)
-	if !ok {
-		t.logger.ErrorContext(ctx, "reply token not found in context")
-		return nil, errors.New("internal error")
-	}
-
-	// Build template data
-	templateData := make([]flexEventData, len(events))
+	// Build response with limited fields
+	eventList := make([]any, len(events))
 	for i, ev := range events {
-		creatorName := "？？？"
-		if ev.ShowCreator {
-			profile, err := t.userProfileService.GetUserProfile(ctx, ev.CreatorID)
-			if err != nil {
-				t.logger.WarnContext(ctx, "failed to get creator profile",
-					slog.String("creatorID", ev.CreatorID),
-					slog.Any("error", err),
-				)
-			} else {
-				creatorName = profile.DisplayName
-			}
+		eventList[i] = map[string]any{
+			"chat_room_id": ev.ChatRoomID,
+			"title":        ev.Title,
+			"start_time":   ev.StartTime.In(JST).Format(time.RFC3339),
+			"end_time":     ev.EndTime.In(JST).Format(time.RFC3339),
+			"fee":          ev.Fee,
 		}
-
-		templateData[i] = flexEventData{
-			Title:       ev.Title,
-			CreatorName: creatorName,
-			ShowCreator: ev.ShowCreator,
-			StartTime:   ev.StartTime.In(JST).Format("2006/01/02 15:04"),
-			EndTime:     ev.EndTime.In(JST).Format("2006/01/02 15:04"),
-			Fee:         ev.Fee,
-			Capacity:    ev.Capacity,
-			Description: ev.Description,
-		}
-	}
-
-	// Render template
-	var buf bytes.Buffer
-	if err := t.tmpl.Execute(&buf, templateData); err != nil {
-		t.logger.ErrorContext(ctx, "failed to render flex template", slog.Any("error", err))
-		return nil, errors.New("failed to render message")
-	}
-
-	// Parse JSON to SDK type using UnmarshalFlexContainer
-	flexContainer, err := messaging_api.UnmarshalFlexContainer(buf.Bytes())
-	if err != nil {
-		t.logger.ErrorContext(ctx, "failed to parse flex container",
-			slog.Any("error", err),
-			slog.String("json", buf.String()),
-		)
-		return nil, errors.New("failed to parse message")
-	}
-
-	// Send flex message
-	altText := fmt.Sprintf("%d件のイベント", len(events))
-	if err := t.lineClient.SendFlexReply(replyToken, altText, flexContainer); err != nil {
-		t.logger.ErrorContext(ctx, "failed to send flex message", slog.Any("error", err))
-		return nil, errors.New("failed to send message")
 	}
 
 	return map[string]any{
-		"status": "sent",
+		"events": eventList,
 	}, nil
-}
-
-// IsFinal returns true if the flex message was sent successfully.
-func (t *Tool) IsFinal(validatedResult map[string]any) bool {
-	status, ok := validatedResult["status"].(string)
-	return ok && status == "sent"
 }
 
 // parseTimeParameter parses a time parameter that can be either "today" or RFC3339 format.
