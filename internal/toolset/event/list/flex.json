@@ -1,0 +1,165 @@
+{{- if . -}}
+{
+  "type": "carousel",
+  "contents": [
+{{- range $i, $e := . }}{{if $i}},{{end}}
+    {
+      "type": "bubble",
+      "size": "mega",
+      "header": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "text",
+            "text": "{{$e.Title}}",
+            "color": "#ffffff",
+            "size": "xl",
+            "weight": "bold"
+          },
+          {
+            "type": "text",
+            "text": "by {{if $e.ShowCreator}}{{$e.CreatorName}}{{else}}？？？{{end}}",
+            "color": "#ffffff",
+            "size": "xs"
+          }
+        ],
+        "backgroundColor": "#32555D",
+        "paddingAll": "20px"
+      },
+      "body": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "開始",
+                "color": "#8c8c8c",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "{{$e.StartTime}}",
+                "size": "sm",
+                "flex": 3,
+                "wrap": true
+              }
+            ]
+          },
+          {
+            "type": "separator",
+            "margin": "lg"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "終了",
+                "color": "#8c8c8c",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "{{$e.EndTime}}",
+                "size": "sm",
+                "flex": 3,
+                "wrap": true
+              }
+            ],
+            "margin": "lg"
+          },
+          {
+            "type": "separator",
+            "margin": "lg"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "参加費",
+                "color": "#8c8c8c",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "{{$e.Fee}}",
+                "size": "sm",
+                "flex": 3
+              }
+            ],
+            "margin": "lg"
+          },
+          {
+            "type": "separator",
+            "margin": "lg"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "定員",
+                "color": "#8c8c8c",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "{{$e.Capacity}}名",
+                "size": "sm",
+                "flex": 3
+              }
+            ],
+            "margin": "lg"
+          },
+          {
+            "type": "separator",
+            "margin": "lg"
+          },
+          {
+            "type": "text",
+            "text": "{{$e.Description}}",
+            "size": "sm",
+            "color": "#555555",
+            "wrap": true,
+            "margin": "lg"
+          }
+        ],
+        "paddingAll": "20px"
+      }
+    }
+{{- end }}
+  ]
+}
+{{- else -}}
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "イベントが見つかりませんでした",
+        "size": "md",
+        "color": "#555555",
+        "align": "center"
+      }
+    ],
+    "paddingAll": "20px",
+    "justifyContent": "center"
+  }
+}
+{{- end -}}
