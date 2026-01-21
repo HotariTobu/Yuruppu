@@ -1,0 +1,13 @@
+{
+  "phase": "spec",
+  "lastUpdated": "2026-01-21",
+  "requirements": [
+    { "id": "CH-001", "passes": false },
+    { "id": "CH-002", "passes": false },
+    { "id": "AC-001", "passes": false },
+    { "id": "AC-002", "passes": false },
+    { "id": "AC-003", "passes": false }
+  ],
+  "blockers": [],
+  "notes": ""
+}
