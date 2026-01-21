@@ -6,8 +6,6 @@ import (
 	"time"
 
 	lineclient "yuruppu/internal/line/client"
-
-	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
 
 // Fetcher defines the interface for fetching user profiles and group summaries.
@@ -70,9 +68,4 @@ func (c *LineClient) GetGroupMemberCount(ctx context.Context, groupID string) (i
 		return 0, err
 	}
 	return len(members), nil
-}
-
-// SendFlexReply is a no-op in CLI mode since bot output is already logged.
-func (c *LineClient) SendFlexReply(replyToken string, altText string, flexContainer messaging_api.FlexContainerInterface) error {
-	return nil
 }

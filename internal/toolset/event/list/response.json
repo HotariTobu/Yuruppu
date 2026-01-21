@@ -1,12 +1,38 @@
 {
   "type": "object",
   "properties": {
-    "status": {
-      "type": "string",
-      "enum": ["sent", "no_events"],
-      "description": "sent: flex message sent to LINE, no_events: no events found"
+    "events": {
+      "type": "array",
+      "description": "Event list",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chat_room_id": {
+            "type": "string",
+            "description": "Chat room ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Start time JST RFC3339"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "End time JST RFC3339"
+          },
+          "fee": {
+            "type": "string",
+            "description": "Fee"
+          }
+        },
+        "required": ["chat_room_id", "title", "start_time", "end_time", "fee"],
+        "additionalProperties": false
+      }
     }
   },
-  "required": ["status"],
+  "required": ["events"],
   "additionalProperties": false
 }
