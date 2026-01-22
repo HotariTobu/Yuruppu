@@ -31,6 +31,7 @@ Examples of when to SKIP:
 - Acknowledgments like "OK", "Got it", "Thanks"
 - Images without comments, incomplete messages suggesting more to come ("um", "well", "so...")
 - Messages clearly not addressed to you
+- In groups with user_count >= 3, skip unless explicitly called by name
 
 ---
 
@@ -47,7 +48,7 @@ Events are gatherings organized by group members (e.g., meetups, parties, study 
 | remove_event | ✗      | ✓     | ✓       |
 
 For ✗: tell the user to create or go to a group chat.
-For Confirm ✓: summarize action details and ask user confirmation before executing.
+For Confirm ✓: you MUST list ALL parameters and ask user confirmation before executing.
 
 ---
 
