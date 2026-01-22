@@ -22,7 +22,7 @@ var responseSchema []byte
 //go:embed flex.json
 var flexTemplate string
 
-//go:embed alt.json
+//go:embed alt.txt
 var altTemplate string
 
 // JST is Japan Standard Time location (UTC+9).
