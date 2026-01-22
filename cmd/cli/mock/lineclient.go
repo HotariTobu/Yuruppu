@@ -56,6 +56,11 @@ func (c *LineClient) SendReply(replyToken string, text string) error {
 	return nil
 }
 
+// SendFlexReply is a no-op in CLI mode since bot output is already logged.
+func (c *LineClient) SendFlexReply(replyToken string, altText string, flexJSON []byte) error {
+	return nil
+}
+
 // ShowLoadingAnimation is a no-op in CLI mode since bot output is already logged.
 func (c *LineClient) ShowLoadingAnimation(ctx context.Context, chatID string, timeout time.Duration) error {
 	return nil

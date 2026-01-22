@@ -1,13 +1,16 @@
 package list
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"errors"
 	"log/slog"
+	"text/template"
 	"time"
 	"yuruppu/internal/event"
 	"yuruppu/internal/line"
+	"yuruppu/internal/userprofile"
 )
 
 //go:embed parameters.json
@@ -16,26 +19,59 @@ var parametersSchema []byte
 //go:embed response.json
 var responseSchema []byte
 
+//go:embed flex.json
+var flexTemplate string
+
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
+
+// flexEventData represents template data for a single event in flex message.
+type flexEventData struct {
+	Title       string
+	StartTime   string
+	EndTime     string
+	Fee         string
+	Capacity    int
+	Description string
+	ShowCreator bool
+	CreatorName string
+}
 
 // EventService provides access to event list operations.
 type EventService interface {
 	List(ctx context.Context, opts event.ListOptions) ([]*event.Event, error)
 }
 
+// LineClient provides LINE messaging operations.
+type LineClient interface {
+	SendFlexReply(replyToken string, altText string, flexJSON []byte) error
+}
+
+// UserProfileService provides user profile operations.
+type UserProfileService interface {
+	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
+}
+
 // Tool implements the list_events tool for retrieving filtered event lists.
 type Tool struct {
-	eventService  EventService
-	maxPeriodDays int
-	limit         int
-	logger        *slog.Logger
+	eventService       EventService
+	lineClient         LineClient
+	userProfileService UserProfileService
+	maxPeriodDays      int
+	limit              int
+	logger             *slog.Logger
 }
 
 // New creates a new list_events tool with the specified service and configuration.
-func New(eventService EventService, maxPeriodDays, limit int, logger *slog.Logger) (*Tool, error) {
+func New(eventService EventService, lineClient LineClient, userProfileService UserProfileService, maxPeriodDays, limit int, logger *slog.Logger) (*Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
+	}
+	if lineClient == nil {
+		return nil, errors.New("lineClient cannot be nil")
+	}
+	if userProfileService == nil {
+		return nil, errors.New("userProfileService cannot be nil")
 	}
 	if maxPeriodDays <= 0 {
 		return nil, errors.New("maxPeriodDays must be positive")
@@ -47,10 +83,12 @@ func New(eventService EventService, maxPeriodDays, limit int, logger *slog.Logge
 		return nil, errors.New("logger cannot be nil")
 	}
 	return &Tool{
-		eventService:  eventService,
-		maxPeriodDays: maxPeriodDays,
-		limit:         limit,
-		logger:        logger,
+		eventService:       eventService,
+		lineClient:         lineClient,
+		userProfileService: userProfileService,
+		maxPeriodDays:      maxPeriodDays,
+		limit:              limit,
+		logger:             logger,
 	}, nil
 }
 
@@ -153,21 +191,78 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		return nil, errors.New("failed to list events")
 	}
 
-	// Build response with limited fields
-	eventList := make([]any, len(events))
+	// If no events, return no_events status without sending message
+	if len(events) == 0 {
+		return map[string]any{
+			"status": "no_events",
+		}, nil
+	}
+
+	// Get replyToken from context
+	replyToken, ok := line.ReplyTokenFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "reply token not found in context")
+		return nil, errors.New("internal error")
+	}
+
+	// Build template data for each event
+	eventDataList := make([]flexEventData, len(events))
 	for i, ev := range events {
-		eventList[i] = map[string]any{
-			"chat_room_id": ev.ChatRoomID,
-			"title":        ev.Title,
-			"start_time":   ev.StartTime.In(JST).Format(time.RFC3339),
-			"end_time":     ev.EndTime.In(JST).Format(time.RFC3339),
-			"fee":          ev.Fee,
+		eventData := flexEventData{
+			Title:       ev.Title,
+			StartTime:   formatDisplayTime(ev.StartTime),
+			EndTime:     formatDisplayTime(ev.EndTime),
+			Fee:         ev.Fee,
+			Capacity:    ev.Capacity,
+			Description: ev.Description,
+			ShowCreator: ev.ShowCreator,
 		}
+
+		// Fetch creator name if ShowCreator is true
+		if ev.ShowCreator {
+			profile, err := t.userProfileService.GetUserProfile(ctx, ev.CreatorID)
+			if err != nil {
+				t.logger.ErrorContext(ctx, "failed to get user profile", slog.String("user_id", ev.CreatorID), slog.Any("error", err))
+				return nil, errors.New("failed to get user profile")
+			}
+			eventData.CreatorName = profile.DisplayName
+		}
+
+		eventDataList[i] = eventData
+	}
+
+	// Render flex template
+	tmpl, err := template.New("flex").Parse(flexTemplate)
+	if err != nil {
+		t.logger.ErrorContext(ctx, "failed to parse flex template", slog.Any("error", err))
+		return nil, errors.New("internal error")
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, eventDataList); err != nil {
+		t.logger.ErrorContext(ctx, "failed to execute flex template", slog.Any("error", err))
+		return nil, errors.New("internal error")
+	}
+	flexJSON := buf.Bytes()
+
+	// Send flex message
+	altText := "イベント一覧" //nolint:gosmopolitan // Japanese text intentional for LINE message
+	if err := t.lineClient.SendFlexReply(replyToken, altText, flexJSON); err != nil {
+		t.logger.ErrorContext(ctx, "failed to send flex message", slog.Any("error", err))
+		return nil, errors.New("failed to send flex message")
 	}
 
 	return map[string]any{
-		"events": eventList,
+		"status": "sent",
 	}, nil
+}
+
+// IsFinal returns true if the flex message was sent successfully.
+// When status is "sent", the LLM turn should end.
+// When status is "no_events", the LLM should continue with a follow-up response.
+func (t *Tool) IsFinal(validatedResult map[string]any) bool {
+	status, ok := validatedResult["status"].(string)
+	return ok && status == "sent"
 }
 
 // parseTimeParameter parses a time parameter that can be either "today" or RFC3339 format.
@@ -181,4 +276,10 @@ func parseTimeParameter(s string) (time.Time, error) {
 	}
 	// Parse as RFC3339
 	return time.Parse(time.RFC3339, s)
+}
+
+// formatDisplayTime formats a time for display in flex message.
+// Format: "2006/01/02 15:04" in JST.
+func formatDisplayTime(t time.Time) string {
+	return t.In(JST).Format("2006/01/02 15:04")
 }
