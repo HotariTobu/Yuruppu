@@ -7,7 +7,6 @@ import (
 	"yuruppu/internal/agent"
 	"yuruppu/internal/event"
 	"yuruppu/internal/toolset/event/create"
-	"yuruppu/internal/toolset/event/get"
 	"yuruppu/internal/toolset/event/list"
 	"yuruppu/internal/toolset/event/remove"
 	"yuruppu/internal/toolset/event/update"
@@ -28,11 +27,19 @@ type UserProfileService interface {
 	GetUserProfile(ctx context.Context, userID string) (*userprofile.UserProfile, error)
 }
 
-// NewTools creates all event management tools (create, get, list).
+// LineClient provides LINE messaging operations.
+type LineClient interface {
+	SendFlexReply(replyToken string, altText string, flexJSON []byte) error
+}
+
+// NewTools creates all event management tools (create, list, update, remove).
 // Returns error if any service is nil or configuration values are invalid.
-func NewTools(eventService EventService, userProfileService UserProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
+func NewTools(eventService EventService, lineClient LineClient, userProfileService UserProfileService, listMaxPeriodDays, listLimit int, logger *slog.Logger) ([]agent.Tool, error) {
 	if eventService == nil {
 		return nil, errors.New("eventService cannot be nil")
+	}
+	if lineClient == nil {
+		return nil, errors.New("lineClient cannot be nil")
 	}
 	if userProfileService == nil {
 		return nil, errors.New("userProfileService cannot be nil")
@@ -53,14 +60,8 @@ func NewTools(eventService EventService, userProfileService UserProfileService, 
 		return nil, err
 	}
 
-	// Create get_event tool
-	getTool, err := get.New(eventService, userProfileService, logger)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create list_events tool
-	listTool, err := list.New(eventService, listMaxPeriodDays, listLimit, logger)
+	listTool, err := list.New(eventService, lineClient, userProfileService, listMaxPeriodDays, listLimit, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -77,5 +78,5 @@ func NewTools(eventService EventService, userProfileService UserProfileService, 
 		return nil, err
 	}
 
-	return []agent.Tool{createTool, getTool, listTool, updateTool, removeTool}, nil
+	return []agent.Tool{createTool, listTool, updateTool, removeTool}, nil
 }

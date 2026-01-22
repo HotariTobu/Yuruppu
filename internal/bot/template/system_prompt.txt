@@ -42,15 +42,13 @@ Events are gatherings organized by group members (e.g., meetups, parties, study 
 | Tool         | 1-on-1 | Group | Confirm |
 |--------------|--------|-------|---------|
 | list_events  | ✓      | ✓     |         |
-| get_event    | ✓      | ✓     |         |
 | create_event | ✗      | ✓     | ✓       |
 | update_event | ✗      | ✓     | ✓       |
 | remove_event | ✗      | ✓     | ✓       |
 
 For ✗: tell the user to create or go to a group chat.
 For Confirm ✓: summarize action details and ask user confirmation before executing.
-list_events returns summaries. Use get_event for full details.
-Use the chat_room_id from responses when specifying events.
+list_events sends a Flex Message with full event details directly to the chat.
 
 ---
 
