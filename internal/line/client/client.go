@@ -5,25 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot/messaging_api"
 )
 
-// messagingAPI defines the LINE Messaging API operations used by Client.
-type messagingAPI interface {
-	ReplyMessageWithHttpInfo(request *messaging_api.ReplyMessageRequest) (*http.Response, *messaging_api.ReplyMessageResponse, error)
-	ShowLoadingAnimation(request *messaging_api.ShowLoadingAnimationRequest) (*map[string]any, error)
-	GetProfile(userId string) (*messaging_api.UserProfileResponse, error)
-	GetGroupSummary(groupId string) (*messaging_api.GroupSummaryResponse, error)
-	GetGroupMemberCount(groupId string) (*messaging_api.GroupMemberCountResponse, error)
-}
-
 // Client sends messages via LINE Messaging API.
 type Client struct {
-	api     messagingAPI
+	api     *messaging_api.MessagingApiAPI
 	blobAPI *messaging_api.MessagingApiBlobAPI
 	logger  *slog.Logger
 }
@@ -55,11 +45,6 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 		blobAPI: blobAPI,
 		logger:  logger,
 	}, nil
-}
-
-// NewClientForTest creates a Client with injected dependencies for testing.
-func NewClientForTest(api messagingAPI, blobAPI *messaging_api.MessagingApiBlobAPI, logger *slog.Logger) *Client {
-	return &Client{api: api, blobAPI: blobAPI, logger: logger}
 }
 
 // ShowLoadingAnimation displays a loading animation in a 1:1 chat.
