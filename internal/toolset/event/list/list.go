@@ -22,6 +22,9 @@ var responseSchema []byte
 //go:embed flex.json
 var flexTemplate string
 
+//go:embed alt.json
+var altTemplate string
+
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
 
@@ -99,7 +102,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Use this tool to retrieve a list of events with optional filters."
+	return "Sends a Flex Message with full event details directly to the chat."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.
@@ -114,6 +117,18 @@ func (t *Tool) ResponseJsonSchema() []byte {
 
 // Callback retrieves a filtered list of events.
 func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]any, error) {
+	// Get context values first
+	userID, ok := line.UserIDFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "user ID not found in context")
+		return nil, errors.New("internal error")
+	}
+	replyToken, ok := line.ReplyTokenFromContext(ctx)
+	if !ok {
+		t.logger.ErrorContext(ctx, "reply token not found in context")
+		return nil, errors.New("internal error")
+	}
+
 	// Build ListOptions
 	opts := event.ListOptions{}
 
@@ -124,11 +139,6 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			return nil, errors.New("invalid created_by_me")
 		}
 		if createdByMe {
-			userID, ok := line.UserIDFromContext(ctx)
-			if !ok {
-				t.logger.ErrorContext(ctx, "user ID not found in context")
-				return nil, errors.New("internal error")
-			}
 			opts.CreatorID = &userID
 		}
 	}
@@ -198,13 +208,6 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		}, nil
 	}
 
-	// Get replyToken from context
-	replyToken, ok := line.ReplyTokenFromContext(ctx)
-	if !ok {
-		t.logger.ErrorContext(ctx, "reply token not found in context")
-		return nil, errors.New("internal error")
-	}
-
 	// Build template data for each event
 	eventDataList := make([]flexEventData, len(events))
 	for i, ev := range events {
@@ -222,31 +225,45 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 		if ev.ShowCreator {
 			profile, err := t.userProfileService.GetUserProfile(ctx, ev.CreatorID)
 			if err != nil {
-				t.logger.ErrorContext(ctx, "failed to get user profile", slog.String("user_id", ev.CreatorID), slog.Any("error", err))
-				return nil, errors.New("failed to get user profile")
+				t.logger.WarnContext(ctx, "failed to get user profile, hiding creator", slog.String("user_id", ev.CreatorID), slog.Any("error", err))
+				eventData.ShowCreator = false
+			} else {
+				eventData.CreatorName = profile.DisplayName
 			}
-			eventData.CreatorName = profile.DisplayName
 		}
 
 		eventDataList[i] = eventData
 	}
 
+	// Render alt text template
+	altTmpl, err := template.New("alt").Parse(altTemplate)
+	if err != nil {
+		t.logger.ErrorContext(ctx, "failed to parse alt template", slog.Any("error", err))
+		return nil, errors.New("internal error")
+	}
+
+	var altBuf bytes.Buffer
+	if err := altTmpl.Execute(&altBuf, map[string]int{"Count": len(events)}); err != nil {
+		t.logger.ErrorContext(ctx, "failed to execute alt template", slog.Any("error", err))
+		return nil, errors.New("internal error")
+	}
+	altText := altBuf.String()
+
 	// Render flex template
-	tmpl, err := template.New("flex").Parse(flexTemplate)
+	flexTmpl, err := template.New("flex").Parse(flexTemplate)
 	if err != nil {
 		t.logger.ErrorContext(ctx, "failed to parse flex template", slog.Any("error", err))
 		return nil, errors.New("internal error")
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, eventDataList); err != nil {
+	var flexBuf bytes.Buffer
+	if err := flexTmpl.Execute(&flexBuf, eventDataList); err != nil {
 		t.logger.ErrorContext(ctx, "failed to execute flex template", slog.Any("error", err))
 		return nil, errors.New("internal error")
 	}
-	flexJSON := buf.Bytes()
+	flexJSON := flexBuf.Bytes()
 
 	// Send flex message
-	altText := "イベント一覧" //nolint:gosmopolitan // Japanese text intentional for LINE message
 	if err := t.lineClient.SendFlexReply(replyToken, altText, flexJSON); err != nil {
 		t.logger.ErrorContext(ctx, "failed to send flex message", slog.Any("error", err))
 		return nil, errors.New("failed to send flex message")

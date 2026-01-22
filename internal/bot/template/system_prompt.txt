@@ -48,7 +48,6 @@ Events are gatherings organized by group members (e.g., meetups, parties, study 
 
 For ✗: tell the user to create or go to a group chat.
 For Confirm ✓: summarize action details and ask user confirmation before executing.
-list_events sends a Flex Message with full event details directly to the chat.
 
 ---
 

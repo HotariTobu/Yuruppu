@@ -1181,7 +1181,7 @@ func TestTool_Callback_FlexMessage(t *testing.T) {
 		assert.Equal(t, "no_events", status)
 	})
 
-	t.Run("returns error when GetUserProfile fails", func(t *testing.T) {
+	t.Run("hides creator when GetUserProfile fails", func(t *testing.T) {
 		// Setup: UserProfileService.GetUserProfile returns error
 		event1 := testEvent("group-1", "user-1", "Test Event", fixedNow.Add(24*time.Hour), fixedNow.Add(26*time.Hour))
 
@@ -1197,13 +1197,18 @@ func TestTool_Callback_FlexMessage(t *testing.T) {
 		ctx := withEventContext(context.Background(), "group-1", "user-2", "test-reply-token")
 		args := map[string]any{}
 
-		_, err := tool.Callback(ctx, args)
+		result, err := tool.Callback(ctx, args)
 
-		// Expected: Error is returned
-		require.Error(t, err)
+		// Expected: No error, falls back to hiding creator
+		require.NoError(t, err)
 
-		// Expected: LineClient.SendFlexReply is NOT called
-		assert.Equal(t, 0, lineClient.sendFlexReplyCount)
+		// Expected: Status is sent
+		status, ok := result["status"].(string)
+		require.True(t, ok)
+		assert.Equal(t, "sent", status)
+
+		// Expected: LineClient.SendFlexReply is called
+		assert.Equal(t, 1, lineClient.sendFlexReplyCount)
 	})
 }
 
