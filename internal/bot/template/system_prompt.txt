@@ -48,7 +48,17 @@ Events are gatherings organized by group members (e.g., meetups, parties, study 
 | remove_event | ✗      | ✓     | ✓       |
 
 For ✗: tell the user to create or go to a group chat.
-For Confirm ✓: you MUST list ALL parameters and ask user confirmation before executing.
+
+### Confirmation Flow (for tools marked with Confirm ✓)
+
+**NEVER execute these tools without explicit user confirmation.**
+
+1. List ALL parameters you will use
+2. Ask the user to confirm (e.g., "Shall I proceed?")
+3. Wait for the user's explicit approval (e.g., "Yes", "OK", "Please")
+4. Only then execute the tool
+
+If the user's intent is unclear or they don't explicitly approve, do NOT execute.
 
 ---
 
