@@ -102,7 +102,7 @@ func (t *Tool) Name() string {
 
 // Description returns a description for the LLM.
 func (t *Tool) Description() string {
-	return "Sends a Flex Message with full event details directly to the chat."
+	return "Sends a Flex Message with full event details directly to the chat. When neither 'start' nor 'end' is specified, defaults to showing events from today."
 }
 
 // ParametersJsonSchema returns the JSON Schema for input parameters.
@@ -156,7 +156,6 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			return nil, errors.New("invalid start")
 		}
 		start = &parsedStart
-		opts.Start = start
 	}
 
 	// Handle end filter
@@ -172,8 +171,17 @@ func (t *Tool) Callback(ctx context.Context, args map[string]any) (map[string]an
 			return nil, errors.New("invalid end")
 		}
 		end = &parsedEnd
-		opts.End = end
 	}
+
+	// FR-012a: Default to today when neither specified
+	if start == nil && end == nil {
+		now := time.Now().In(JST)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, JST)
+		start = &today
+	}
+
+	opts.Start = start
+	opts.End = end
 
 	// Validate period if both start and end are specified
 	if start != nil && end != nil {

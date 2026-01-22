@@ -67,6 +67,7 @@ Yuruppuを使用するグループでイベント（オフ会、ゲーム大会�
   - 開催期間前のイベント（開始日時がツール呼び出し時点より未来）
   - 開催期間後のイベント（終了日時がツール呼び出し時点より過去）
   - 指定期間に開始するイベント（指定開始日≤イベント開始日≤指定終了日、片方のみの指定も可能、両方指定時は期間が1年以内）
+- [ ] FR-012a: 開始日と終了日の両方が未指定の場合、「開催期間前のイベント」として扱う
 - [ ] FR-013: 作成者フィルタと期間フィルタは組み合わせて使用できる
 - [ ] FR-014: 結果は開始日時でソートされる。開始日のみ指定または開始日と終了日の両方を指定した場合は昇順、終了日のみ指定した場合は降順
 - [ ] FR-015: 開始日と終了日の両方が指定されている場合は件数制限なし。片方のみ指定の場合は最大5件
@@ -171,3 +172,4 @@ Yuruppuを使用するグループでイベント（オフ会、ゲーム大会�
 | 2026-01-10 | 1.1 | Simplify: remove event scope, timezone handling, unnecessary validations. All attributes are required. Fee is string. | - |
 | 2026-01-12 | 1.2 | Add chat room attribute. Events can only be created from group chats. One event per group chat. | - |
 | 2026-01-12 | 1.3 | Remove FR-007 (unique ID generation). chatRoomID is the event identifier. | - |
+| 2026-01-22 | 1.4 | Add FR-012a: default to upcoming events when no period filter specified. | - |

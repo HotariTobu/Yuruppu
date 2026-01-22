@@ -257,7 +257,13 @@ func TestTool_Callback_BasicListing(t *testing.T) {
 		// Verify service was called with correct options
 		assert.Equal(t, 1, eventService.listCount)
 		assert.Nil(t, eventService.lastOpts.CreatorID)
-		assert.Nil(t, eventService.lastOpts.Start)
+		// FR-012a: When neither start nor end specified, defaults to today 00:00:00 JST
+		require.NotNil(t, eventService.lastOpts.Start)
+		start := *eventService.lastOpts.Start
+		assert.Equal(t, 0, start.Hour())
+		assert.Equal(t, 0, start.Minute())
+		assert.Equal(t, 0, start.Second())
+		assert.Equal(t, "Asia/Tokyo", start.Location().String())
 		assert.Nil(t, eventService.lastOpts.End)
 		assert.Equal(t, 5, eventService.lastOpts.Limit) // Default limit
 	})
