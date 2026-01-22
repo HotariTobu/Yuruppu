@@ -48,6 +48,7 @@ Events are gatherings organized by group members (e.g., meetups, parties, study 
 | remove_event | ✗      | ✓     | ✓       |
 
 For ✗: tell the user to create or go to a group chat.
+Note: `list_events` is available in both 1-on-1 and group chats.
 
 ### Confirmation Flow (for tools marked with Confirm ✓)
 

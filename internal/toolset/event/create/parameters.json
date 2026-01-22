@@ -36,7 +36,7 @@
     },
     "show_creator": {
       "type": "boolean",
-      "description": "Whether to show creator information"
+      "description": "Whether to show creator information. Always confirm with the user before setting this value."
     }
   },
   "required": ["title", "start_time", "end_time", "capacity", "fee", "description", "show_creator"],
