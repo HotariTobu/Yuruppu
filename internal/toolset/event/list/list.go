@@ -19,11 +19,11 @@ var parametersSchema []byte
 //go:embed response.json
 var responseSchema []byte
 
-//go:embed flex.json
-var flexTemplate string
-
 //go:embed alt.txt
 var altTemplate string
+
+//go:embed flex.json
+var flexTemplate string
 
 // JST is Japan Standard Time location (UTC+9).
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
