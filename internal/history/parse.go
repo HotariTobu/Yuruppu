@@ -30,6 +30,7 @@ func parseJSONL(data []byte) ([]Message, error) {
 				return nil, err
 			}
 			messages = append(messages, &UserMessage{
+				MessageID: m.MessageID,
 				UserID:    m.UserID,
 				Parts:     parts,
 				Timestamp: m.Timestamp,
