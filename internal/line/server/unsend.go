@@ -13,7 +13,7 @@ type UnsendHandler interface {
 	HandleUnsend(ctx context.Context, messageID string) error
 }
 
-func (s *Server) invokeUnsendHandler(handler UnsendHandler, unsendEvent webhook.UnsendEvent) {
+func (s *Server) invokeUnsend(handler UnsendHandler, unsendEvent webhook.UnsendEvent) {
 	chatType, sourceID, userID := extractSourceInfo(unsendEvent.Source)
 
 	defer func() {

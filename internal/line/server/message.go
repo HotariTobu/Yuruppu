@@ -23,7 +23,7 @@ type MessageHandler interface {
 	HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error
 }
 
-func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.MessageEvent) {
+func (s *Server) invokeMessage(handler MessageHandler, msgEvent webhook.MessageEvent) {
 	chatType, sourceID, userID := extractSourceInfo(msgEvent.Source)
 
 	defer func() {

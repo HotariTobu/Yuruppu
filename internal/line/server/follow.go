@@ -13,7 +13,7 @@ type FollowHandler interface {
 	HandleFollow(ctx context.Context) error
 }
 
-func (s *Server) invokeFollowHandler(handler FollowHandler, followEvent webhook.FollowEvent) {
+func (s *Server) invokeFollow(handler FollowHandler, followEvent webhook.FollowEvent) {
 	chatType, sourceID, userID := extractSourceInfo(followEvent.Source)
 
 	defer func() {

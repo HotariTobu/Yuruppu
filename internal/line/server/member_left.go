@@ -8,7 +8,7 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
-func (s *Server) invokeMemberLeftHandler(handler JoinHandler, event webhook.MemberLeftEvent) {
+func (s *Server) invokeMemberLeft(handler JoinHandler, event webhook.MemberLeftEvent) {
 	chatType, sourceID, userID := extractSourceInfo(event.Source)
 
 	leftUserIDs := make([]string, 0, len(event.Left.Members))

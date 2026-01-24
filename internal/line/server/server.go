@@ -91,17 +91,17 @@ func (s *Server) processEvent(event webhook.EventInterface) {
 	var invoker func(Handler)
 	switch e := event.(type) {
 	case webhook.FollowEvent:
-		invoker = func(h Handler) { s.invokeFollowHandler(h, e) }
+		invoker = func(h Handler) { s.invokeFollow(h, e) }
 	case webhook.JoinEvent:
-		invoker = func(h Handler) { s.invokeJoinHandler(h, e) }
+		invoker = func(h Handler) { s.invokeJoin(h, e) }
 	case webhook.MemberJoinedEvent:
-		invoker = func(h Handler) { s.invokeMemberJoinedHandler(h, e) }
+		invoker = func(h Handler) { s.invokeMemberJoined(h, e) }
 	case webhook.MemberLeftEvent:
-		invoker = func(h Handler) { s.invokeMemberLeftHandler(h, e) }
+		invoker = func(h Handler) { s.invokeMemberLeft(h, e) }
 	case webhook.MessageEvent:
-		invoker = func(h Handler) { s.invokeMessageHandler(h, e) }
+		invoker = func(h Handler) { s.invokeMessage(h, e) }
 	case webhook.UnsendEvent:
-		invoker = func(h Handler) { s.invokeUnsendHandler(h, e) }
+		invoker = func(h Handler) { s.invokeUnsend(h, e) }
 	default:
 		return
 	}

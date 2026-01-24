@@ -15,7 +15,7 @@ type JoinHandler interface {
 	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
 }
 
-func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEvent) {
+func (s *Server) invokeJoin(handler JoinHandler, joinEvent webhook.JoinEvent) {
 	chatType, sourceID, userID := extractSourceInfo(joinEvent.Source)
 
 	defer func() {
