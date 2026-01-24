@@ -10,8 +10,13 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"yuruppu/internal/storage"
 )
+
+// Storage defines the storage interface required by event service.
+type Storage interface {
+	Read(ctx context.Context, key string) (data []byte, generation int64, err error)
+	Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (newGeneration int64, err error)
+}
 
 const storageKey = "all"
 
@@ -38,12 +43,12 @@ type ListOptions struct {
 
 // Service provides event management operations.
 type Service struct {
-	storage storage.Storage
+	storage Storage
 }
 
 // NewService creates a new Service with the given storage backend.
 // Returns error if storage is nil.
-func NewService(s storage.Storage) (*Service, error) {
+func NewService(s Storage) (*Service, error) {
 	if s == nil {
 		return nil, errors.New("storage cannot be nil")
 	}

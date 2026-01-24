@@ -7,8 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"yuruppu/internal/storage"
 )
+
+// Storage defines the storage interface required by user profile service.
+type Storage interface {
+	Read(ctx context.Context, key string) (data []byte, generation int64, err error)
+	Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (newGeneration int64, err error)
+}
 
 // UserProfile contains LINE user profile information.
 type UserProfile struct {
@@ -20,14 +25,14 @@ type UserProfile struct {
 
 // Service provides user profile management with caching and persistence.
 type Service struct {
-	storage storage.Storage
+	storage Storage
 	logger  *slog.Logger
 
 	cache sync.Map // userID -> *UserProfile
 }
 
 // NewService creates a new user profile service.
-func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) {
+func NewService(storage Storage, logger *slog.Logger) (*Service, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}

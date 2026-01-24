@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// FileStorage implements storage.Storage interface using local filesystem.
+// FileStorage provides file-based storage using local filesystem.
 // It uses file modification time (UnixNano) as the generation number.
 type FileStorage struct {
 	dataDir string

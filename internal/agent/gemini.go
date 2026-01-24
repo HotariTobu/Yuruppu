@@ -48,7 +48,7 @@ type GeminiAgent struct {
 // ctx: Context for initialization.
 // cfg: Configuration for the agent.
 // logger: Structured logger (required, returns error if nil).
-func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) (Agent, error) {
+func NewGeminiAgent(ctx context.Context, cfg GeminiConfig, logger *slog.Logger) (*GeminiAgent, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}

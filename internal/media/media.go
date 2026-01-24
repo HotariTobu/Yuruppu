@@ -7,10 +7,15 @@ import (
 	"log/slog"
 	"regexp"
 	"time"
-	"yuruppu/internal/storage"
 
 	"github.com/google/uuid"
 )
+
+// Storage defines the storage interface required by media service.
+type Storage interface {
+	Write(ctx context.Context, key, mimetype string, data []byte, expectedGeneration int64) (newGeneration int64, err error)
+	GetSignedURL(ctx context.Context, key, method string, ttl time.Duration) (string, error)
+}
 
 // sourceIDPattern validates LINE source IDs (user IDs, group IDs, room IDs).
 // LINE IDs are alphanumeric strings, typically 33 characters (U/C/R prefix + 32 hex).
@@ -19,12 +24,12 @@ var sourceIDPattern = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
 // Service provides media storage functionality.
 type Service struct {
-	storage storage.Storage
+	storage Storage
 	logger  *slog.Logger
 }
 
 // NewService creates a new media service.
-func NewService(storage storage.Storage, logger *slog.Logger) (*Service, error) {
+func NewService(storage Storage, logger *slog.Logger) (*Service, error) {
 	if storage == nil {
 		return nil, errors.New("storage cannot be nil")
 	}

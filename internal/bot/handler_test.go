@@ -20,7 +20,7 @@ import (
 
 // Compile-time interface satisfaction checks
 var (
-	_ agent.Agent        = (*mockAgent)(nil)
+	_ bot.Agent          = (*mockAgent)(nil)
 	_ lineserver.Handler = (*bot.Handler)(nil)
 )
 
@@ -457,7 +457,7 @@ type writeRecord struct {
 	data     []byte
 }
 
-// mockStorage implements storage.Storage interface
+// mockStorage implements history.Storage interface
 type mockStorage struct {
 	// Read behavior
 	data          map[string][]byte

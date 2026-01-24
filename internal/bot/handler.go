@@ -12,6 +12,11 @@ import (
 	"yuruppu/internal/userprofile"
 )
 
+// Agent defines the interface for LLM agents used by bot handler.
+type Agent interface {
+	Generate(ctx context.Context, history []agent.Message) (*agent.AssistantMessage, error)
+}
+
 // LineClient provides access to LINE API.
 type LineClient interface {
 	GetMessageContent(messageID string) (data []byte, mimeType string, err error)
@@ -58,14 +63,14 @@ type Handler struct {
 	groupProfileService GroupProfileService
 	history             HistoryService
 	media               MediaService
-	agent               agent.Agent
+	agent               Agent
 	config              HandlerConfig
 	logger              *slog.Logger
 }
 
 // NewHandler creates a new Handler with the given dependencies.
 // Returns error if any dependency is nil.
-func NewHandler(lineClient LineClient, userProfileSvc UserProfileService, groupProfileSvc GroupProfileService, historySvc HistoryService, mediaSvc MediaService, agent agent.Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
+func NewHandler(lineClient LineClient, userProfileSvc UserProfileService, groupProfileSvc GroupProfileService, historySvc HistoryService, mediaSvc MediaService, agent Agent, config HandlerConfig, logger *slog.Logger) (*Handler, error) {
 	if lineClient == nil {
 		return nil, errors.New("lineClient is required")
 	}
