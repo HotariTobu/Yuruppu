@@ -59,10 +59,25 @@ Validate technical decisions through rapid prototyping:
    git add -A
    git commit -m "prototype(<spec-name>): validate <what was validated>
 
+   ## Changes
+
+   ### <file path>
+   Purpose: <why this file was changed>
+
+   Before:
+   <relevant code or behavior before change>
+
+   After:
+   <relevant code or behavior after change>
+
+   ## What Worked
+   - <things that worked well>
+
+   ## What Needs Adjustment
+   - <things that need to change in final implementation>
+
    ## Findings
-   - <what worked>
-   - <what needs adjustment>
-   - <blockers if any>"
+   - <technical discoveries, unexpected behaviors, etc.>"
    ```
 
 6. **Update progress.json**:

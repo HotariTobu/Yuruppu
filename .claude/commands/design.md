@@ -38,20 +38,20 @@ Create detailed design through collaboration with user. This ensures implementat
    - What needs to change?
    - Ask user: "Are there any additional insights from the prototype?"
 
-3. **Design file structure** (confirm with user):
-   - List files involved in this feature
-   - Describe what each file provides (target state, not changes)
-   - Ask user: "Does this file structure look correct?"
+3. **Design data flow** (confirm with user):
+   - Describe how data flows through the system
+   - Identify transformations
+   - Ask user: "Does this data flow make sense?"
 
 4. **Design interfaces** (confirm with user):
    - Define types, structs, method signatures
    - Show proposed interfaces
    - Ask user: "Do these interfaces meet your expectations?"
 
-5. **Design data flow** (confirm with user):
-   - Describe how data flows through the system
-   - Identify transformations
-   - Ask user: "Does this data flow make sense?"
+5. **Design file structure** (confirm with user):
+   - List files involved in this feature
+   - Describe what each file provides (target state, not changes)
+   - Ask user: "Does this file structure look correct?"
 
 6. **Write design.md**:
    - Create `docs/specs/<spec-name>/design.md` with all decisions
@@ -85,10 +85,10 @@ Create detailed design through collaboration with user. This ensures implementat
 ## Overview
 <Brief description of what this design covers>
 
-## File Structure
-| File | Purpose |
-|------|---------|
-| path/to/file.go | Description |
+## Data Flow
+1. Input: <description>
+2. Process: <description>
+3. Output: <description>
 
 ## Interfaces
 
@@ -101,10 +101,10 @@ type Example struct {
 func (e *Example) Method() error
 ```
 
-## Data Flow
-1. Input: <description>
-2. Process: <description>
-3. Output: <description>
+## File Structure
+| File | Purpose |
+|------|---------|
+| path/to/file.go | Description |
 
 ```
 
