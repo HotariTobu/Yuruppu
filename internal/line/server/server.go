@@ -40,6 +40,9 @@ func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger)
 	if timeout <= 0 {
 		return nil, errors.New("missing required configuration: timeout")
 	}
+	if logger == nil {
+		return nil, errors.New("missing required configuration: logger")
+	}
 
 	return &Server{
 		channelSecret:  channelSecret,
