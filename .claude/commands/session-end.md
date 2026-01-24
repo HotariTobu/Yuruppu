@@ -3,7 +3,7 @@ description: End session with progress update and structured commit
 argument-hint: <spec-name>
 requires-phase: in-progress
 sets-phase: completed
-allowed-tools: Bash(git:*), Bash(make fix), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash(git:*), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # End Session

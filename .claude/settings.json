@@ -1,5 +1,9 @@
 {
   "permissions": {
-    "allow": ["Bash(go test:*)"]
+    "allow": [
+      "Bash(go test:*)",
+      "Bash(make fix)",
+      "Bash(make preflight)"
+    ]
   }
 }

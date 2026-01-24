@@ -3,7 +3,7 @@ description: Start a coding session with progress review and planning
 argument-hint: [spec-name]
 requires-phase: designed, in-progress
 sets-phase: in-progress
-allowed-tools: Bash(git:*), Bash(make fix), Bash(make preflight), Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash(git:*), Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
 # Start Session
