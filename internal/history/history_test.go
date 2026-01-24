@@ -80,6 +80,7 @@ func TestService_RoundTrip(t *testing.T) {
 		// Given: A user message with text
 		messages := []history.Message{
 			&history.UserMessage{
+				MessageID: "msg-12345",
 				UserID:    "U123",
 				Parts:     []history.UserPart{&history.UserTextPart{Text: "Hello"}},
 				Timestamp: testTime1,
@@ -97,6 +98,7 @@ func TestService_RoundTrip(t *testing.T) {
 		require.Len(t, retrieved, 1)
 		userMsg, ok := retrieved[0].(*history.UserMessage)
 		require.True(t, ok)
+		assert.Equal(t, "msg-12345", userMsg.MessageID)
 		assert.Equal(t, "U123", userMsg.UserID)
 		require.Len(t, userMsg.Parts, 1)
 		textPart, ok := userMsg.Parts[0].(*history.UserTextPart)
