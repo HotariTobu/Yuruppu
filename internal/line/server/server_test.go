@@ -180,10 +180,6 @@ func (m *mockHandler) HandleMemberLeft(ctx context.Context, leftUserIDs []string
 	return nil
 }
 
-func (m *mockHandler) HandleUnsend(ctx context.Context, messageID string) error {
-	return nil
-}
-
 // =============================================================================
 // New Tests
 // =============================================================================

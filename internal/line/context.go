@@ -16,7 +16,6 @@ const (
 	ctxKeySourceID
 	ctxKeyUserID
 	ctxKeyReplyToken
-	ctxKeyMessageID
 )
 
 func WithChatType(ctx context.Context, chatType ChatType) context.Context {
@@ -52,14 +51,5 @@ func WithReplyToken(ctx context.Context, token string) context.Context {
 
 func ReplyTokenFromContext(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(ctxKeyReplyToken).(string)
-	return v, ok
-}
-
-func WithMessageID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, ctxKeyMessageID, id)
-}
-
-func MessageIDFromContext(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(ctxKeyMessageID).(string)
 	return v, ok
 }

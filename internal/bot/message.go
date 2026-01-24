@@ -38,9 +38,7 @@ func (h *Handler) HandleText(ctx context.Context, text string) error {
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	messageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: messageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: text}},
 		Timestamp: time.Now(),
@@ -57,7 +55,6 @@ func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	lineMessageID, _ := line.MessageIDFromContext(ctx)
 
 	var parts []history.UserPart
 	data, mimeType, err := h.lineClient.GetMessageContent(messageID)
@@ -78,7 +75,6 @@ func (h *Handler) HandleImage(ctx context.Context, messageID string) error {
 	}
 
 	userMsg := &history.UserMessage{
-		MessageID: lineMessageID,
 		UserID:    userID,
 		Parts:     parts,
 		Timestamp: time.Now(),
@@ -91,9 +87,7 @@ func (h *Handler) HandleSticker(ctx context.Context, packageID, stickerID string
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	messageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: messageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a sticker]"}},
 		Timestamp: time.Now(),
@@ -106,9 +100,7 @@ func (h *Handler) HandleVideo(ctx context.Context, messageID string) error {
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	lineMessageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: lineMessageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a video]"}},
 		Timestamp: time.Now(),
@@ -121,9 +113,7 @@ func (h *Handler) HandleAudio(ctx context.Context, messageID string) error {
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	lineMessageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: lineMessageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent an audio]"}},
 		Timestamp: time.Now(),
@@ -136,9 +126,7 @@ func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float6
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	messageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: messageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a location]"}},
 		Timestamp: time.Now(),
@@ -151,9 +139,7 @@ func (h *Handler) HandleFile(ctx context.Context, messageID, fileName string, fi
 	if !ok {
 		return errors.New("userID not found in context")
 	}
-	messageID, _ := line.MessageIDFromContext(ctx)
 	userMsg := &history.UserMessage{
-		MessageID: messageID,
 		UserID:    userID,
 		Parts:     []history.UserPart{&history.UserTextPart{Text: fmt.Sprintf("[User sent a file: %s]", fileName)}},
 		Timestamp: time.Now(),
