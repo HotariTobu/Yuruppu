@@ -31,6 +31,18 @@ func computeSignature(body []byte, channelSecret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// newWebhookRequest creates a webhook request with signature.
+func newWebhookRequest(body, signature string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
+	req.Header.Set("X-Line-Signature", signature)
+	return req
+}
+
+// newRecorder creates a new response recorder.
+func newRecorder() *httptest.ResponseRecorder {
+	return httptest.NewRecorder()
+}
+
 // mockHandler is a test implementation of server.Handler.
 type mockHandler struct {
 	mu              sync.Mutex
@@ -41,6 +53,7 @@ type mockHandler struct {
 	audioMessages   []audioMessage
 	locationMsgs    []locationMessage
 	fileMessages    []fileMessage
+	unsendMessages  []unsendMessage
 	onText          func(ctx context.Context, text string) error
 	onImage         func(ctx context.Context, messageID string) error
 	onSticker       func(ctx context.Context, packageID, stickerID string) error
@@ -48,6 +61,7 @@ type mockHandler struct {
 	onAudio         func(ctx context.Context, messageID string) error
 	onLocation      func(ctx context.Context, lat, lng float64) error
 	onFile          func(ctx context.Context, messageID, fileName string, fileSize int64) error
+	onUnsend        func(ctx context.Context, messageID string) error
 }
 
 type textMessage struct {
@@ -78,6 +92,11 @@ type locationMessage struct {
 type fileMessage struct {
 	replyToken, sourceID, messageID, fileName string
 	fileSize                                  int64
+}
+
+type unsendMessage struct {
+	replyToken, sourceID, userID, messageID string
+	chatType                                line.ChatType
 }
 
 func (m *mockHandler) HandleText(ctx context.Context, text string) error {
@@ -177,6 +196,28 @@ func (m *mockHandler) HandleMemberJoined(ctx context.Context, joinedUserIDs []st
 }
 
 func (m *mockHandler) HandleMemberLeft(ctx context.Context, leftUserIDs []string) error {
+	return nil
+}
+
+func (m *mockHandler) HandleUnsend(ctx context.Context, messageID string) error {
+	replyToken, _ := line.ReplyTokenFromContext(ctx)
+	sourceID, _ := line.SourceIDFromContext(ctx)
+	userID, _ := line.UserIDFromContext(ctx)
+	chatType, _ := line.ChatTypeFromContext(ctx)
+
+	m.mu.Lock()
+	m.unsendMessages = append(m.unsendMessages, unsendMessage{
+		replyToken: replyToken,
+		sourceID:   sourceID,
+		userID:     userID,
+		messageID:  messageID,
+		chatType:   chatType,
+	})
+	m.mu.Unlock()
+
+	if m.onUnsend != nil {
+		return m.onUnsend(ctx, messageID)
+	}
 	return nil
 }
 
