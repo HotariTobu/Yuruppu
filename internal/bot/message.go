@@ -134,14 +134,14 @@ func (h *Handler) HandleLocation(ctx context.Context, latitude, longitude float6
 	return h.handleMessage(ctx, userMsg)
 }
 
-func (h *Handler) HandleUnknown(ctx context.Context) error {
+func (h *Handler) HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error {
 	userID, ok := line.UserIDFromContext(ctx)
 	if !ok {
 		return errors.New("userID not found in context")
 	}
 	userMsg := &history.UserMessage{
 		UserID:    userID,
-		Parts:     []history.UserPart{&history.UserTextPart{Text: "[User sent a message]"}},
+		Parts:     []history.UserPart{&history.UserTextPart{Text: fmt.Sprintf("[User sent a file: %s]", fileName)}},
 		Timestamp: time.Now(),
 	}
 	return h.handleMessage(ctx, userMsg)

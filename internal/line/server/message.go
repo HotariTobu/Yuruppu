@@ -20,7 +20,7 @@ type MessageHandler interface {
 	HandleVideo(ctx context.Context, messageID string) error
 	HandleAudio(ctx context.Context, messageID string) error
 	HandleLocation(ctx context.Context, latitude, longitude float64) error
-	HandleUnknown(ctx context.Context) error
+	HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error
 }
 
 // dispatchMessage dispatches the message event to all registered handlers.
@@ -70,8 +70,8 @@ func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.M
 		err = handler.HandleAudio(ctx, msg.Id)
 	case webhook.LocationMessageContent:
 		err = handler.HandleLocation(ctx, msg.Latitude, msg.Longitude)
-	default:
-		err = handler.HandleUnknown(ctx)
+	case webhook.FileMessageContent:
+		err = handler.HandleFile(ctx, msg.Id, msg.FileName, int64(msg.FileSize))
 	}
 
 	if err != nil {

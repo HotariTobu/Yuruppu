@@ -40,14 +40,14 @@ type mockHandler struct {
 	videoMessages   []videoMessage
 	audioMessages   []audioMessage
 	locationMsgs    []locationMessage
-	unknownMessages []unknownMessage
+	fileMessages    []fileMessage
 	onText          func(ctx context.Context, text string) error
 	onImage         func(ctx context.Context, messageID string) error
 	onSticker       func(ctx context.Context, packageID, stickerID string) error
 	onVideo         func(ctx context.Context, messageID string) error
 	onAudio         func(ctx context.Context, messageID string) error
 	onLocation      func(ctx context.Context, lat, lng float64) error
-	onUnknown       func(ctx context.Context) error
+	onFile          func(ctx context.Context, messageID, fileName string, fileSize int64) error
 }
 
 type textMessage struct {
@@ -75,8 +75,9 @@ type locationMessage struct {
 	latitude, longitude  float64
 }
 
-type unknownMessage struct {
-	replyToken, sourceID string
+type fileMessage struct {
+	replyToken, sourceID, messageID, fileName string
+	fileSize                                  int64
 }
 
 func (m *mockHandler) HandleText(ctx context.Context, text string) error {
@@ -151,14 +152,14 @@ func (m *mockHandler) HandleLocation(ctx context.Context, latitude, longitude fl
 	return nil
 }
 
-func (m *mockHandler) HandleUnknown(ctx context.Context) error {
+func (m *mockHandler) HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error {
 	replyToken, _ := line.ReplyTokenFromContext(ctx)
 	sourceID, _ := line.SourceIDFromContext(ctx)
 	m.mu.Lock()
-	m.unknownMessages = append(m.unknownMessages, unknownMessage{replyToken, sourceID})
+	m.fileMessages = append(m.fileMessages, fileMessage{replyToken, sourceID, messageID, fileName, fileSize})
 	m.mu.Unlock()
-	if m.onUnknown != nil {
-		return m.onUnknown(ctx)
+	if m.onFile != nil {
+		return m.onFile(ctx, messageID, fileName, fileSize)
 	}
 	return nil
 }

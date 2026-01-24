@@ -527,13 +527,13 @@ func TestHandler_HandleLocation(t *testing.T) {
 }
 
 // =============================================================================
-// HandleUnknown Tests
+// HandleFile Tests
 // =============================================================================
 
-func TestHandler_HandleUnknown(t *testing.T) {
-	t.Run("converts unknown message to text placeholder", func(t *testing.T) {
+func TestHandler_HandleFile(t *testing.T) {
+	t.Run("converts file to text placeholder with filename", func(t *testing.T) {
 		mockStore := newMockStorage()
-		mockAg := &mockAgent{response: "I got your message!"}
+		mockAg := &mockAgent{response: "I got your file!"}
 		historyRepo, err := history.NewService(mockStore)
 		require.NoError(t, err)
 		logger := slog.New(slog.DiscardHandler)
@@ -541,10 +541,10 @@ func TestHandler_HandleUnknown(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleUnknown(ctx)
+		err = h.HandleFile(ctx, "msg-123", "document.pdf", 1024)
 
 		require.NoError(t, err)
-		assert.Equal(t, "[User sent a message]", mockAg.lastUserMessageText)
+		assert.Equal(t, "[User sent a file: document.pdf]", mockAg.lastUserMessageText)
 	})
 }
 
