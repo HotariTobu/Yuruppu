@@ -40,7 +40,7 @@ func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.M
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("handler panicked",
+			s.logger.Error("message handler panicked",
 				slog.String("sourceID", sourceID),
 				slog.String("userID", userID),
 				slog.Any("panic", r),
@@ -75,7 +75,7 @@ func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.M
 	}
 
 	if err != nil {
-		s.logger.Error("handler failed",
+		s.logger.Error("message handler failed",
 			slog.String("sourceID", sourceID),
 			slog.String("userID", userID),
 			slog.Any("error", err),

@@ -25,12 +25,12 @@ func (s *Server) dispatchUnsend(unsendEvent webhook.UnsendEvent) {
 	}
 }
 
-func (s *Server) invokeUnsendHandler(handler Handler, unsendEvent webhook.UnsendEvent) {
+func (s *Server) invokeUnsendHandler(handler UnsendHandler, unsendEvent webhook.UnsendEvent) {
 	chatType, sourceID, userID := extractSourceInfo(unsendEvent.Source)
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("handler panicked",
+			s.logger.Error("unsend handler panicked",
 				slog.String("sourceID", sourceID),
 				slog.String("userID", userID),
 				slog.Any("panic", r),
@@ -47,7 +47,7 @@ func (s *Server) invokeUnsendHandler(handler Handler, unsendEvent webhook.Unsend
 
 	err := handler.HandleUnsend(ctx, unsendEvent.Unsend.MessageId)
 	if err != nil {
-		s.logger.Error("handler failed",
+		s.logger.Error("unsend handler failed",
 			slog.String("sourceID", sourceID),
 			slog.String("userID", userID),
 			slog.Any("error", err),

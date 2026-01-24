@@ -33,6 +33,7 @@ func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEv
 		if r := recover(); r != nil {
 			s.logger.Error("join handler panicked",
 				slog.String("sourceID", sourceID),
+				slog.String("userID", userID),
 				slog.Any("panic", r),
 			)
 		}
@@ -49,6 +50,7 @@ func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEv
 	if err != nil {
 		s.logger.Error("join handler failed",
 			slog.String("sourceID", sourceID),
+			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
 	}
@@ -77,6 +79,7 @@ func (s *Server) invokeMemberJoinedHandler(handler JoinHandler, event webhook.Me
 		if r := recover(); r != nil {
 			s.logger.Error("member joined handler panicked",
 				slog.String("sourceID", sourceID),
+				slog.String("userID", userID),
 				slog.Any("joinedUserIDs", joinedUserIDs),
 				slog.Any("panic", r),
 			)
@@ -94,6 +97,7 @@ func (s *Server) invokeMemberJoinedHandler(handler JoinHandler, event webhook.Me
 	if err != nil {
 		s.logger.Error("member joined handler failed",
 			slog.String("sourceID", sourceID),
+			slog.String("userID", userID),
 			slog.Any("joinedUserIDs", joinedUserIDs),
 			slog.Any("error", err),
 		)
@@ -123,6 +127,7 @@ func (s *Server) invokeMemberLeftHandler(handler JoinHandler, event webhook.Memb
 		if r := recover(); r != nil {
 			s.logger.Error("member left handler panicked",
 				slog.String("sourceID", sourceID),
+				slog.String("userID", userID),
 				slog.Any("leftUserIDs", leftUserIDs),
 				slog.Any("panic", r),
 			)
@@ -140,6 +145,7 @@ func (s *Server) invokeMemberLeftHandler(handler JoinHandler, event webhook.Memb
 	if err != nil {
 		s.logger.Error("member left handler failed",
 			slog.String("sourceID", sourceID),
+			slog.String("userID", userID),
 			slog.Any("leftUserIDs", leftUserIDs),
 			slog.Any("error", err),
 		)
