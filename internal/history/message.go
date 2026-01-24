@@ -73,7 +73,7 @@ type Message interface {
 
 // UserMessage represents a message from a user.
 type UserMessage struct {
-	MessageID string // LINE message ID for unsend tracking (empty for legacy messages)
+	MessageID string
 	UserID    string
 	Parts     []UserPart
 	Timestamp time.Time
