@@ -69,6 +69,10 @@ func (s *Service) GetUserProfile(ctx context.Context, userID string) (*UserProfi
 
 // SetUserProfile stores user profile to cache and storage.
 func (s *Service) SetUserProfile(ctx context.Context, userID string, profile *UserProfile) error {
+	if profile == nil {
+		return errors.New("profile cannot be nil")
+	}
+
 	data, err := json.Marshal(profile)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user profile: %w", err)

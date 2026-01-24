@@ -69,6 +69,10 @@ func (s *Service) GetGroupProfile(ctx context.Context, groupID string) (*GroupPr
 
 // SetGroupProfile stores group profile to cache and storage.
 func (s *Service) SetGroupProfile(ctx context.Context, groupID string, profile *GroupProfile) error {
+	if profile == nil {
+		return errors.New("profile cannot be nil")
+	}
+
 	data, err := json.Marshal(profile)
 	if err != nil {
 		return fmt.Errorf("failed to marshal group profile: %w", err)

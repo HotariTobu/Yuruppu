@@ -27,6 +27,9 @@ func NewClient(channelToken string, logger *slog.Logger) (*Client, error) {
 	if channelToken == "" {
 		return nil, errors.New("missing required configuration: channelToken")
 	}
+	if logger == nil {
+		return nil, errors.New("missing required configuration: logger")
+	}
 
 	// Create messaging API client using LINE SDK
 	api, err := messaging_api.NewMessagingApiAPI(channelToken)
