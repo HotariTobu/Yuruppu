@@ -1002,7 +1002,7 @@ func TestHandleUnsend_EdgeCases(t *testing.T) {
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
 
 		// Create 100 messages
-		var initialMessages []history.Message
+		initialMessages := make([]history.Message, 0, 100)
 		ts := time.Now()
 		for i := range 100 {
 			initialMessages = append(initialMessages, &history.UserMessage{
