@@ -18,6 +18,7 @@ func serializeJSONL(messages []Message) ([]byte, error) {
 			}
 			m = message{
 				Role:      "user",
+				MessageID: v.MessageID,
 				UserID:    v.UserID,
 				Parts:     parts,
 				Timestamp: v.Timestamp,
