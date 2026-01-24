@@ -13,17 +13,6 @@ type FollowHandler interface {
 	HandleFollow(ctx context.Context) error
 }
 
-// dispatchFollow dispatches the follow event to all registered handlers.
-func (s *Server) dispatchFollow(followEvent webhook.FollowEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeFollowHandler(handler, followEvent)
-	}
-}
-
 func (s *Server) invokeFollowHandler(handler FollowHandler, followEvent webhook.FollowEvent) {
 	chatType, sourceID, userID := extractSourceInfo(followEvent.Source)
 

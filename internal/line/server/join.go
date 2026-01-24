@@ -15,17 +15,6 @@ type JoinHandler interface {
 	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
 }
 
-// dispatchJoin dispatches the join event to all registered handlers.
-func (s *Server) dispatchJoin(joinEvent webhook.JoinEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeJoinHandler(handler, joinEvent)
-	}
-}
-
 func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEvent) {
 	chatType, sourceID, userID := extractSourceInfo(joinEvent.Source)
 
@@ -53,17 +42,6 @@ func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEv
 			slog.String("userID", userID),
 			slog.Any("error", err),
 		)
-	}
-}
-
-// dispatchMemberJoined dispatches the member joined event to all registered handlers.
-func (s *Server) dispatchMemberJoined(event webhook.MemberJoinedEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeMemberJoinedHandler(handler, event)
 	}
 }
 
@@ -101,17 +79,6 @@ func (s *Server) invokeMemberJoinedHandler(handler JoinHandler, event webhook.Me
 			slog.Any("joinedUserIDs", joinedUserIDs),
 			slog.Any("error", err),
 		)
-	}
-}
-
-// dispatchMemberLeft dispatches the member left event to all registered handlers.
-func (s *Server) dispatchMemberLeft(event webhook.MemberLeftEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeMemberLeftHandler(handler, event)
 	}
 }
 

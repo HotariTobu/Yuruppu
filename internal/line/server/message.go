@@ -23,18 +23,6 @@ type MessageHandler interface {
 	HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error
 }
 
-// dispatchMessage dispatches the message event to all registered handlers.
-// Each handler runs asynchronously in its own goroutine with panic recovery.
-func (s *Server) dispatchMessage(msgEvent webhook.MessageEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeMessageHandler(handler, msgEvent)
-	}
-}
-
 func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.MessageEvent) {
 	chatType, sourceID, userID := extractSourceInfo(msgEvent.Source)
 

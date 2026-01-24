@@ -13,18 +13,6 @@ type UnsendHandler interface {
 	HandleUnsend(ctx context.Context, messageID string) error
 }
 
-// dispatchUnsend dispatches the unsend event to all registered handlers.
-// Each handler runs asynchronously in its own goroutine with panic recovery.
-func (s *Server) dispatchUnsend(unsendEvent webhook.UnsendEvent) {
-	if len(s.handlers) == 0 {
-		return
-	}
-
-	for _, handler := range s.handlers {
-		go s.invokeUnsendHandler(handler, unsendEvent)
-	}
-}
-
 func (s *Server) invokeUnsendHandler(handler UnsendHandler, unsendEvent webhook.UnsendEvent) {
 	chatType, sourceID, userID := extractSourceInfo(unsendEvent.Source)
 

@@ -37,7 +37,6 @@ func NewServer(channelSecret string, timeout time.Duration, logger *slog.Logger)
 	if channelSecret == "" {
 		return nil, errors.New("missing required configuration: channelSecret")
 	}
-
 	if timeout <= 0 {
 		return nil, errors.New("missing required configuration: timeout")
 	}
@@ -75,22 +74,37 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Return HTTP 200 OK immediately (before handler execution)
 	w.WriteHeader(http.StatusOK)
 
+	if len(s.handlers) == 0 {
+		return
+	}
+
 	// Process each event asynchronously
 	for _, event := range cb.Events {
-		switch e := event.(type) {
-		case webhook.FollowEvent:
-			s.dispatchFollow(e)
-		case webhook.JoinEvent:
-			s.dispatchJoin(e)
-		case webhook.MemberJoinedEvent:
-			s.dispatchMemberJoined(e)
-		case webhook.MemberLeftEvent:
-			s.dispatchMemberLeft(e)
-		case webhook.MessageEvent:
-			s.dispatchMessage(e)
-		case webhook.UnsendEvent:
-			s.dispatchUnsend(e)
-		}
+		go s.processEvent(event)
+	}
+}
+
+func (s *Server) processEvent(event webhook.EventInterface) {
+	var invoker func(Handler)
+	switch e := event.(type) {
+	case webhook.FollowEvent:
+		invoker = func(h Handler) { s.invokeFollowHandler(h, e) }
+	case webhook.JoinEvent:
+		invoker = func(h Handler) { s.invokeJoinHandler(h, e) }
+	case webhook.MemberJoinedEvent:
+		invoker = func(h Handler) { s.invokeMemberJoinedHandler(h, e) }
+	case webhook.MemberLeftEvent:
+		invoker = func(h Handler) { s.invokeMemberLeftHandler(h, e) }
+	case webhook.MessageEvent:
+		invoker = func(h Handler) { s.invokeMessageHandler(h, e) }
+	case webhook.UnsendEvent:
+		invoker = func(h Handler) { s.invokeUnsendHandler(h, e) }
+	default:
+		return
+	}
+
+	for _, handler := range s.handlers {
+		go invoker(handler)
 	}
 }
 
