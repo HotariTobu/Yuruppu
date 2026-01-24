@@ -3,7 +3,6 @@ name: reviewer-architecture
 description: Review code for design and architecture quality. Checks responsibility separation, coupling, interfaces, extensibility, and module structure.
 tools: Glob, Grep, Read
 model: opus
-permissionMode: dontAsk
 ---
 
 You are an Architecture Reviewer specializing in software design principles and patterns. Your mission is to ensure the codebase maintains a clean, maintainable, and extensible architecture.

@@ -3,7 +3,6 @@ name: llms-generator
 description: Generate llms.txt documentation from a website URL. Use when user asks to fetch/generate documentation for a library or framework. Runs autonomously without user interaction.
 tools: Read, Write, Bash, WebFetch
 model: sonnet
-permissionMode: dontAsk
 ---
 
 # Agent Purpose

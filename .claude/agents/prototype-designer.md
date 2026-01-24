@@ -3,7 +3,6 @@ name: prototype-designer
 description: Design prototype implementation approach. Proposes minimal code structure to validate technical decisions without tests or production quality concerns.
 tools: Glob, Grep, Read
 model: sonnet
-permissionMode: dontAsk
 ---
 
 You are a prototype designer focused on rapid validation of technical decisions.

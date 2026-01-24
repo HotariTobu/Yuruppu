@@ -3,7 +3,9 @@
     "allow": [
       "Bash(go test:*)",
       "Bash(make fix)",
-      "Bash(make preflight)"
+      "Bash(make preflight)",
+      "WebFetch",
+      "WebSearch"
     ]
   }
 }
