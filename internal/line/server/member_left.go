@@ -8,21 +8,20 @@ import (
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
 )
 
-// JoinHandler handles join and member events.
-type JoinHandler interface {
-	HandleJoin(ctx context.Context) error
-	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
-	HandleMemberLeft(ctx context.Context, leftUserIDs []string) error
-}
+func (s *Server) invokeMemberLeftHandler(handler JoinHandler, event webhook.MemberLeftEvent) {
+	chatType, sourceID, userID := extractSourceInfo(event.Source)
 
-func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEvent) {
-	chatType, sourceID, userID := extractSourceInfo(joinEvent.Source)
+	leftUserIDs := make([]string, 0, len(event.Left.Members))
+	for _, member := range event.Left.Members {
+		leftUserIDs = append(leftUserIDs, member.UserId)
+	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("join handler panicked",
+			s.logger.Error("member left handler panicked",
 				slog.String("sourceID", sourceID),
 				slog.String("userID", userID),
+				slog.Any("leftUserIDs", leftUserIDs),
 				slog.Any("panic", r),
 			)
 		}
@@ -35,11 +34,12 @@ func (s *Server) invokeJoinHandler(handler JoinHandler, joinEvent webhook.JoinEv
 	ctx = line.WithSourceID(ctx, sourceID)
 	ctx = line.WithUserID(ctx, userID)
 
-	err := handler.HandleJoin(ctx)
+	err := handler.HandleMemberLeft(ctx, leftUserIDs)
 	if err != nil {
-		s.logger.Error("join handler failed",
+		s.logger.Error("member left handler failed",
 			slog.String("sourceID", sourceID),
 			slog.String("userID", userID),
+			slog.Any("leftUserIDs", leftUserIDs),
 			slog.Any("error", err),
 		)
 	}
