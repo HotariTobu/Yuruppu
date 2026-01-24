@@ -16,7 +16,6 @@ type Handler interface {
 	FollowHandler
 	JoinHandler
 	MessageHandler
-	UnsendHandler
 }
 
 // Server handles incoming LINE webhook requests and dispatches to handlers.
@@ -88,8 +87,6 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			s.dispatchMemberLeft(e)
 		case webhook.MessageEvent:
 			s.dispatchMessage(e)
-		case webhook.UnsendEvent:
-			s.dispatchUnsend(e)
 		}
 	}
 }

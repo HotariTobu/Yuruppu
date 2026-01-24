@@ -73,7 +73,6 @@ type Message interface {
 
 // UserMessage represents a message from a user.
 type UserMessage struct {
-	MessageID string // LINE message ID for unsend tracking (empty for legacy messages)
 	UserID    string
 	Parts     []UserPart
 	Timestamp time.Time
@@ -113,7 +112,6 @@ type videoMetadata struct {
 
 type message struct {
 	Role      string    `json:"role"`
-	MessageID string    `json:"messageId,omitempty"`
 	UserID    string    `json:"userId,omitempty"`
 	ModelName string    `json:"modelName,omitempty"`
 	Parts     []part    `json:"parts"`

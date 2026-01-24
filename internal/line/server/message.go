@@ -59,22 +59,16 @@ func (s *Server) invokeMessageHandler(handler MessageHandler, msgEvent webhook.M
 	var err error
 	switch msg := msgEvent.Message.(type) {
 	case webhook.TextMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleText(ctx, msg.Text)
 	case webhook.ImageMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleImage(ctx, msg.Id)
 	case webhook.StickerMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleSticker(ctx, msg.PackageId, msg.StickerId)
 	case webhook.VideoMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleVideo(ctx, msg.Id)
 	case webhook.AudioMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleAudio(ctx, msg.Id)
 	case webhook.LocationMessageContent:
-		ctx = line.WithMessageID(ctx, msg.Id)
 		err = handler.HandleLocation(ctx, msg.Latitude, msg.Longitude)
 	case webhook.FileMessageContent:
 		err = handler.HandleFile(ctx, msg.Id, msg.FileName, int64(msg.FileSize))
