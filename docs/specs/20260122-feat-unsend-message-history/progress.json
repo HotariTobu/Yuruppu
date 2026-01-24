@@ -1,13 +1,13 @@
 {
-  "phase": "completed",
+  "phase": "in-progress",
   "lastUpdated": "2026-01-24",
   "requirements": [
     { "id": "FR-001", "passes": true },
-    { "id": "FR-002", "passes": true },
-    { "id": "FR-003", "passes": true },
-    { "id": "FR-004", "passes": true },
+    { "id": "FR-002", "passes": false },
+    { "id": "FR-003", "passes": false },
+    { "id": "FR-004", "passes": false },
     { "id": "NFR-001", "passes": true }
   ],
   "blockers": [],
-  "notes": "All requirements complete. HandleUnsend in internal/bot/unsend.go implements FR-003 (filter-based removal), FR-004 (PutHistory persists changes), and NFR-001 (generation-based optimistic locking). 26 unit tests + 14 integration tests passing. All reviewer agents approved. Ready for PR."
+  "notes": "FR-002/FR-003/FR-004 blocked: MessageID is not set when messages are received. HandleText and other handlers in internal/bot/message.go do not set UserMessage.MessageID. Server layer does not pass messageID to handlers. Infrastructure (UnsendHandler, filter logic, optimistic locking) is complete but unusable without MessageID population."
 }
