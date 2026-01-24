@@ -16,41 +16,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type unsendHandler struct {
+type followHandler struct {
 	stubHandler
-	mu       sync.Mutex
-	messages []unsendEvent
+	called   bool
+	sourceID string
+	userID   string
+	chatType line.ChatType
 	onCall   func()
 }
 
-type unsendEvent struct {
-	messageID string
-	sourceID  string
-	userID    string
-	chatType  line.ChatType
-}
-
-func (h *unsendHandler) HandleUnsend(ctx context.Context, messageID string) error {
-	sourceID, _ := line.SourceIDFromContext(ctx)
-	userID, _ := line.UserIDFromContext(ctx)
-	chatType, _ := line.ChatTypeFromContext(ctx)
-
-	h.mu.Lock()
-	h.messages = append(h.messages, unsendEvent{
-		messageID: messageID,
-		sourceID:  sourceID,
-		userID:    userID,
-		chatType:  chatType,
-	})
-	h.mu.Unlock()
-
+func (h *followHandler) HandleFollow(ctx context.Context) error {
+	h.called = true
+	h.sourceID, _ = line.SourceIDFromContext(ctx)
+	h.userID, _ = line.UserIDFromContext(ctx)
+	h.chatType, _ = line.ChatTypeFromContext(ctx)
 	if h.onCall != nil {
 		h.onCall()
 	}
 	return nil
 }
 
-func TestUnsend_OneOnOneChat(t *testing.T) {
+func TestFollow_ContextValues(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -58,15 +44,15 @@ func TestUnsend_OneOnOneChat(t *testing.T) {
 	require.NoError(t, err)
 
 	done := make(chan struct{})
-	handler := &unsendHandler{onCall: func() { close(done) }}
+	handler := &followHandler{onCall: func() { close(done) }}
 	s.RegisterHandler(handler)
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -85,107 +71,13 @@ func TestUnsend_OneOnOneChat(t *testing.T) {
 		t.Fatal("handler was not invoked")
 	}
 
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-
-	require.Len(t, handler.messages, 1)
-	assert.Equal(t, "12345678901234", handler.messages[0].messageID)
-	assert.Equal(t, "U1234567890abcdef", handler.messages[0].sourceID)
-	assert.Equal(t, "U1234567890abcdef", handler.messages[0].userID)
-	assert.Equal(t, line.ChatTypeOneOnOne, handler.messages[0].chatType)
+	assert.True(t, handler.called)
+	assert.Equal(t, "U1234567890abcdef", handler.sourceID)
+	assert.Equal(t, "U1234567890abcdef", handler.userID)
+	assert.Equal(t, line.ChatTypeOneOnOne, handler.chatType)
 }
 
-func TestUnsend_GroupChat(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	s, err := server.NewServer(channelSecret, 30*time.Second, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	handler := &unsendHandler{onCall: func() { close(done) }}
-	s.RegisterHandler(handler)
-
-	body := `{
-		"events": [{
-			"type": "unsend",
-			"source": {"type": "group", "groupId": "C1234567890abcdef", "userId": "U9876543210fedcba"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "98765432109876"}
-		}]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-	s.HandleWebhook(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("handler was not invoked")
-	}
-
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-
-	require.Len(t, handler.messages, 1)
-	assert.Equal(t, "98765432109876", handler.messages[0].messageID)
-	assert.Equal(t, "C1234567890abcdef", handler.messages[0].sourceID)
-	assert.Equal(t, "U9876543210fedcba", handler.messages[0].userID)
-	assert.Equal(t, line.ChatTypeGroup, handler.messages[0].chatType)
-}
-
-func TestUnsend_RoomChat(t *testing.T) {
-	t.Parallel()
-
-	channelSecret := "test-secret"
-	s, err := server.NewServer(channelSecret, 30*time.Second, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	handler := &unsendHandler{onCall: func() { close(done) }}
-	s.RegisterHandler(handler)
-
-	body := `{
-		"events": [{
-			"type": "unsend",
-			"source": {"type": "room", "roomId": "R1234567890abcdef", "userId": "U9876543210fedcba"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "11111111111111"}
-		}]
-	}`
-	signature := computeSignature([]byte(body), channelSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(body))
-	req.Header.Set("X-Line-Signature", signature)
-
-	w := httptest.NewRecorder()
-	s.HandleWebhook(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("handler was not invoked")
-	}
-
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-
-	require.Len(t, handler.messages, 1)
-	assert.Equal(t, "11111111111111", handler.messages[0].messageID)
-	assert.Equal(t, "R1234567890abcdef", handler.messages[0].sourceID)
-	assert.Equal(t, "U9876543210fedcba", handler.messages[0].userID)
-	assert.Equal(t, line.ChatTypeGroup, handler.messages[0].chatType)
-}
-
-func TestUnsend_ContextTimeout(t *testing.T) {
+func TestFollow_ContextTimeout(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -195,9 +87,9 @@ func TestUnsend_ContextTimeout(t *testing.T) {
 
 	handlerStarted := make(chan struct{})
 	contextCancelled := make(chan struct{})
-	handler := &unsendTimeoutHandler{
+	handler := &followTimeoutHandler{
 		stubHandler: stubHandler{},
-		onUnsend: func(ctx context.Context) {
+		onFollow: func(ctx context.Context) {
 			close(handlerStarted)
 			select {
 			case <-ctx.Done():
@@ -211,10 +103,10 @@ func TestUnsend_ContextTimeout(t *testing.T) {
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -238,19 +130,19 @@ func TestUnsend_ContextTimeout(t *testing.T) {
 	}
 }
 
-type unsendTimeoutHandler struct {
+type followTimeoutHandler struct {
 	stubHandler
-	onUnsend func(ctx context.Context)
+	onFollow func(ctx context.Context)
 }
 
-func (h *unsendTimeoutHandler) HandleUnsend(ctx context.Context, messageID string) error {
-	if h.onUnsend != nil {
-		h.onUnsend(ctx)
+func (h *followTimeoutHandler) HandleFollow(ctx context.Context) error {
+	if h.onFollow != nil {
+		h.onFollow(ctx)
 	}
 	return nil
 }
 
-func TestUnsend_PanicRecovery(t *testing.T) {
+func TestFollow_PanicRecovery(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -258,9 +150,9 @@ func TestUnsend_PanicRecovery(t *testing.T) {
 	require.NoError(t, err)
 
 	panicTriggered := make(chan struct{})
-	handler := &unsendPanicHandler{
+	handler := &followPanicHandler{
 		stubHandler: stubHandler{},
-		onUnsend: func() {
+		onFollow: func() {
 			close(panicTriggered)
 			panic("test panic")
 		},
@@ -269,10 +161,10 @@ func TestUnsend_PanicRecovery(t *testing.T) {
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -295,19 +187,19 @@ func TestUnsend_PanicRecovery(t *testing.T) {
 	}
 }
 
-type unsendPanicHandler struct {
+type followPanicHandler struct {
 	stubHandler
-	onUnsend func()
+	onFollow func()
 }
 
-func (h *unsendPanicHandler) HandleUnsend(ctx context.Context, messageID string) error {
-	if h.onUnsend != nil {
-		h.onUnsend()
+func (h *followPanicHandler) HandleFollow(ctx context.Context) error {
+	if h.onFollow != nil {
+		h.onFollow()
 	}
 	return nil
 }
 
-func TestUnsend_AsyncExecution(t *testing.T) {
+func TestFollow_AsyncExecution(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -315,7 +207,7 @@ func TestUnsend_AsyncExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	handlerDone := make(chan struct{})
-	handler := &unsendHandler{onCall: func() {
+	handler := &followHandler{onCall: func() {
 		time.Sleep(500 * time.Millisecond)
 		close(handlerDone)
 	}}
@@ -323,10 +215,10 @@ func TestUnsend_AsyncExecution(t *testing.T) {
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -350,7 +242,7 @@ func TestUnsend_AsyncExecution(t *testing.T) {
 	}
 }
 
-func TestUnsend_MultipleHandlers(t *testing.T) {
+func TestFollow_MultipleHandlers(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -360,17 +252,17 @@ func TestUnsend_MultipleHandlers(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	handler1 := &unsendHandler{onCall: func() { wg.Done() }}
-	handler2 := &unsendHandler{onCall: func() { wg.Done() }}
+	handler1 := &followHandler{onCall: func() { wg.Done() }}
+	handler2 := &followHandler{onCall: func() { wg.Done() }}
 	s.RegisterHandler(handler1)
 	s.RegisterHandler(handler2)
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -396,7 +288,7 @@ func TestUnsend_MultipleHandlers(t *testing.T) {
 	}
 }
 
-func TestUnsend_HandlerError(t *testing.T) {
+func TestFollow_HandlerError(t *testing.T) {
 	t.Parallel()
 
 	channelSecret := "test-secret"
@@ -404,9 +296,9 @@ func TestUnsend_HandlerError(t *testing.T) {
 	require.NoError(t, err)
 
 	handlerCalled := make(chan struct{})
-	handler := &unsendErrorHandler{
+	handler := &followErrorHandler{
 		stubHandler: stubHandler{},
-		onUnsend: func() error {
+		onFollow: func() error {
 			close(handlerCalled)
 			return assert.AnError
 		},
@@ -415,10 +307,10 @@ func TestUnsend_HandlerError(t *testing.T) {
 
 	body := `{
 		"events": [{
-			"type": "unsend",
+			"type": "follow",
+			"replyToken": "test-reply-token",
 			"source": {"type": "user", "userId": "U1234567890abcdef"},
-			"timestamp": 1625000000000,
-			"unsend": {"messageId": "12345678901234"}
+			"timestamp": 1625000000000
 		}]
 	}`
 	signature := computeSignature([]byte(body), channelSecret)
@@ -438,14 +330,14 @@ func TestUnsend_HandlerError(t *testing.T) {
 	}
 }
 
-type unsendErrorHandler struct {
+type followErrorHandler struct {
 	stubHandler
-	onUnsend func() error
+	onFollow func() error
 }
 
-func (h *unsendErrorHandler) HandleUnsend(ctx context.Context, messageID string) error {
-	if h.onUnsend != nil {
-		return h.onUnsend()
+func (h *followErrorHandler) HandleFollow(ctx context.Context) error {
+	if h.onFollow != nil {
+		return h.onFollow()
 	}
 	return nil
 }
