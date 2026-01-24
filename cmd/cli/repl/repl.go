@@ -10,13 +10,15 @@ import (
 	"strings"
 	"yuruppu/internal/line"
 	"yuruppu/internal/userprofile"
+
+	"github.com/google/uuid"
 )
 
 // CLIReplyToken is a dummy reply token used for CLI messages.
 const CLIReplyToken = "dummy"
 
 type MessageHandler interface {
-	HandleText(ctx context.Context, text string) error
+	HandleText(ctx context.Context, messageID, text string) error
 	HandleJoin(ctx context.Context) error
 	HandleMemberJoined(ctx context.Context, joinedUserIDs []string) error
 }
@@ -203,6 +205,12 @@ func (r *Runner) handleInviteBot(ctx context.Context) {
 func (r *Runner) handleText(ctx context.Context, text string) {
 	msgCtx := r.buildMessageContext(ctx)
 
+	messageID, err := uuid.NewV7()
+	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to generate message ID", "error", err)
+		return
+	}
+
 	if r.groupID != "" && r.groupSimService != nil {
 		botInGroup, err := r.groupSimService.IsBotInGroup(msgCtx, r.groupID)
 		if err != nil {
@@ -214,7 +222,7 @@ func (r *Runner) handleText(ctx context.Context, text string) {
 		}
 	}
 
-	if err := r.handler.HandleText(msgCtx, text); err != nil {
+	if err := r.handler.HandleText(msgCtx, messageID.String(), text); err != nil {
 		r.logger.ErrorContext(msgCtx, "handler error", "error", err)
 	}
 }

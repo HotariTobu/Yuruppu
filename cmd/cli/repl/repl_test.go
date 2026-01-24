@@ -45,7 +45,7 @@ type handleMemberJoinedCall struct {
 	joinedUserIDs []string
 }
 
-func (m *mockHandler) HandleText(ctx context.Context, text string) error {
+func (m *mockHandler) HandleText(ctx context.Context, messageID, text string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}

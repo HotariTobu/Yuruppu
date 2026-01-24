@@ -99,7 +99,7 @@ type unsendMessage struct {
 	chatType                                line.ChatType
 }
 
-func (m *mockHandler) HandleText(ctx context.Context, text string) error {
+func (m *mockHandler) HandleText(ctx context.Context, messageID, text string) error {
 	replyToken, _ := line.ReplyTokenFromContext(ctx)
 	sourceID, _ := line.SourceIDFromContext(ctx)
 	m.mu.Lock()
@@ -123,7 +123,7 @@ func (m *mockHandler) HandleImage(ctx context.Context, messageID string) error {
 	return nil
 }
 
-func (m *mockHandler) HandleSticker(ctx context.Context, packageID, stickerID string) error {
+func (m *mockHandler) HandleSticker(ctx context.Context, messageID, packageID, stickerID string) error {
 	replyToken, _ := line.ReplyTokenFromContext(ctx)
 	sourceID, _ := line.SourceIDFromContext(ctx)
 	m.mu.Lock()
@@ -159,7 +159,7 @@ func (m *mockHandler) HandleAudio(ctx context.Context, messageID string) error {
 	return nil
 }
 
-func (m *mockHandler) HandleLocation(ctx context.Context, latitude, longitude float64) error {
+func (m *mockHandler) HandleLocation(ctx context.Context, messageID string, latitude, longitude float64) error {
 	replyToken, _ := line.ReplyTokenFromContext(ctx)
 	sourceID, _ := line.SourceIDFromContext(ctx)
 	m.mu.Lock()

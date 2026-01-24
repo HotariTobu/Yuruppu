@@ -14,12 +14,12 @@ import (
 // The error return is used for logging purposes only - the HTTP response
 // is already sent before handler execution.
 type MessageHandler interface {
-	HandleText(ctx context.Context, text string) error
+	HandleText(ctx context.Context, messageID, text string) error
 	HandleImage(ctx context.Context, messageID string) error
-	HandleSticker(ctx context.Context, packageID, stickerID string) error
+	HandleSticker(ctx context.Context, messageID, packageID, stickerID string) error
 	HandleVideo(ctx context.Context, messageID string) error
 	HandleAudio(ctx context.Context, messageID string) error
-	HandleLocation(ctx context.Context, latitude, longitude float64) error
+	HandleLocation(ctx context.Context, messageID string, latitude, longitude float64) error
 	HandleFile(ctx context.Context, messageID, fileName string, fileSize int64) error
 }
 
@@ -47,17 +47,17 @@ func (s *Server) invokeMessage(handler MessageHandler, msgEvent webhook.MessageE
 	var err error
 	switch msg := msgEvent.Message.(type) {
 	case webhook.TextMessageContent:
-		err = handler.HandleText(ctx, msg.Text)
+		err = handler.HandleText(ctx, msg.Id, msg.Text)
 	case webhook.ImageMessageContent:
 		err = handler.HandleImage(ctx, msg.Id)
 	case webhook.StickerMessageContent:
-		err = handler.HandleSticker(ctx, msg.PackageId, msg.StickerId)
+		err = handler.HandleSticker(ctx, msg.Id, msg.PackageId, msg.StickerId)
 	case webhook.VideoMessageContent:
 		err = handler.HandleVideo(ctx, msg.Id)
 	case webhook.AudioMessageContent:
 		err = handler.HandleAudio(ctx, msg.Id)
 	case webhook.LocationMessageContent:
-		err = handler.HandleLocation(ctx, msg.Latitude, msg.Longitude)
+		err = handler.HandleLocation(ctx, msg.Id, msg.Latitude, msg.Longitude)
 	case webhook.FileMessageContent:
 		err = handler.HandleFile(ctx, msg.Id, msg.FileName, int64(msg.FileSize))
 	}

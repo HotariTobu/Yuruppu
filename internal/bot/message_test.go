@@ -141,7 +141,7 @@ func TestHandleMessage_DelayedLoadingIndicator(t *testing.T) {
 
 		// 1:1 chat: sourceID == userID
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		// Verify ShowLoadingAnimation was called
@@ -174,7 +174,7 @@ func TestHandleMessage_DelayedLoadingIndicator(t *testing.T) {
 
 		// 1:1 chat: sourceID == userID
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		// Verify ShowLoadingAnimation was NOT called
@@ -205,7 +205,7 @@ func TestHandleMessage_DelayedLoadingIndicator(t *testing.T) {
 
 		// Group chat: sourceID != userID
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		// Verify ShowLoadingAnimation was NOT called for group chat
@@ -240,7 +240,7 @@ func TestHandleMessage_DelayedLoadingIndicator(t *testing.T) {
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
 
 		start := time.Now()
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
@@ -275,7 +275,7 @@ func TestHandleMessage_DelayedLoadingIndicator(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		// Processing should succeed even though ShowLoadingAnimation failed
 		require.NoError(t, err, "message processing should succeed even if ShowLoadingAnimation fails")
@@ -305,7 +305,7 @@ func TestHandleMessage_LoadingIndicatorEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		// With zero delay, indicator should be shown immediately for any processing time
@@ -333,7 +333,7 @@ func TestHandleMessage_LoadingIndicatorEdgeCases(t *testing.T) {
 
 		// Room chat: sourceID != userID
 		ctx := withLineContext(t.Context(), "reply-token", "room-456", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		assert.False(t, mockClient.showLoadingCalled, "ShowLoadingAnimation should NOT be called in room chat")
@@ -367,7 +367,7 @@ func TestHandleMessage_LoadingIndicatorEdgeCases(t *testing.T) {
 			cancel()
 		}()
 
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		// Processing should fail due to context cancellation
 		require.Error(t, err, "processing should fail when context is cancelled")
@@ -393,7 +393,7 @@ func TestHandleMessage_LoadingIndicatorEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hello")
+		err = h.HandleText(ctx, "test-msg-id", "Hello")
 
 		require.NoError(t, err)
 		assert.True(t, mockClient.showLoadingCalled)
@@ -416,7 +416,7 @@ func TestHandler_HandleText(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.NoError(t, err)
 	})
@@ -431,7 +431,7 @@ func TestHandler_HandleText(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "LLM failed")
@@ -453,7 +453,7 @@ func TestHandler_HandleSticker(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleSticker(ctx, "pkg-1", "stk-2")
+		err = h.HandleSticker(ctx, "test-msg-id", "pkg-1", "stk-2")
 
 		require.NoError(t, err)
 		assert.Equal(t, "[User sent a sticker]", mockAg.lastUserMessageText)
@@ -519,7 +519,7 @@ func TestHandler_HandleLocation(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleLocation(ctx, 35.6762, 139.6503)
+		err = h.HandleLocation(ctx, "test-msg-id", 35.6762, 139.6503)
 
 		require.NoError(t, err)
 		assert.Equal(t, "[User sent a location]", mockAg.lastUserMessageText)
@@ -563,7 +563,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.NoError(t, err)
 		// Verify storage was called once (user message only, assistant message is saved by reply tool)
@@ -581,7 +581,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read history")
@@ -598,7 +598,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to write history")
@@ -614,7 +614,7 @@ func TestHandler_HistoryIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		// User message is saved before agent is called
@@ -638,7 +638,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		// Verify error chain preserves original error
@@ -659,7 +659,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		// Verify error chain preserves original error
@@ -680,7 +680,7 @@ func TestHandler_ErrorChain(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err = h.HandleText(ctx, "Hi")
+		err = h.HandleText(ctx, "test-msg-id", "Hi")
 
 		require.Error(t, err)
 		// Verify error chain preserves original error
@@ -714,7 +714,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// When: A user sends a message in the group chat
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
-		err := h.HandleText(ctx, "Hi everyone!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi everyone!")
 
 		// Then: The group member count is included in the context
 		require.NoError(t, err)
@@ -739,7 +739,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// When: The message is processed
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
-		err := h.HandleText(ctx, "Hi everyone!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi everyone!")
 
 		// Then: Message processing continues normally
 		require.NoError(t, err, "message processing should continue despite missing group profile")
@@ -759,7 +759,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// When: A user sends a message in 1:1 chat
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err := h.HandleText(ctx, "Hi!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi!")
 
 		// Then: The context does not include user_count for 1:1 chats
 		require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// When: A user sends a message in 1:1 chat
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err := h.HandleText(ctx, "Hi!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi!")
 
 		// Then: Group profile service should not be called
 		require.NoError(t, err)
@@ -804,7 +804,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 		// When: A user sends a message in the group
 		ctx := withLineContext(t.Context(), "reply-token", "group-456", "user-123")
-		err := h.HandleText(ctx, "Hi everyone!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi everyone!")
 
 		// Then: Group profile service is called with correct groupID
 		require.NoError(t, err)
@@ -857,7 +857,7 @@ func TestHandleMessage_GroupMemberCount(t *testing.T) {
 
 				// When: A message is sent
 				ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
-				err := h.HandleText(ctx, "Hi!")
+				err := h.HandleText(ctx, "test-msg-id", "Hi!")
 
 				// Then: The correct user_count is in the context
 				require.NoError(t, err)
@@ -890,7 +890,7 @@ func TestHandleMessage_ContextFormat(t *testing.T) {
 
 		// When: A message is sent
 		ctx := withLineContext(t.Context(), "reply-token", "group-789", "user-123")
-		err := h.HandleText(ctx, "Hi!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi!")
 
 		// Then: Context contains all required fields
 		require.NoError(t, err)
@@ -915,7 +915,7 @@ func TestHandleMessage_ContextFormat(t *testing.T) {
 
 		// When: A message is sent
 		ctx := withLineContext(t.Context(), "reply-token", "user-123", "user-123")
-		err := h.HandleText(ctx, "Hi!")
+		err := h.HandleText(ctx, "test-msg-id", "Hi!")
 
 		// Then: Context contains all required fields
 		require.NoError(t, err)

@@ -31,6 +31,8 @@ import (
 	"yuruppu/internal/yuruppu"
 
 	eventdomain "yuruppu/internal/event"
+
+	"github.com/google/uuid"
 )
 
 // userIDPattern validates user ID format: [0-9a-z_]+
@@ -70,7 +72,11 @@ func runSingleTurn(ctx context.Context, handler *bot.Handler, groupService *grou
 	msgCtx = line.WithUserID(msgCtx, userID)
 	msgCtx = line.WithReplyToken(msgCtx, repl.CLIReplyToken)
 
-	if err := handler.HandleText(msgCtx, message); err != nil {
+	messageID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("failed to generate message ID: %w", err)
+	}
+	if err := handler.HandleText(msgCtx, messageID.String(), message); err != nil {
 		return fmt.Errorf("failed to handle message: %w", err)
 	}
 	return nil

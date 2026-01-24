@@ -1,13 +1,13 @@
 {
   "phase": "in-progress",
-  "lastUpdated": "2026-01-24",
+  "lastUpdated": "2026-01-25",
   "requirements": [
     { "id": "FR-001", "passes": true },
-    { "id": "FR-002", "passes": false },
+    { "id": "FR-002", "passes": true },
     { "id": "FR-003", "passes": false },
     { "id": "FR-004", "passes": false },
     { "id": "NFR-001", "passes": true }
   ],
   "blockers": [],
-  "notes": "FR-002/FR-003/FR-004 blocked: MessageID is not set when messages are received. HandleText and other handlers in internal/bot/message.go do not set UserMessage.MessageID. Server layer does not pass messageID to handlers. Infrastructure (UnsendHandler, filter logic, optimistic locking) is complete but unusable without MessageID population."
+  "notes": "FR-002 complete: MessageID is now passed from server layer to all handlers (text, image, sticker, video, audio, location, file) and stored in UserMessage. CLI generates UUID v7 for test messages. Next session should verify FR-003/FR-004 by testing the full unsend flow end-to-end. Consider adding MessageID storage tests for all message types (currently only image has explicit FR-002 test)."
 }
