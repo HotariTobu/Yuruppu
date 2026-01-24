@@ -57,20 +57,20 @@ func convertUserPartsToJSON(parts []UserPart) ([]part, error) {
 				Text: v.Text,
 			})
 		case *UserFileDataPart:
-			p := part{
+			filePart := part{
 				Type:        "file_data",
 				StorageKey:  v.StorageKey,
 				MIMEType:    v.MIMEType,
 				DisplayName: v.DisplayName,
 			}
 			if v.VideoMetadata != nil {
-				p.VideoMetadata = &videoMetadata{
+				filePart.VideoMetadata = &videoMetadata{
 					StartOffset: v.VideoMetadata.StartOffset,
 					EndOffset:   v.VideoMetadata.EndOffset,
 					FPS:         v.VideoMetadata.FPS,
 				}
 			}
-			result = append(result, p)
+			result = append(result, filePart)
 		default:
 			return nil, fmt.Errorf("unknown user part type: %T", p)
 		}
