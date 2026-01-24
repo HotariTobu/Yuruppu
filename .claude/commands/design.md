@@ -39,8 +39,8 @@ Create detailed design through collaboration with user. This ensures implementat
    - Ask user: "Are there any additional insights from the prototype?"
 
 3. **Design file structure** (confirm with user):
-   - List files to create/modify
-   - Explain purpose of each file
+   - List files involved in this feature
+   - Describe what each file provides (target state, not changes)
    - Ask user: "Does this file structure look correct?"
 
 4. **Design interfaces** (confirm with user):
@@ -117,7 +117,7 @@ func (e *Example) Method() error
 <Brief summary of design decisions>
 
 ### Files
-- <list of files to create/modify>
+- <list of files involved>
 
 ### Ready for Implementation
 Run `/session-start <spec-name>` to begin TDD implementation.
