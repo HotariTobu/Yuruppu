@@ -20,6 +20,7 @@ Create detailed design through collaboration with user. This ensures implementat
 
 - **Collaborate with user** - Do NOT delegate to subagents
 - **Confirm frequently** - Ask user for confirmation at each major decision
+- **Use AskUserQuestion tool** - For all user confirmations
 - **Document decisions** - Write to `docs/specs/<spec-name>/design.md`
 
 ## Task
@@ -31,34 +32,40 @@ Create detailed design through collaboration with user. This ensures implementat
 
 1. **Load context**:
    - Read `spec.md` and `progress.json`
-   - Read prototype commits and any prototype code
+   - Read prototype commit messages
+   - Read prototype diffs (`git show <commit>`)
 
-2. **Review prototype learnings**:
+2. **Handle prototype code** (confirm with user):
+   - Ask user: "Do you want to revert the prototype code before design?"
+     - If yes: Revert prototype commits
+     - If no: Keep as reference
+
+3. **Review prototype learnings**:
    - What worked in the prototype?
    - What needs to change?
    - Ask user: "Are there any additional insights from the prototype?"
 
-3. **Design data flow** (confirm with user):
+4. **Design data flow** (confirm with user):
    - Describe how data flows through the system
    - Identify transformations
    - Ask user: "Does this data flow make sense?"
 
-4. **Design interfaces** (confirm with user):
+5. **Design interfaces** (confirm with user):
    - Define types, structs, method signatures
    - Show proposed interfaces
    - Ask user: "Do these interfaces meet your expectations?"
 
-5. **Design file structure** (confirm with user):
+6. **Design file structure** (confirm with user):
    - List files involved in this feature
    - Describe what each file provides (target state, not changes)
    - Ask user: "Does this file structure look correct?"
 
-6. **Write design.md**:
+7. **Write design.md**:
    - Create `docs/specs/<spec-name>/design.md` with all decisions
    - Show final design to user for approval
    - Ask user: "Is this design ready for implementation?"
 
-7. **Update progress.json**:
+8. **Update progress.json**:
    ```json
    {
      "phase": "designed",
@@ -66,16 +73,11 @@ Create detailed design through collaboration with user. This ensures implementat
    }
    ```
 
-8. **Commit changes**:
+9. **Commit changes**:
    ```bash
    git add docs/specs/<spec-name>/design.md docs/specs/<spec-name>/progress.json
    git commit -m "docs(<spec-name>): complete design phase"
    ```
-
-9. **Handle prototype code** (confirm with user):
-   - Ask user: "Do you want to revert the prototype code before implementation?"
-     - If yes: Revert prototype commits
-     - If no: Keep as reference
 
 ## design.md Template
 
